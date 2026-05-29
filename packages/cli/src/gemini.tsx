@@ -479,7 +479,8 @@ export async function main() {
     validateDnsResolutionOrder(settings.merged.advanced.dnsResolutionOrder),
   );
 
-  // Set a default auth type if one isn't set or is set to a legacy type
+  // Set a default auth type if one isn't set or is set to a legacy type.
+  // Always default to USE_LOCAL_LLM — Google auth is not used in this build.
   if (
     !settings.merged.security.auth.selectedType ||
     settings.merged.security.auth.selectedType === AuthType.LEGACY_CLOUD_SHELL
@@ -492,6 +493,12 @@ export async function main() {
         SettingScope.User,
         'security.auth.selectedType',
         AuthType.COMPUTE_ADC,
+      );
+    } else {
+      settings.setValue(
+        SettingScope.User,
+        'security.auth.selectedType',
+        AuthType.USE_LOCAL_LLM,
       );
     }
   }
@@ -509,16 +516,9 @@ export async function main() {
   // redirect.
   let initialAuthFailed = false;
 
-  // openrnd: if llm settings are configured in settings.json, use local LLM auth
-  // and skip any Google auth flow entirely.
-  const hasLlmSettings = !!(
-    settings.merged.llm?.baseUrl ||
-    process.env['OPENRND_BASE_URL'] ||
-    process.env['OPENRND_MODEL']
-  );
-  const effectiveAuthType = hasLlmSettings
-    ? AuthType.USE_LOCAL_LLM
-    : settings.merged.security.auth.selectedType;
+  // Always use local LLM — override any Google auth type that may have been
+  // saved from a previous session.
+  const effectiveAuthType = AuthType.USE_LOCAL_LLM;
 
   if (!settings.merged.security.auth.useExternal && !argv.isCommand) {
     try {
