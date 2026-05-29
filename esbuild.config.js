@@ -7,7 +7,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { wasmLoader } from 'esbuild-plugin-wasm';
 
 let esbuild;
@@ -160,6 +160,16 @@ const a2aServerConfig = {
   plugins: createWasmPlugins(),
   alias: commonAliases,
 };
+
+// Clean the bundle output directory before building. esbuild uses
+// content-hashed chunk names (gemini-*.js) and does NOT remove stale outputs,
+// so old chunks accumulate and the running CLI can keep loading outdated code.
+// Cross-platform (works on Windows/macOS/Linux) — no `rm -rf` needed.
+// Safe because asset copying (copy_bundle_assets.js) runs after this step and
+// other bundles (a2a-server, browser-mcp) write outside `bundle/`.
+const bundleDir = path.resolve(__dirname, 'bundle');
+rmSync(bundleDir, { recursive: true, force: true });
+mkdirSync(bundleDir, { recursive: true });
 
 Promise.allSettled([
   esbuild.build(cliConfig).then(({ metafile }) => {
