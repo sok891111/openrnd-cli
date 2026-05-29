@@ -91,17 +91,8 @@ export const useAuthCommand = (
         return;
       }
 
-      const authType = settings.merged.security.auth.selectedType;
-      if (!authType) {
-        if (process.env['GEMINI_API_KEY']) {
-          onAuthError(
-            'Existing API key detected (GEMINI_API_KEY). Select "Gemini API Key" option to use it.',
-          );
-        } else {
-          onAuthError('No authentication method selected.');
-        }
-        return;
-      }
+      const authType =
+        settings.merged.security.auth.selectedType ?? AuthType.USE_LOCAL_LLM;
 
       if (authType === AuthType.USE_GEMINI) {
         const key = await reloadApiKey(); // Use the unified function

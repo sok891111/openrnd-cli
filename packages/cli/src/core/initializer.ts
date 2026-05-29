@@ -14,6 +14,7 @@ import {
   logCliConfiguration,
   startupProfiler,
   debugLogger,
+  AuthType,
 } from '@openrnd/core';
 import { type LoadedSettings } from '../config/settings.js';
 import { performInitialAuth } from './auth.js';
@@ -40,15 +41,16 @@ export async function initializeApp(
   settings: LoadedSettings,
 ): Promise<InitializationResult> {
   const authHandle = startupProfiler.start('authenticate');
+  const authType =
+    settings.merged.security.auth.selectedType ?? AuthType.USE_LOCAL_LLM;
   const { authError, accountSuspensionInfo } = await performInitialAuth(
     config,
-    settings.merged.security.auth.selectedType,
+    authType,
   );
   authHandle?.end();
   const themeError = validateTheme(settings);
 
-  const shouldOpenAuthDialog =
-    settings.merged.security.auth.selectedType === undefined || !!authError;
+  const shouldOpenAuthDialog = !!authError;
 
   logCliConfiguration(
     config,

@@ -100,7 +100,7 @@ export function getAuthTypeFromEnv(): AuthType | undefined {
   ) {
     return AuthType.COMPUTE_ADC;
   }
-  return undefined;
+  return AuthType.USE_LOCAL_LLM;
 }
 
 export type ContentGeneratorConfig = {
