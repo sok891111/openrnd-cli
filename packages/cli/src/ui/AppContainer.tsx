@@ -764,10 +764,12 @@ export const AppContainer = (props: AppContainerProps) => {
 
   // Derive auth state variables for backward compatibility with UIStateContext
   const isAuthDialogOpen = authState === AuthState.Updating;
-  // TODO: Consider handling other auth types that should also skip the blocking screen
+  // Only show the blocking auth screen for Google OAuth (LOGIN_WITH_GOOGLE),
+  // which requires waiting for a browser-based flow. Local LLM and other
+  // non-interactive auth types skip this screen entirely.
   const isAuthenticating =
     authState === AuthState.Unauthenticated &&
-    settings.merged.security.auth.selectedType !== AuthType.USE_GEMINI;
+    settings.merged.security.auth.selectedType === AuthType.LOGIN_WITH_GOOGLE;
 
   // Session browser and resume functionality
   const isGeminiClientInitialized = config.getGeminiClient()?.isInitialized();

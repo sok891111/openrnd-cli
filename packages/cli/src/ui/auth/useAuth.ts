@@ -44,9 +44,17 @@ export const useAuthCommand = (
   initialAuthError: string | null = null,
   initialAccountSuspensionInfo: AccountSuspensionInfo | null = null,
 ) => {
-  const [authState, setAuthState] = useState<AuthState>(
-    initialAuthError ? AuthState.Updating : AuthState.Unauthenticated,
-  );
+  // Local LLM auth is handled during app initialization (performInitialAuth),
+  // so we start as Authenticated immediately without waiting for the useEffect.
+  const effectiveAuthType =
+    settings.merged.security.auth.selectedType ?? AuthType.USE_LOCAL_LLM;
+
+  const [authState, setAuthState] = useState<AuthState>(() => {
+    if (initialAuthError) return AuthState.Updating;
+    if (effectiveAuthType === AuthType.USE_LOCAL_LLM)
+      return AuthState.Authenticated;
+    return AuthState.Unauthenticated;
+  });
 
   const [authError, setAuthError] = useState<string | null>(initialAuthError);
   const [accountSuspensionInfo, setAccountSuspensionInfo] =
@@ -94,8 +102,15 @@ export const useAuthCommand = (
       const authType =
         settings.merged.security.auth.selectedType ?? AuthType.USE_LOCAL_LLM;
 
+      // Local LLM requires no additional auth — already initialized.
+      if (authType === AuthType.USE_LOCAL_LLM) {
+        setAuthError(null);
+        setAuthState(AuthState.Authenticated);
+        return;
+      }
+
       if (authType === AuthType.USE_GEMINI) {
-        const key = await reloadApiKey(); // Use the unified function
+        const key = await reloadApiKey();
         if (!key) {
           setAuthState(AuthState.AwaitingApiKeyInput);
           return;
@@ -140,8 +155,6 @@ export const useAuthCommand = (
             appealLinkText: suspendedError.appealLinkText,
           });
         } else if (e instanceof ProjectIdRequiredError) {
-          // OAuth succeeded but account setup requires project ID
-          // Show the error message directly without "Failed to login" prefix
           onAuthError(getErrorMessage(e));
         } else {
           onAuthError(`Failed to sign in. Message: ${getErrorMessage(e)}`);
