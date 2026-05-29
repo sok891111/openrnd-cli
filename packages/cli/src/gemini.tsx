@@ -479,28 +479,24 @@ export async function main() {
     validateDnsResolutionOrder(settings.merged.advanced.dnsResolutionOrder),
   );
 
-  // Set a default auth type if one isn't set or is set to a legacy type.
-  // Always default to USE_LOCAL_LLM — Google auth is not used in this build.
+  // Force local LLM auth unconditionally — Google auth is removed in this build.
+  // This overrides any previously saved auth type (e.g. oauth-personal from an
+  // old session) so the app never attempts a Google auth flow.
   if (
-    !settings.merged.security.auth.selectedType ||
-    settings.merged.security.auth.selectedType === AuthType.LEGACY_CLOUD_SHELL
+    process.env['CLOUD_SHELL'] === 'true' ||
+    process.env['GEMINI_CLI_USE_COMPUTE_ADC'] === 'true'
   ) {
-    if (
-      process.env['CLOUD_SHELL'] === 'true' ||
-      process.env['GEMINI_CLI_USE_COMPUTE_ADC'] === 'true'
-    ) {
-      settings.setValue(
-        SettingScope.User,
-        'security.auth.selectedType',
-        AuthType.COMPUTE_ADC,
-      );
-    } else {
-      settings.setValue(
-        SettingScope.User,
-        'security.auth.selectedType',
-        AuthType.USE_LOCAL_LLM,
-      );
-    }
+    settings.setValue(
+      SettingScope.User,
+      'security.auth.selectedType',
+      AuthType.COMPUTE_ADC,
+    );
+  } else {
+    settings.setValue(
+      SettingScope.User,
+      'security.auth.selectedType',
+      AuthType.USE_LOCAL_LLM,
+    );
   }
 
   const partialConfig = await loadCliConfig(settings.merged, sessionId, argv, {
