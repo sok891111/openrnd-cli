@@ -9,11 +9,11 @@ import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import type {
-  ToolConfirmationOutcome,
+import {
   BaseDeclarativeTool,
   BaseToolInvocation,
   Kind,
+  type ToolConfirmationOutcome,
   type ToolInvocation,
   type ToolResult,
   type ToolCallConfirmationDetails,
