@@ -1091,7 +1091,7 @@ export class Config implements McpContext, AgentLoopContext {
       useCollector: params.telemetry?.useCollector,
       useCliAuth: params.telemetry?.useCliAuth,
     };
-    this.usageStatisticsEnabled = params.usageStatisticsEnabled ?? true;
+    this.usageStatisticsEnabled = params.usageStatisticsEnabled ?? false;
 
     this.fileFiltering = {
       respectGitIgnore:

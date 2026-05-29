@@ -972,7 +972,7 @@ const SETTINGS_SCHEMA = {
         label: 'Enable Usage Statistics',
         category: 'Privacy',
         requiresRestart: true,
-        default: true,
+        default: false,
         description: 'Enable collection of usage statistics',
         showInDialog: false,
       },
