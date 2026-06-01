@@ -132,6 +132,9 @@ export async function loadSkillsFromDir(
       ignore: ['**/node_modules/**', '**/.git/**'],
     });
 
+    // Note: glob returns POSIX-style forward-slash paths even on Windows.
+    // loadSkillFromFile() normalizes each to a native absolute path so the
+    // skill's real location is what downstream consumers see.
     for (const skillFile of skillFiles) {
       const metadata = await loadSkillFromFile(skillFile);
       if (metadata) {
@@ -164,8 +167,12 @@ export async function loadSkillsFromDir(
 export async function loadSkillFromFile(
   filePath: string,
 ): Promise<SkillDefinition | null> {
+  // Always expose a native absolute path as the skill location so callers
+  // (workspace context, getFolderStructure, read tools) resolve the real file
+  // — glob hands us POSIX-style paths on Windows that otherwise mismatch.
+  const nativePath = path.resolve(filePath);
   try {
-    const content = await fs.readFile(filePath, 'utf-8');
+    const content = await fs.readFile(nativePath, 'utf-8');
     const match = content.match(FRONTMATTER_REGEX);
     if (!match) {
       return null;
@@ -182,11 +189,11 @@ export async function loadSkillFromFile(
     return {
       name: sanitizedName,
       description: frontmatter.description,
-      location: filePath,
+      location: nativePath,
       body: match[2]?.trim() ?? '',
     };
   } catch (error) {
-    debugLogger.log(`Error parsing skill file ${filePath}:`, error);
+    debugLogger.log(`Error parsing skill file ${nativePath}:`, error);
     return null;
   }
 }
