@@ -557,6 +557,8 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
       let buffer = '';
       let chunkCount = 0;
       let totalContentLength = 0;
+      let rawChunkCount = 0;
+      let rawPreviewEmitted = false;
 
       // Accumulate tool call deltas
       const toolCallAccumulator: Record<
@@ -573,18 +575,55 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
             debugLog('DEBUG', 'generateContentStream → stream done', {
               totalChunks: chunkCount,
               totalContentLength,
+              rawNetworkChunks: rawChunkCount,
             });
+            if (totalContentLength === 0) {
+              coreEvents.emitFeedback(
+                'warning',
+                `[LLM] Stream ended with 0 parsed content (raw network chunks: ${rawChunkCount}). The server's response format may not match SSE parsing — check ~/.openrnd/debug.log for the RAW lines.`,
+              );
+            }
             break;
           }
 
-          buffer += decoder.decode(value, { stream: true });
+          const decoded = decoder.decode(value, { stream: true });
+          rawChunkCount++;
+
+          // Dump the raw bytes from the server so we can see its exact wire
+          // format when parsing yields nothing.
+          debugLog('DEBUG', 'generateContentStream → RAW network chunk', {
+            chunkIndex: rawChunkCount,
+            length: decoded.length,
+            raw: decoded,
+          });
+          // Surface the very first raw chunk in the chat window too, so the
+          // user can see the server's format without opening the log file.
+          if (!rawPreviewEmitted) {
+            rawPreviewEmitted = true;
+            const preview = decoded.slice(0, 300).replace(/\n/g, '\\n');
+            coreEvents.emitFeedback(
+              'info',
+              `[LLM] First raw response chunk: ${preview}`,
+            );
+          }
+
+          buffer += decoded;
           const lines = buffer.split('\n');
           buffer = lines.pop() ?? '';
 
           for (const line of lines) {
             const trimmed = line.trim();
-            if (!trimmed || !trimmed.startsWith('data: ')) continue;
-            const data = trimmed.slice(6);
+            if (!trimmed) continue;
+            // Tolerate both "data: " and "data:" (some servers omit the space).
+            // Lines that aren't SSE "data:" events (e.g. ": comment", "event:")
+            // are skipped.
+            if (!trimmed.startsWith('data:')) {
+              debugLog('DEBUG', 'generateContentStream → non-data SSE line', {
+                line: trimmed,
+              });
+              continue;
+            }
+            const data = trimmed.slice(5).trimStart();
             if (data === '[DONE]') return;
 
             let chunk: OpenAIStreamChunk;
@@ -603,9 +642,23 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
             }
 
             const choice = chunk.choices[0];
-            if (!choice) continue;
+            if (!choice) {
+              debugLog(
+                'WARN',
+                'generateContentStream → parsed chunk has no choices[0]',
+                { parsed: chunk },
+              );
+              continue;
+            }
 
             const delta = choice.delta;
+            // Log the parsed delta shape so we can spot content in an
+            // unexpected field (e.g. message vs delta, reasoning_content, etc.)
+            debugLog('DEBUG', 'generateContentStream → parsed delta', {
+              delta,
+              finish_reason: choice.finish_reason,
+              choiceKeys: Object.keys(choice),
+            });
             const parts: Part[] = [];
 
             // Accumulate tool calls across chunks
