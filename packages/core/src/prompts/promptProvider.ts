@@ -5,6 +5,7 @@
  */
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import type { HierarchicalMemory } from '../config/memory.js';
@@ -261,6 +262,11 @@ export class PromptProvider {
       basePrompt = getCoreSystemPrompt(options);
     }
 
+    // --- Organization-specific append ---
+    // Keeps the full base prompt intact and appends company-managed
+    // instructions on top, so upstream prompt improvements are never lost.
+    basePrompt += this.resolveSystemPromptAppend();
+
     // --- Finalization (Shell) ---
     const finalPrompt = activeSnippets.renderFinalShell(
       basePrompt,
@@ -313,6 +319,56 @@ export class PromptProvider {
     guard: boolean = true,
   ): T | undefined {
     return guard && isSectionEnabled(key) ? factory() : undefined;
+  }
+
+  /**
+   * Resolves company-managed instructions that are appended to the base system
+   * prompt (additive — the base prompt is never replaced).
+   *
+   * Sources, concatenated in this order when present:
+   *   1. Global:  ~/.openrnd/system-append.md
+   *   2. Project: <cwd>/.openrnd/system-append.md
+   *
+   * Override with the OPENRND_SYSTEM_MD_APPEND env var:
+   *   - a file path  -> use that file instead of the defaults
+   *   - 0/false      -> disable the append entirely
+   */
+  private resolveSystemPromptAppend(): string {
+    const resolution = resolvePathFromEnv(
+      process.env['OPENRND_SYSTEM_MD_APPEND'],
+    );
+    if (resolution.isDisabled) {
+      return '';
+    }
+
+    let candidatePaths: string[];
+    if (resolution.value && !resolution.isSwitch) {
+      // Explicit path provided via env var.
+      candidatePaths = [resolution.value];
+    } else {
+      candidatePaths = [
+        path.join(os.homedir(), GEMINI_DIR, 'system-append.md'),
+        path.join(process.cwd(), GEMINI_DIR, 'system-append.md'),
+      ];
+    }
+
+    const sections: string[] = [];
+    for (const candidate of candidatePaths) {
+      try {
+        const content = fs.readFileSync(candidate, 'utf8').trim();
+        if (content) {
+          sections.push(content);
+        }
+      } catch {
+        // Missing/unreadable file: skip silently.
+      }
+    }
+
+    if (sections.length === 0) {
+      return '';
+    }
+
+    return `\n\n# Organization-Specific Instructions\n\n${sections.join('\n\n')}`;
   }
 
   private maybeWriteSystemMd(

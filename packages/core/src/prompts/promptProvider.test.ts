@@ -5,6 +5,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { PromptProvider } from './promptProvider.js';
 import type { Config } from '../config/config.js';
 import { makeRelative } from '../utils/paths.js';
@@ -44,6 +47,9 @@ describe('PromptProvider', () => {
     vi.resetAllMocks();
     vi.stubEnv('GEMINI_SYSTEM_MD', '');
     vi.stubEnv('GEMINI_WRITE_SYSTEM_MD', '');
+    // Disable the organization append by default so prompt assertions stay
+    // deterministic regardless of any system-append.md on the host.
+    vi.stubEnv('OPENRND_SYSTEM_MD_APPEND', '0');
 
     const mockToolRegistry = {
       getAllToolNames: vi.fn().mockReturnValue([]),
@@ -158,6 +164,34 @@ describe('PromptProvider', () => {
     expect(prompt).toContain(
       `# Contextual Instructions (${DEFAULT_CONTEXT_FILENAME}, CUSTOM.md)`,
     );
+  });
+
+  describe('organization-specific append', () => {
+    it('appends instructions from OPENRND_SYSTEM_MD_APPEND file', () => {
+      const tmpFile = path.join(os.tmpdir(), `openrnd-append-${Date.now()}.md`);
+      fs.writeFileSync(
+        tmpFile,
+        'COMPANY RULE: always use the internal mirror.',
+      );
+      vi.stubEnv('OPENRND_SYSTEM_MD_APPEND', tmpFile);
+      try {
+        const provider = new PromptProvider();
+        const prompt = provider.getCoreSystemPrompt(mockConfig);
+        expect(prompt).toContain('# Organization-Specific Instructions');
+        expect(prompt).toContain(
+          'COMPANY RULE: always use the internal mirror.',
+        );
+      } finally {
+        fs.rmSync(tmpFile, { force: true });
+      }
+    });
+
+    it('does not append when OPENRND_SYSTEM_MD_APPEND is disabled', () => {
+      vi.stubEnv('OPENRND_SYSTEM_MD_APPEND', '0');
+      const provider = new PromptProvider();
+      const prompt = provider.getCoreSystemPrompt(mockConfig);
+      expect(prompt).not.toContain('# Organization-Specific Instructions');
+    });
   });
 
   describe('plan mode prompt', () => {
