@@ -364,30 +364,52 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     try {
       await manager.callTool('new_page', { url: urlStr }, signal, true);
 
-      // take_snapshot returns the rendered page as structured text — the same
-      // content the user already sees via their live session.
-      const snapshot = await manager.callTool(
-        'take_snapshot',
-        {},
+      // Identify the tab we just opened (the selected page) so we can close it.
+      // Page lines look like: "<id>: <url> [selected]".
+      try {
+        const pages = await manager.callTool('list_pages', {}, signal, true);
+        pageIdToClose = this.extractSelectedPageId(
+          this.joinText(pages.content),
+        );
+      } catch {
+        // Non-fatal: we just won't be able to auto-close the tab.
+      }
+
+      // Extract ONLY the page text via innerText. evaluate_script returns a
+      // JSON-serialized value, so no image/binary data can ever reach the
+      // (non-multimodal) local LLM. We never call take_screenshot.
+      let text = '';
+      const evalResult = await manager.callTool(
+        'evaluate_script',
+        {
+          function: `() => {
+            const el = document.body || document.documentElement;
+            const body = el && el.innerText ? el.innerText : '';
+            const title = document.title || '';
+            return title ? title + '\\n\\n' + body : body;
+          }`,
+        },
         signal,
         true,
       );
-      if (snapshot.isError) {
-        throw new Error('Browser failed to read page content.');
-      }
-      const raw = (snapshot.content ?? [])
-        .filter((item) => item.type === 'text' && item.text)
-        .map((item) => item.text ?? '')
-        .join('\n');
-
-      // The tab we just opened is the selected page. The snapshot lists pages
-      // as "<id>: <url> [selected]" — grab that id so we can close the tab.
-      const selected = raw.match(/^\s*(\d+):\s+\S.*\[selected\]/m);
-      if (selected) {
-        pageIdToClose = Number(selected[1]);
+      if (!evalResult.isError) {
+        text = this.parseScriptResult(this.joinText(evalResult.content)).trim();
       }
 
-      const text = raw.trim();
+      // Fallback to the accessibility-tree snapshot (also text-only, never an
+      // image) if the page exposed no innerText (e.g. canvas/PDF-style apps).
+      if (!text) {
+        const snapshot = await manager.callTool(
+          'take_snapshot',
+          {},
+          signal,
+          true,
+        );
+        if (!snapshot.isError) {
+          text = this.joinText(snapshot.content).trim();
+        }
+      }
+
       if (!text) {
         throw new Error('Browser returned empty page content.');
       }
@@ -408,6 +430,45 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       }
       manager.release();
     }
+  }
+
+  /** Joins the text parts of an MCP tool result, ignoring any non-text items. */
+  private joinText(
+    content?: Array<{ type: 'text' | 'image'; text?: string }>,
+  ): string {
+    return (content ?? [])
+      .filter((item) => item.type === 'text' && item.text)
+      .map((item) => item.text ?? '')
+      .join('\n');
+  }
+
+  /**
+   * Parses the value returned by chrome-devtools-mcp's evaluate_script, which
+   * wraps the JSON-serialized return value in a ```json fenced block. Returns
+   * the decoded string (with real newlines) so the LLM sees clean text.
+   */
+  private parseScriptResult(raw: string): string {
+    const match = raw.match(/```json\s*\n([\s\S]*?)\n```/);
+    if (match) {
+      try {
+        const parsed: unknown = JSON.parse(match[1]);
+        if (typeof parsed === 'string') {
+          return parsed;
+        }
+        if (parsed != null) {
+          return String(parsed);
+        }
+      } catch {
+        // Fall through to returning the raw text.
+      }
+    }
+    return raw;
+  }
+
+  /** Extracts the "[selected]" page id from a list_pages/snapshot listing. */
+  private extractSelectedPageId(listing: string): number | undefined {
+    const match = listing.match(/^\s*(\d+):\s+\S.*\[selected\]/m);
+    return match ? Number(match[1]) : undefined;
   }
 
   /** Wraps a browser fetch into a ToolResult for the experimental path. */
