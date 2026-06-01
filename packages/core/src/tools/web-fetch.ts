@@ -361,6 +361,10 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     const manager = BrowserManager.getInstance(this.context.config);
     manager.acquire();
     let pageIdToClose: number | undefined;
+    coreEvents.emitFeedback(
+      'info',
+      `🌐 [web_fetch] 로그인된 브라우저 세션(sessionMode=existing)으로 여는 중: ${urlStr}`,
+    );
     try {
       await manager.callTool('new_page', { url: urlStr }, signal, true);
 
@@ -413,7 +417,19 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       if (!text) {
         throw new Error('Browser returned empty page content.');
       }
+      coreEvents.emitFeedback(
+        'info',
+        `✅ [web_fetch] 브라우저로 ${text.length}자 읽음: ${urlStr}`,
+      );
       return text;
+    } catch (err) {
+      // Surface the real reason directly in the terminal so the user can tell
+      // whether Chrome remote debugging is disabled or it's a different cause.
+      coreEvents.emitFeedback(
+        'error',
+        `❌ [web_fetch] 브라우저 폴백 실패 (${urlStr}):\n${getErrorMessage(err)}`,
+      );
+      throw err;
     } finally {
       if (pageIdToClose !== undefined) {
         // Best-effort: close the tab we opened so we don't litter the browser.
@@ -569,6 +585,10 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       try {
         const { response, text } = await this.nodeFetchText(url, signal);
         if (this.looksLikeAuthRedirect(url, response)) {
+          coreEvents.emitFeedback(
+            'info',
+            `🔐 [web_fetch] SSO/인증 벽 감지 (status ${response.status}, 최종 URL ${response.url}) → 브라우저 세션으로 폴백: ${url}`,
+          );
           debugLogger.warn(
             `[WebFetchTool] Auth/SSO wall detected for ${url} ` +
               `(status ${response.status}, final ${response.url}). ` +
@@ -578,6 +598,10 @@ class WebFetchToolInvocation extends BaseToolInvocation<
         }
         return this.applyFallbackTruncation(text);
       } catch (error) {
+        coreEvents.emitFeedback(
+          'info',
+          `⚠️ [web_fetch] 직접 fetch 실패 (${getErrorMessage(error)}) → 브라우저 세션으로 폴백: ${url}`,
+        );
         debugLogger.warn(
           `[WebFetchTool] Direct fetch failed for ${url} ` +
             `(${getErrorMessage(error)}). Falling back to browser session.`,
@@ -899,6 +923,10 @@ ${aggregatedContent}
         this.shouldUseBrowserFetch() &&
         this.looksLikeAuthRedirect(url, response)
       ) {
+        coreEvents.emitFeedback(
+          'info',
+          `🔐 [web_fetch] SSO/인증 벽 감지 (status ${status}, 최종 URL ${response.url}) → 브라우저 세션으로 폴백: ${url}`,
+        );
         debugLogger.warn(
           `[WebFetchTool] Auth/SSO wall detected for ${url} ` +
             `(status ${status}). Using browser session.`,
@@ -1002,6 +1030,10 @@ Response: ${rawResponseText}`;
     } catch (e) {
       // Network failure on the direct fetch — try the signed-in browser.
       if (this.shouldUseBrowserFetch()) {
+        coreEvents.emitFeedback(
+          'info',
+          `⚠️ [web_fetch] 직접 fetch 실패 (${getErrorMessage(e)}) → 브라우저 세션으로 폴백: ${url}`,
+        );
         debugLogger.warn(
           `[WebFetchTool] Experimental fetch failed for ${url} ` +
             `(${getErrorMessage(e)}). Falling back to browser session.`,
