@@ -5,6 +5,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -138,6 +139,25 @@ function repoNameFromUrl(repository: string): string {
   tail = tail.replace(/\/+$/, '');
   const segment = tail.split('/').pop() ?? tail;
   return toKebabCase(segment.replace(/\.git$/i, ''));
+}
+
+/**
+ * Find the directory that holds SKILL.md within a freshly cloned repo.
+ * Checks the repo root first, then immediate subdirectories so repos that
+ * nest the skill one level down still install cleanly. Returns null if none.
+ */
+function findSkillSourceDir(repoDir: string): string | null {
+  if (fs.existsSync(path.join(repoDir, 'SKILL.md'))) {
+    return repoDir;
+  }
+  for (const entry of fs.readdirSync(repoDir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === '.git') continue;
+    const candidate = path.join(repoDir, entry.name);
+    if (fs.existsSync(path.join(candidate, 'SKILL.md'))) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 function buildSkillFileContent(
@@ -366,45 +386,64 @@ class ManageSkillInvocation extends BaseToolInvocation<
           fs.mkdirSync(skillsDir, { recursive: true });
         }
 
-        // Clone via the system git so existing SSH keys / known_hosts and
-        // credential helpers are reused. This is what makes ssh:// and git@
-        // (internal Bitbucket) URLs work.
-        // Shared environment + spawn options so neither the clone nor the
-        // checkout can block on an interactive prompt or run unbounded.
+        // Clone into a throwaway temp directory using the system git so
+        // existing SSH keys / known_hosts and credential helpers are reused
+        // (this is what makes ssh:// and git@ internal repos work). We then
+        // copy only the skill files into place and always delete the clone —
+        // the installed skill ends up a plain copy with no .git or repo cruft.
+        //
         // BatchMode/StrictHostKeyChecking are *appended* to any existing
         // GIT_SSH_COMMAND so a pre-set value (common in corporate setups)
-        // doesn't silently disable the non-interactive guard.
+        // doesn't silently disable the non-interactive guard, and the turn's
+        // abort signal is honored so an unauthenticated clone fails fast
+        // instead of hanging until the timeout.
         const baseSshCommand = process.env['GIT_SSH_COMMAND'] ?? 'ssh';
         const gitExecOptions = {
           env: {
             ...process.env,
-            // Never block on an interactive password prompt — fail fast
-            // instead of hanging the turn (which looked like a silent exit).
             GIT_TERMINAL_PROMPT: '0',
             GIT_SSH_COMMAND: `${baseSshCommand} -o BatchMode=yes -o StrictHostKeyChecking=accept-new`,
           },
           timeout: 120_000,
-          // Honor turn cancellation (ESC) so the child git process is killed
-          // instead of being orphaned while the turn appears to hang.
           signal: options.abortSignal,
         };
+
+        const tmpRepoDir = fs.mkdtempSync(
+          path.join(os.tmpdir(), `openrnd-skill-${skillName}-`),
+        );
 
         try {
           await execFileAsync(
             'git',
-            ['clone', '--depth', '1', repoUrl, skillDir],
+            ['clone', '--depth', '1', repoUrl, tmpRepoDir],
             gitExecOptions,
           );
 
           if (ref && ref.trim()) {
             await execFileAsync(
               'git',
-              ['-C', skillDir, 'checkout', ref.trim()],
+              ['-C', tmpRepoDir, 'checkout', ref.trim()],
               gitExecOptions,
             );
           }
+
+          const sourceDir = findSkillSourceDir(tmpRepoDir);
+          if (!sourceDir) {
+            return {
+              llmContent: `Error: cloned repository "${repoUrl}" does not contain a SKILL.md (checked the root and immediate subdirectories).`,
+              returnDisplay: 'Error: no SKILL.md in repository',
+              error: { message: 'no SKILL.md in repository' },
+            };
+          }
+
+          // Copy the skill files into the skills directory, skipping any git
+          // metadata so the installed skill is a plain copy.
+          fs.cpSync(sourceDir, skillDir, {
+            recursive: true,
+            filter: (src) => path.basename(src) !== '.git',
+          });
         } catch (err) {
-          // Clean up a partial clone so a retry isn't blocked by "already exists".
+          // Drop any partial install so a retry isn't blocked by "already exists".
           if (fs.existsSync(skillDir)) {
             fs.rmSync(skillDir, { recursive: true, force: true });
           }
@@ -424,23 +463,10 @@ class ManageSkillInvocation extends BaseToolInvocation<
             returnDisplay: `Error: git clone failed`,
             error: { message: `git clone failed: ${detail}` },
           };
-        }
-
-        // Validate that the cloned repo actually contains a SKILL.md.
-        const skillFile = path.join(skillDir, 'SKILL.md');
-        if (!fs.existsSync(skillFile)) {
-          fs.rmSync(skillDir, { recursive: true, force: true });
-          return {
-            llmContent: `Error: cloned repository "${repoUrl}" does not contain a SKILL.md at its root. Removed.`,
-            returnDisplay: 'Error: no SKILL.md in repository',
-            error: { message: 'no SKILL.md in repository' },
-          };
-        }
-
-        // Drop the .git dir so the installed skill is a plain copy.
-        const gitDir = path.join(skillDir, '.git');
-        if (fs.existsSync(gitDir)) {
-          fs.rmSync(gitDir, { recursive: true, force: true });
+        } finally {
+          // Always remove the throwaway clone — the installed skill no longer
+          // needs it, and leaving it behind would leak temp directories.
+          fs.rmSync(tmpRepoDir, { recursive: true, force: true });
         }
 
         const reloadHint =
