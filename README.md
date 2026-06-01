@@ -297,21 +297,26 @@ Skill 파일 위치: `~/.openrnd/skills/<name>/SKILL.md`
 바이너리(`openrnd`)는 `bundle/` 디렉터리의 번들 파일을 실행하기 때문입니다.
 
 ```bash
-# 이것 하나로 충분 — tsc 없이 esbuild가 TypeScript를 직접 컴파일·번들링
-rm -rf bundle
+# 이것 하나로 충분 (prebundle이 bundle/ 자동 정리 → core 빌드 → 번들링)
 npm run bundle
 ```
 
-> `rm -rf bundle`은 esbuild가 outdir를 비우지 않아 content-hash 청크가 쌓이는
-> 것을 방지합니다. 매번 실행하는 것을 권장합니다.
-
 `npm run bundle` 내부 순서:
 
-1. `generate` — git 커밋 정보 생성
-2. `build` (devtools) — 클라이언트 에셋 빌드
-3. `bundle:browser-mcp` — browser MCP 번들
-4. `esbuild.config.js` — `packages/**` TypeScript → `bundle/gemini.js` 번들링
-5. `copy_bundle_assets.js` — 정책·문서·Skill 파일 복사
+1. `prebundle` — `bundle/` 디렉터리 정리 (Node `fs.rmSync`, Windows 호환)
+2. `generate` — git 커밋 정보 생성
+3. **`build --workspace=@openrnd/core` — core를 `tsc`로 `dist/`에 컴파일
+   (필수)**
+4. `build` (devtools) — 클라이언트 에셋 빌드
+5. `bundle:browser-mcp` — browser MCP 번들
+6. `esbuild.config.js` — CLI(`packages/cli`) 번들링 → `bundle/`
+7. `copy_bundle_assets.js` — 정책·문서·Skill 파일 복사
+
+> **중요:** esbuild는 CLI 진입점만 소스에서 직접 번들링하고, `@openrnd/core`는
+> 패키지(`dist/index.js`)로 해석합니다. 그래서 `packages/core/**`를 수정하면
+> 반드시 core를 먼저 `tsc`로 빌드해야 반영됩니다. 위 3번 단계가 이를 처리하므로
+> `npm run bundle`만 실행하면 됩니다. (예전엔 이 단계가 빠져 있어서 core 소스를
+> 고쳐도 stale `dist/`가 번들링되는 함정이 있었음.)
 
 ---
 
