@@ -15,6 +15,7 @@ import { ToolErrorType } from '../tools/tool-error.js';
 import { BINARY_EXTENSIONS } from './ignorePatterns.js';
 import { createRequire as createModuleRequire } from 'node:module';
 import { debugLogger } from './debugLogger.js';
+import { isOfficeFile, readOfficeFile } from './officeReader.js';
 
 import {
   DEFAULT_MAX_LINES_TEXT_FILE,
@@ -370,8 +371,17 @@ export async function isBinaryFile(filePath: string): Promise<boolean> {
  */
 export async function detectFileType(
   filePath: string,
-): Promise<'text' | 'image' | 'pdf' | 'audio' | 'video' | 'binary' | 'svg'> {
+): Promise<
+  'text' | 'image' | 'pdf' | 'audio' | 'video' | 'binary' | 'svg' | 'office'
+> {
   const ext = path.extname(filePath).toLowerCase();
+
+  // In-house Office documents (Word/Excel/PowerPoint) are DRM-protected and can
+  // only be read through win32com COM automation. Detect them before the
+  // generic binary check so reads are routed to the win32com path.
+  if (isOfficeFile(filePath)) {
+    return 'office';
+  }
 
   // The mimetype for various TypeScript extensions (ts, mts, cts, tsx) can be
   // MPEG transport stream (a video format), but we want to assume these are
@@ -435,6 +445,73 @@ export interface ProcessedFileReadResult {
   isTruncated?: boolean; // For text files, indicates if content was truncated
   originalLineCount?: number; // For text files
   linesShown?: [number, number]; // For text files [startLine, endLine] (1-based for display)
+}
+
+/**
+ * Applies line-based slicing and truncation to already-loaded text content,
+ * producing the same result shape used for plain text files. Shared by the
+ * 'text' and 'office' (win32com extracted) read paths.
+ */
+function formatTextContent(
+  content: string,
+  relativePathForDisplay: string,
+  startLine?: number,
+  endLine?: number,
+): ProcessedFileReadResult {
+  const lines = content.split(/\r?\n/);
+  const originalLineCount = lines.length;
+
+  let sliceStart = 0;
+  let sliceEnd = originalLineCount;
+
+  if (startLine !== undefined || endLine !== undefined) {
+    sliceStart = startLine ? startLine - 1 : 0;
+    sliceEnd = endLine
+      ? Math.min(endLine, originalLineCount)
+      : Math.min(sliceStart + DEFAULT_MAX_LINES_TEXT_FILE, originalLineCount);
+  } else {
+    sliceEnd = Math.min(DEFAULT_MAX_LINES_TEXT_FILE, originalLineCount);
+  }
+
+  // Ensure selectedLines doesn't try to slice beyond array bounds
+  const actualStart = Math.min(sliceStart, originalLineCount);
+  const selectedLines = lines.slice(actualStart, sliceEnd);
+
+  let linesWereTruncatedInLength = false;
+  const formattedLines = selectedLines.map((line) => {
+    if (line.length > MAX_LINE_LENGTH_TEXT_FILE) {
+      linesWereTruncatedInLength = true;
+      return line.substring(0, MAX_LINE_LENGTH_TEXT_FILE) + '... [truncated]';
+    }
+    return line;
+  });
+
+  const isTruncated =
+    actualStart > 0 ||
+    sliceEnd < originalLineCount ||
+    linesWereTruncatedInLength;
+  const llmContent = formattedLines.join('\n');
+
+  // By default, return nothing to streamline the common case of a successful read.
+  let returnDisplay = '';
+  if (actualStart > 0 || sliceEnd < originalLineCount) {
+    returnDisplay = `Read lines ${
+      actualStart + 1
+    }-${sliceEnd} of ${originalLineCount} from ${relativePathForDisplay}`;
+    if (linesWereTruncatedInLength) {
+      returnDisplay += ' (some lines were shortened)';
+    }
+  } else if (linesWereTruncatedInLength) {
+    returnDisplay = `Read all ${originalLineCount} lines from ${relativePathForDisplay} (some lines were shortened)`;
+  }
+
+  return {
+    llmContent,
+    returnDisplay,
+    isTruncated,
+    originalLineCount,
+    linesShown: [actualStart + 1, sliceEnd],
+  };
 }
 
 /**
@@ -511,68 +588,41 @@ export async function processSingleFileContent(
           returnDisplay: `Read SVG as text: ${relativePathForDisplay}`,
         };
       }
+      case 'office': {
+        // DRM-protected in-house Office files can only be read through
+        // win32com COM automation (Windows + pywin32). Never fall back to
+        // reading raw bytes.
+        const officeResult = await readOfficeFile(filePath);
+        if (officeResult.error || officeResult.text === undefined) {
+          const message =
+            officeResult.error ?? 'win32com 으로 텍스트를 추출하지 못했습니다.';
+          return {
+            llmContent: `Office 파일을 읽을 수 없습니다 (${relativePathForDisplay}): ${message}`,
+            returnDisplay: `Office read failed: ${relativePathForDisplay} — ${message}`,
+            error: `win32com office read failed for ${filePath}: ${message}`,
+            errorType: ToolErrorType.READ_CONTENT_FAILURE,
+          };
+        }
+        const result = formatTextContent(
+          officeResult.text,
+          relativePathForDisplay,
+          startLine,
+          endLine,
+        );
+        if (!result.returnDisplay) {
+          result.returnDisplay = `Read Office file via win32com: ${relativePathForDisplay}`;
+        }
+        return result;
+      }
       case 'text': {
         // Use BOM-aware reader to avoid leaving a BOM character in content and to support UTF-16/32 transparently
         const content = await readFileWithEncoding(filePath);
-        const lines = content.split(/\r?\n/);
-        const originalLineCount = lines.length;
-
-        let sliceStart = 0;
-        let sliceEnd = originalLineCount;
-
-        if (startLine !== undefined || endLine !== undefined) {
-          sliceStart = startLine ? startLine - 1 : 0;
-          sliceEnd = endLine
-            ? Math.min(endLine, originalLineCount)
-            : Math.min(
-                sliceStart + DEFAULT_MAX_LINES_TEXT_FILE,
-                originalLineCount,
-              );
-        } else {
-          sliceEnd = Math.min(DEFAULT_MAX_LINES_TEXT_FILE, originalLineCount);
-        }
-
-        // Ensure selectedLines doesn't try to slice beyond array bounds
-        const actualStart = Math.min(sliceStart, originalLineCount);
-        const selectedLines = lines.slice(actualStart, sliceEnd);
-
-        let linesWereTruncatedInLength = false;
-        const formattedLines = selectedLines.map((line) => {
-          if (line.length > MAX_LINE_LENGTH_TEXT_FILE) {
-            linesWereTruncatedInLength = true;
-            return (
-              line.substring(0, MAX_LINE_LENGTH_TEXT_FILE) + '... [truncated]'
-            );
-          }
-          return line;
-        });
-
-        const isTruncated =
-          actualStart > 0 ||
-          sliceEnd < originalLineCount ||
-          linesWereTruncatedInLength;
-        const llmContent = formattedLines.join('\n');
-
-        // By default, return nothing to streamline the common case of a successful read_file.
-        let returnDisplay = '';
-        if (actualStart > 0 || sliceEnd < originalLineCount) {
-          returnDisplay = `Read lines ${
-            actualStart + 1
-          }-${sliceEnd} of ${originalLineCount} from ${relativePathForDisplay}`;
-          if (linesWereTruncatedInLength) {
-            returnDisplay += ' (some lines were shortened)';
-          }
-        } else if (linesWereTruncatedInLength) {
-          returnDisplay = `Read all ${originalLineCount} lines from ${relativePathForDisplay} (some lines were shortened)`;
-        }
-
-        return {
-          llmContent,
-          returnDisplay,
-          isTruncated,
-          originalLineCount,
-          linesShown: [actualStart + 1, sliceEnd],
-        };
+        return formatTextContent(
+          content,
+          relativePathForDisplay,
+          startLine,
+          endLine,
+        );
       }
       case 'audio': {
         const mimeType = getSupportedAudioMimeTypeForFile(filePath);

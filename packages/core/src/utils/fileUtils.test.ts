@@ -708,6 +708,17 @@ describe('fileUtils', () => {
     );
 
     it.each([
+      'report.doc',
+      'report.docx',
+      'data.xls',
+      'data.xlsx',
+      'deck.ppt',
+      'deck.pptx',
+    ])('should detect office type for %s (DRM win32com path)', async (file) => {
+      expect(await detectFileType(file)).toBe('office');
+    });
+
+    it.each([
       { type: 'audio', ext: '.mp3', mime: 'audio/mpeg' },
       { type: 'video', ext: '.mp4', mime: 'video/mp4' },
     ])(
