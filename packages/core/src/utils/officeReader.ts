@@ -80,6 +80,30 @@ def _reconfigure_utf8():
         except Exception:
             pass
 
+def ensure_pywin32():
+    """Make sure pywin32 is importable, auto-installing it with THIS
+    interpreter if needed so users never have to pip install separately."""
+    try:
+        import win32com.client  # noqa: F401
+        return True
+    except ImportError:
+        pass
+    import subprocess
+    sys.stderr.write("PYWIN32_MISSING: installing pywin32 with %s\n" % sys.executable)
+    try:
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "--user", "--upgrade", "pywin32"]
+        )
+    except Exception as exc:
+        sys.stderr.write("PYWIN32_AUTO_INSTALL_FAILED: %s\n" % exc)
+        return False
+    try:
+        import win32com.client  # noqa: F401
+        return True
+    except ImportError as exc:
+        sys.stderr.write("PYWIN32_STILL_MISSING: %s\n" % exc)
+        return False
+
 def read_word(path):
     import win32com.client
     word = win32com.client.DispatchEx("Word.Application")
@@ -164,6 +188,12 @@ def main():
         return 2
     path = os.path.abspath(sys.argv[1])
     ext = os.path.splitext(path)[1].lower()
+    if not ensure_pywin32():
+        sys.stderr.write(
+            "WIN32COM_IMPORT_ERROR: pywin32 is required and could not be "
+            "auto-installed (pip install pywin32).\n"
+        )
+        return 4
     try:
         import pythoncom
         pythoncom.CoInitialize()
