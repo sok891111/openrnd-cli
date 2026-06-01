@@ -313,13 +313,15 @@ describe('WebFetchTool', () => {
       isInteractive: () => false,
       isContextManagementEnabled: vi.fn().mockReturnValue(false),
     } as unknown as Config;
-    // Disable the small-response SSO-stub heuristic by default so these
-    // content-behavior tests aren't routed to the browser fallback. The
-    // heuristic itself is covered by its own dedicated test below.
+    // Disable the browser-fallback feature by default so these tests exercise
+    // the legacy primary/fallback paths unchanged. The browser behavior is
+    // covered by its own dedicated test(s) which re-enable it explicitly.
+    process.env['OPENRND_WEBFETCH_BROWSER_FALLBACK'] = '0';
     process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'] = '0';
   });
 
   afterEach(() => {
+    delete process.env['OPENRND_WEBFETCH_BROWSER_FALLBACK'];
     delete process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'];
   });
 
@@ -697,8 +699,13 @@ describe('WebFetchTool', () => {
     );
 
     it('routes a small HTTP 200 HTML response (SSO stub) to the browser session', async () => {
-      // Enable the heuristic (the suite disables it by default).
+      // Enable the browser fallback + heuristic (the suite disables them).
+      process.env['OPENRND_WEBFETCH_BROWSER_FALLBACK'] = '1';
       process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'] = '1500';
+
+      // The primary grounded model is bypassed when the feature is on, so clear
+      // any queued generateContent responses; the only LLM call is the summary.
+      mockGenerateContent.mockReset();
 
       // A tiny HTML page (well under 1500 bytes), HTTP 200, no redirect.
       mockFetch('https://intranet.corp/', {

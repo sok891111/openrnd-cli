@@ -1188,6 +1188,19 @@ Response: ${rawResponseText}`;
       };
     }
 
+    // When the browser fallback is enabled (default), fetch the URL(s) directly
+    // over HTTP instead of via the Gemini "web-fetch" grounded model.
+    //
+    // Why: that grounded model needs Google's backend/auth (removed in openrnd)
+    // and does NOT actually fetch URLs under a local LLM — it returns a normal
+    // completion with no error. So the old browser logic, which only ran when
+    // the primary path *failed*, was never reached for intranet URLs. Routing
+    // through the direct path makes the SSO/stub detection (incl. body-length)
+    // trigger the browser purely from the HTTP response, regardless of error.
+    if (this.shouldUseBrowserFetch()) {
+      return this.executeFallback(toFetch, signal);
+    }
+
     try {
       const geminiClient = this.context.geminiClient;
       const sanitizedPrompt = `Follow the user's instructions to process the authorized URLs.
