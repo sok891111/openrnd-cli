@@ -21,6 +21,7 @@ import { fetch } from 'undici';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import { coreEvents } from '../utils/events.js';
 
 // ---------------------------------------------------------------------------
 // Debug logger — enabled via OPENRND_DEBUG=true
@@ -397,6 +398,10 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
         contentLength: typeof m.content === 'string' ? m.content.length : 0,
       })),
     });
+    coreEvents.emitFeedback(
+      'info',
+      `[LLM] Connecting → ${url} (model: ${body.model})`,
+    );
 
     let response: Awaited<ReturnType<typeof fetch>>;
     try {
@@ -418,6 +423,10 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
           stack: err instanceof Error ? err.stack : undefined,
         },
       );
+      coreEvents.emitFeedback(
+        'error',
+        `[LLM] Connection failed → ${url}: ${String(err)}`,
+      );
       throw err;
     }
 
@@ -433,11 +442,19 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
         status: response.status,
         body: errorText,
       });
+      coreEvents.emitFeedback(
+        'error',
+        `[LLM] HTTP ${response.status} from ${url}: ${errorText}`,
+      );
       throw new Error(
         `OpenAI-compatible API error ${response.status}: ${errorText}`,
       );
     }
 
+    coreEvents.emitFeedback(
+      'info',
+      `[LLM] Connected (HTTP ${response.status}), reading response...`,
+    );
     const data = (await response.json()) as OpenAIChatResponse;
     debugLog('DEBUG', 'generateContent → success', {
       id: data.id,
@@ -467,6 +484,10 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
         contentLength: typeof m.content === 'string' ? m.content.length : 0,
       })),
     });
+    coreEvents.emitFeedback(
+      'info',
+      `[LLM] Connecting → ${url} (model: ${body.model}, stream)`,
+    );
 
     let response: Awaited<ReturnType<typeof fetch>>;
     try {
@@ -488,6 +509,10 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
           stack: err instanceof Error ? err.stack : undefined,
         },
       );
+      coreEvents.emitFeedback(
+        'error',
+        `[LLM] Connection failed → ${url}: ${String(err)}`,
+      );
       throw err;
     }
 
@@ -503,10 +528,18 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
         status: response.status,
         body: errorText,
       });
+      coreEvents.emitFeedback(
+        'error',
+        `[LLM] HTTP ${response.status} from ${url}: ${errorText}`,
+      );
       throw new Error(
         `OpenAI-compatible API error ${response.status}: ${errorText}`,
       );
     }
+    coreEvents.emitFeedback(
+      'info',
+      `[LLM] Connected (HTTP ${response.status}), streaming...`,
+    );
 
     const model = this.model;
 
@@ -653,6 +686,10 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
             stack: streamErr instanceof Error ? streamErr.stack : undefined,
             chunksReceivedBeforeError: chunkCount,
           },
+        );
+        coreEvents.emitFeedback(
+          'error',
+          `[LLM] Stream error after ${chunkCount} chunks: ${String(streamErr)}`,
         );
         throw streamErr;
       } finally {
