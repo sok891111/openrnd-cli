@@ -6,6 +6,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import {
   BaseDeclarativeTool,
   BaseToolInvocation,
@@ -16,11 +18,14 @@ import {
 } from './tools.js';
 import type { MessageBus } from '../confirmation-bus/message-bus.js';
 import { Storage } from '../config/storage.js';
+import { getErrorMessage, isNodeError } from '../utils/errors.js';
+
+const execFileAsync = promisify(execFile);
 
 export const MANAGE_SKILL_TOOL_NAME = 'manage_skill';
 export const MANAGE_SKILL_DISPLAY_NAME = 'Manage Skill';
 
-const MANAGE_SKILL_DESCRIPTION = `Create, list, or delete openrnd skills.
+const MANAGE_SKILL_DESCRIPTION = `Create, install, list, or delete openrnd skills.
 Skills are markdown files that give the model specialized knowledge and workflows.
 They live in ~/.openrnd/skills/<name>/SKILL.md and are auto-loaded on startup.
 
@@ -30,6 +35,12 @@ Use this tool when the user says things like:
 - "스킬 목록 보여줘"
 - "xxx 스킬 삭제해줘"
 - "Update the xxx skill"
+- "이 bitbucket repo 에서 스킬 설치해줘 — ssh://git@..." (action "install")
+- "Install a skill from this git repo: git@github.com:org/repo.git"
+
+For installing from a git repository (including internal Bitbucket/GitHub over
+ssh:// or git@ URLs), use action "install" with the "repository" field. The repo
+is cloned via the system \`git\` (so existing SSH keys / known_hosts are used).
 
 After creating or deleting a skill, it takes effect on the NEXT openrnd session start.
 In an active interactive session the user can type /skills reload to apply immediately.
@@ -41,10 +52,12 @@ Skill body guidelines:
 - The description field is the primary trigger — make it specific about WHEN to use this skill`;
 
 interface ManageSkillParams {
-  action: 'create' | 'update' | 'delete' | 'list';
+  action: 'create' | 'update' | 'delete' | 'list' | 'install';
   name?: string;
   description?: string;
   body?: string;
+  repository?: string;
+  ref?: string;
   scope?: 'user' | 'workspace';
 }
 
@@ -53,14 +66,24 @@ const MANAGE_SKILL_SCHEMA = {
   properties: {
     action: {
       type: 'string',
-      enum: ['create', 'update', 'delete', 'list'],
+      enum: ['create', 'update', 'delete', 'list', 'install'],
       description:
-        '"create" to make a new skill, "update" to modify an existing one, "delete" to remove, "list" to show all installed skills.',
+        '"create" to make a new skill, "update" to modify an existing one, "delete" to remove, "list" to show all installed skills, "install" to clone a skill from a git repository (http(s)://, ssh://, or git@host:path URLs).',
     },
     name: {
       type: 'string',
       description:
-        'Skill identifier in kebab-case (e.g. "web-crawler", "slack-summarizer"). Required for create/update/delete.',
+        'Skill identifier in kebab-case (e.g. "web-crawler", "slack-summarizer"). Required for create/update/delete. Optional for install (derived from the repository name when omitted).',
+    },
+    repository: {
+      type: 'string',
+      description:
+        'Git repository URL to install the skill from. Supports https:// as well as SSH forms like "ssh://git@bitbucket.example.com/team/repo.git" or "git@bitbucket.example.com:team/repo.git". Required for action "install".',
+    },
+    ref: {
+      type: 'string',
+      description:
+        'Optional git branch, tag, or commit to check out after cloning (install only). Defaults to the repository default branch.',
     },
     description: {
       type: 'string',
@@ -98,6 +121,23 @@ function toKebabCase(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Derive a skill name from a git repository URL.
+ * Handles https://, ssh://, and scp-like "git@host:team/repo.git" forms.
+ */
+function repoNameFromUrl(repository: string): string {
+  let tail = repository.trim();
+  // scp-like syntax: git@host:team/repo.git -> team/repo.git
+  const scpMatch = tail.match(/^[^/]+@[^/:]+:(.+)$/);
+  if (scpMatch) {
+    tail = scpMatch[1];
+  }
+  // Strip trailing slashes, then take the last path segment.
+  tail = tail.replace(/\/+$/, '');
+  const segment = tail.split('/').pop() ?? tail;
+  return toKebabCase(segment.replace(/\.git$/i, ''));
 }
 
 function buildSkillFileContent(
@@ -145,10 +185,12 @@ class ManageSkillInvocation extends BaseToolInvocation<
   }
 
   override getDescription(): string {
-    const { action, name } = this.params;
+    const { action, name, repository } = this.params;
     if (action === 'create') return `Create skill: ${name ?? '(unnamed)'}`;
     if (action === 'update') return `Update skill: ${name ?? '(unnamed)'}`;
     if (action === 'delete') return `Delete skill: ${name ?? '(unnamed)'}`;
+    if (action === 'install')
+      return `Install skill from: ${repository ?? '(no repository)'}`;
     return 'List skills';
   }
 
@@ -282,6 +324,119 @@ class ManageSkillInvocation extends BaseToolInvocation<
         const reloadHint =
           'Type `/skills reload` in interactive mode, or restart openrnd to activate.';
         const msg = `✅ Skill **${skillName}** ${verb} at \`${skillFile}\`.\n\n${reloadHint}`;
+        return { llmContent: msg, returnDisplay: msg };
+      }
+
+      case 'install': {
+        const { repository, ref } = this.params;
+
+        if (!repository || !repository.trim()) {
+          return {
+            llmContent:
+              'Error: "repository" is required for action "install" (e.g. an https:// or ssh:// git URL).',
+            returnDisplay: 'Error: repository required',
+            error: { message: 'repository required' },
+          };
+        }
+
+        const repoUrl = repository.trim();
+        const skillName = this.params.name
+          ? toKebabCase(this.params.name)
+          : repoNameFromUrl(repoUrl);
+
+        if (!skillName) {
+          return {
+            llmContent: `Error: could not derive a skill name from "${repoUrl}". Pass an explicit "name".`,
+            returnDisplay: 'Error: could not derive skill name',
+            error: { message: 'could not derive skill name' },
+          };
+        }
+
+        const skillDir = path.join(skillsDir, skillName);
+
+        if (fs.existsSync(skillDir)) {
+          return {
+            llmContent: `Error: a skill named "${skillName}" already exists at ${skillDir}. Delete it first or pass a different "name".`,
+            returnDisplay: `Error: skill "${skillName}" already exists`,
+            error: { message: `skill "${skillName}" already exists` },
+          };
+        }
+
+        if (!fs.existsSync(skillsDir)) {
+          fs.mkdirSync(skillsDir, { recursive: true });
+        }
+
+        // Clone via the system git so existing SSH keys / known_hosts and
+        // credential helpers are reused. This is what makes ssh:// and git@
+        // (internal Bitbucket) URLs work.
+        try {
+          await execFileAsync(
+            'git',
+            ['clone', '--depth', '1', repoUrl, skillDir],
+            {
+              env: {
+                ...process.env,
+                // Never block on an interactive password prompt — fail fast
+                // instead of hanging the turn (which looked like a silent exit).
+                GIT_TERMINAL_PROMPT: '0',
+                GIT_SSH_COMMAND:
+                  process.env['GIT_SSH_COMMAND'] ?? 'ssh -o BatchMode=yes',
+              },
+              timeout: 120_000,
+            },
+          );
+
+          if (ref && ref.trim()) {
+            await execFileAsync('git', [
+              '-C',
+              skillDir,
+              'checkout',
+              ref.trim(),
+            ]);
+          }
+        } catch (err) {
+          // Clean up a partial clone so a retry isn't blocked by "already exists".
+          if (fs.existsSync(skillDir)) {
+            fs.rmSync(skillDir, { recursive: true, force: true });
+          }
+          const stderr =
+            err instanceof Error &&
+            'stderr' in err &&
+            typeof err.stderr === 'string'
+              ? err.stderr
+              : '';
+          const detail = (stderr || getErrorMessage(err)).trim();
+          const hint =
+            isNodeError(err) && err.code === 'ENOENT'
+              ? '`git` 명령을 찾을 수 없습니다. git 설치 여부를 확인하세요.'
+              : 'ssh URL 인 경우: SSH 키 등록(ssh-add), known_hosts, 사내망(VPN) 연결을 확인하세요.';
+          return {
+            llmContent: `Error cloning "${repoUrl}":\n${detail}\n\n${hint}`,
+            returnDisplay: `Error: git clone failed`,
+            error: { message: `git clone failed: ${detail}` },
+          };
+        }
+
+        // Validate that the cloned repo actually contains a SKILL.md.
+        const skillFile = path.join(skillDir, 'SKILL.md');
+        if (!fs.existsSync(skillFile)) {
+          fs.rmSync(skillDir, { recursive: true, force: true });
+          return {
+            llmContent: `Error: cloned repository "${repoUrl}" does not contain a SKILL.md at its root. Removed.`,
+            returnDisplay: 'Error: no SKILL.md in repository',
+            error: { message: 'no SKILL.md in repository' },
+          };
+        }
+
+        // Drop the .git dir so the installed skill is a plain copy.
+        const gitDir = path.join(skillDir, '.git');
+        if (fs.existsSync(gitDir)) {
+          fs.rmSync(gitDir, { recursive: true, force: true });
+        }
+
+        const reloadHint =
+          'Type `/skills reload` in interactive mode, or restart openrnd to activate.';
+        const msg = `✅ Skill **${skillName}** installed from \`${repoUrl}\` into \`${skillDir}\`.\n\n${reloadHint}`;
         return { llmContent: msg, returnDisplay: msg };
       }
 
