@@ -129,11 +129,13 @@ ${folderStructure}`,
 
     skillManager.activateSkill(skillName);
 
+    // Absolute, native path to the skill's directory. Everything the skill
+    // bundles (scripts, references, data) lives here.
+    const skillDir = path.dirname(skill.location);
+
     // Add the skill's directory to the workspace context so the agent has permission
     // to read its bundled resources.
-    this.config
-      .getWorkspaceContext()
-      .addDirectory(path.dirname(skill.location));
+    this.config.getWorkspaceContext().addDirectory(skillDir);
 
     const folderStructure = await this.getOrFetchFolderStructure(
       skill.location,
@@ -141,15 +143,25 @@ ${folderStructure}`,
 
     return {
       llmContent: `<activated_skill name="${skillName}">
+  <skill_directory>${skillDir}</skill_directory>
   <instructions>
     ${skill.body}
   </instructions>
 
   <available_resources>
-    ${folderStructure}
+${folderStructure}
   </available_resources>
+
+  <path_resolution>
+    All of this skill's files are located in <skill_directory>: ${skillDir}
+    Any relative path in the instructions or resources above (e.g.
+    "scripts/run.py", "references/data.json") is relative to <skill_directory>,
+    NOT the current working directory. To read or execute a resource, build its
+    absolute path by joining <skill_directory> with the relative path and use
+    that directly. The files are exactly there — do not search other locations.
+  </path_resolution>
 </activated_skill>`,
-      returnDisplay: `Skill **${skillName}** activated. Resources loaded from \`${path.dirname(skill.location)}\`:\n\n${folderStructure}`,
+      returnDisplay: `Skill **${skillName}** activated. Resources loaded from \`${skillDir}\`:\n\n${folderStructure}`,
     };
   }
 }
