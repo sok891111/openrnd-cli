@@ -280,18 +280,166 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     }
   }
 
-  private async executeFallbackForUrl(
+  /**
+   * Whether to fall back to the user's signed-in browser session when a direct
+   * fetch hits an SSO/auth wall or fails. Enabled by default — corporate
+   * intranet URLs are usually behind SSO that a server-side fetch cannot pass.
+   * Disable with OPENRND_WEBFETCH_BROWSER_FALLBACK=0 (or false/off).
+   */
+  private shouldUseBrowserFetch(): boolean {
+    const v = (
+      process.env['OPENRND_WEBFETCH_BROWSER_FALLBACK'] ?? ''
+    ).toLowerCase();
+    return v !== '0' && v !== 'false' && v !== 'off';
+  }
+
+  /** HTTP statuses that indicate the request was blocked by an auth gate. */
+  private isAuthStatus(status: number): boolean {
+    // 401 Unauthorized, 403 Forbidden, 407 Proxy Auth, 511 Network Auth Required
+    return status === 401 || status === 403 || status === 407 || status === 511;
+  }
+
+  /** Approximate registrable domain (last two labels). */
+  private registrableDomain(hostname: string): string {
+    return hostname.toLowerCase().split('.').slice(-2).join('.');
+  }
+
+  /**
+   * Heuristic: did the direct fetch get bounced to an SSO/login flow?
+   * Triggers on auth statuses, cross-site redirects (typical of an IdP), or a
+   * redirect whose final URL looks like a login/SSO endpoint.
+   */
+  private looksLikeAuthRedirect(
+    originalUrl: string,
+    response: Response,
+  ): boolean {
+    if (this.isAuthStatus(response.status)) {
+      return true;
+    }
+    if (!response.redirected) {
+      return false;
+    }
+    let finalUrl: URL;
+    let orig: URL;
+    try {
+      finalUrl = new URL(response.url);
+      orig = new URL(originalUrl);
+    } catch {
+      return false;
+    }
+    // Redirected to a different registrable domain (e.g. corp.com ->
+    // login.microsoftonline.com / okta.com) — almost always an IdP.
+    if (
+      this.registrableDomain(finalUrl.hostname) !==
+      this.registrableDomain(orig.hostname)
+    ) {
+      return true;
+    }
+    // Same domain, but the landing page looks like an auth endpoint
+    // (e.g. adfs.corp.com/adfs/ls, intranet.corp.com/login).
+    const authMarker =
+      /(^|[/.])(login|signin|sign-in|sso|saml|adfs|oauth|openid|idp|auth|account|session)([/.?]|$)/i;
+    return (
+      authMarker.test(finalUrl.pathname) || authMarker.test(finalUrl.hostname)
+    );
+  }
+
+  /**
+   * Fetches a URL through the user's signed-in browser session, reusing the
+   * existing BrowserManager (chrome-devtools-mcp). Because the browser carries
+   * the user's SSO cookies, this bypasses intranet auth walls that a
+   * server-side fetch cannot. Opens a NEW tab so the user's current page is
+   * left untouched, then closes that tab.
+   */
+  private async fetchViaBrowser(
     urlStr: string,
     signal: AbortSignal,
   ): Promise<string> {
-    const url = convertGithubUrlToRaw(urlStr);
-    if (this.isBlockedHost(url)) {
-      debugLogger.warn(`[WebFetchTool] Blocked access to host: ${url}`);
-      throw new Error(
-        `Access to blocked or private host ${url} is not allowed.`,
-      );
-    }
+    const { BrowserManager } = await import(
+      '../agents/browser/browserManager.js'
+    );
+    const manager = BrowserManager.getInstance(this.context.config);
+    manager.acquire();
+    let pageIdToClose: number | undefined;
+    try {
+      await manager.callTool('new_page', { url: urlStr }, signal, true);
 
+      // take_snapshot returns the rendered page as structured text — the same
+      // content the user already sees via their live session.
+      const snapshot = await manager.callTool(
+        'take_snapshot',
+        {},
+        signal,
+        true,
+      );
+      if (snapshot.isError) {
+        throw new Error('Browser failed to read page content.');
+      }
+      const raw = (snapshot.content ?? [])
+        .filter((item) => item.type === 'text' && item.text)
+        .map((item) => item.text ?? '')
+        .join('\n');
+
+      // The tab we just opened is the selected page. The snapshot lists pages
+      // as "<id>: <url> [selected]" — grab that id so we can close the tab.
+      const selected = raw.match(/^\s*(\d+):\s+\S.*\[selected\]/m);
+      if (selected) {
+        pageIdToClose = Number(selected[1]);
+      }
+
+      const text = raw.trim();
+      if (!text) {
+        throw new Error('Browser returned empty page content.');
+      }
+      return text;
+    } finally {
+      if (pageIdToClose !== undefined) {
+        // Best-effort: close the tab we opened so we don't litter the browser.
+        try {
+          await manager.callTool(
+            'close_page',
+            { pageId: pageIdToClose },
+            signal,
+            true,
+          );
+        } catch {
+          // ignore close failures
+        }
+      }
+      manager.release();
+    }
+  }
+
+  /** Wraps a browser fetch into a ToolResult for the experimental path. */
+  private async browserFetchResult(
+    url: string,
+    signal: AbortSignal,
+  ): Promise<ToolResult> {
+    const text = await this.fetchViaBrowser(url, signal);
+    return {
+      llmContent: this.applyFallbackTruncation(text),
+      returnDisplay: `Fetched content from ${url} via your browser session.`,
+    };
+  }
+
+  /** Applies the content size limit when context management is off. */
+  private applyFallbackTruncation(text: string): string {
+    if (!this.context.config.isContextManagementEnabled()) {
+      return truncateString(text, MAX_CONTENT_LENGTH, TRUNCATION_WARNING);
+    }
+    return text;
+  }
+
+  /**
+   * Server-side fetch of a URL, returning both the response (for auth-wall
+   * detection) and the converted text. Throws on non-auth error statuses
+   * (preserving the original behavior); auth statuses are returned so the
+   * caller can decide to fall back to the browser.
+   */
+  private async nodeFetchText(
+    url: string,
+    signal: AbortSignal,
+  ): Promise<{ response: Response; text: string }> {
     const response = await retryWithBackoff(
       async () => {
         const res = await fetchWithTimeout(url, URL_FETCH_TIMEOUT_MS, {
@@ -300,7 +448,7 @@ class WebFetchToolInvocation extends BaseToolInvocation<
             'User-Agent': USER_AGENT,
           },
         });
-        if (!res.ok) {
+        if (!res.ok && !this.isAuthStatus(res.status)) {
           const error = new Error(
             `Request failed with status code ${res.status} ${res.statusText}`,
           );
@@ -339,15 +487,46 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       textContent = rawContent;
     }
 
-    if (!this.context.config.isContextManagementEnabled()) {
-      return truncateString(
-        textContent,
-        MAX_CONTENT_LENGTH,
-        TRUNCATION_WARNING,
+    return { response, text: textContent };
+  }
+
+  private async executeFallbackForUrl(
+    urlStr: string,
+    signal: AbortSignal,
+  ): Promise<string> {
+    const url = convertGithubUrlToRaw(urlStr);
+    if (this.isBlockedHost(url)) {
+      debugLogger.warn(`[WebFetchTool] Blocked access to host: ${url}`);
+      throw new Error(
+        `Access to blocked or private host ${url} is not allowed.`,
       );
     }
 
-    return textContent;
+    // Try a fast server-side fetch first; on SSO/auth walls or failure, fall
+    // back to the user's signed-in browser session.
+    if (this.shouldUseBrowserFetch()) {
+      try {
+        const { response, text } = await this.nodeFetchText(url, signal);
+        if (this.looksLikeAuthRedirect(url, response)) {
+          debugLogger.warn(
+            `[WebFetchTool] Auth/SSO wall detected for ${url} ` +
+              `(status ${response.status}, final ${response.url}). ` +
+              `Falling back to browser session.`,
+          );
+          return await this.fetchViaBrowser(url, signal);
+        }
+        return this.applyFallbackTruncation(text);
+      } catch (error) {
+        debugLogger.warn(
+          `[WebFetchTool] Direct fetch failed for ${url} ` +
+            `(${getErrorMessage(error)}). Falling back to browser session.`,
+        );
+        return this.fetchViaBrowser(url, signal);
+      }
+    }
+
+    const { text } = await this.nodeFetchText(url, signal);
+    return this.applyFallbackTruncation(text);
   }
 
   private filterAndValidateUrls(urls: string[]): {
@@ -653,6 +832,19 @@ ${aggregatedContent}
 
       const contentType = response.headers.get('content-type') || '';
       const status = response.status;
+
+      // Bounced to an SSO/login flow? Read it through the signed-in browser.
+      if (
+        this.shouldUseBrowserFetch() &&
+        this.looksLikeAuthRedirect(url, response)
+      ) {
+        debugLogger.warn(
+          `[WebFetchTool] Auth/SSO wall detected for ${url} ` +
+            `(status ${status}). Using browser session.`,
+        );
+        return await this.browserFetchResult(url, signal);
+      }
+
       const bodyBuffer = await this.readResponseWithLimit(
         response,
         MAX_EXPERIMENTAL_FETCH_SIZE,
@@ -747,6 +939,30 @@ Response: ${rawResponseText}`;
         returnDisplay: `Fetched ${contentType || 'unknown'} content from ${url}`,
       };
     } catch (e) {
+      // Network failure on the direct fetch — try the signed-in browser.
+      if (this.shouldUseBrowserFetch()) {
+        debugLogger.warn(
+          `[WebFetchTool] Experimental fetch failed for ${url} ` +
+            `(${getErrorMessage(e)}). Falling back to browser session.`,
+        );
+        try {
+          return await this.browserFetchResult(url, signal);
+        } catch (browserError) {
+          const errorMessage =
+            `Error during experimental fetch for ${url}: ${getErrorMessage(e)}; ` +
+            `browser fallback also failed: ${getErrorMessage(browserError)}`;
+          debugLogger.error(`[WebFetchTool] ${errorMessage}`);
+          return {
+            llmContent: `Error: ${errorMessage}`,
+            returnDisplay: `Error: ${errorMessage}`,
+            error: {
+              message: errorMessage,
+              type: ToolErrorType.WEB_FETCH_FALLBACK_FAILED,
+            },
+          };
+        }
+      }
+
       const errorMessage = `Error during experimental fetch for ${url}: ${getErrorMessage(e)}`;
       debugLogger.error(
         `[WebFetchTool] Experimental fetch error: ${errorMessage}`,
