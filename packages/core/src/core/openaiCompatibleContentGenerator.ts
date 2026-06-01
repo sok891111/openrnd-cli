@@ -18,6 +18,43 @@ import type {
 import type { ContentGenerator } from './contentGenerator.js';
 import type { LlmRole } from '../telemetry/llmRole.js';
 import { fetch } from 'undici';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
+
+// ---------------------------------------------------------------------------
+// Debug logger — enabled via OPENRND_DEBUG=true
+// Writes to ~/.openrnd/debug.log and stderr simultaneously
+// ---------------------------------------------------------------------------
+
+function getLogPath(): string {
+  return path.join(os.homedir(), '.openrnd', 'debug.log');
+}
+
+function debugLog(
+  level: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG',
+  ...args: unknown[]
+): void {
+  if (!process.env['OPENRND_DEBUG']) return;
+
+  const timestamp = new Date().toISOString();
+  const prefix = `[${timestamp}] [${level}] [openai-compat]`;
+
+  const parts = args.map((a) =>
+    typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a),
+  );
+  const line = `${prefix} ${parts.join(' ')}\n`;
+
+  process.stderr.write(line);
+
+  try {
+    const logDir = path.join(os.homedir(), '.openrnd');
+    fs.mkdirSync(logDir, { recursive: true });
+    fs.appendFileSync(getLogPath(), line, 'utf8');
+  } catch {
+    // silently ignore log-write failures
+  }
+}
 
 // ---------------------------------------------------------------------------
 // OpenAI API types (subset we need)
@@ -107,6 +144,28 @@ function geminiRoleToOpenAI(role: string): 'user' | 'assistant' | 'system' {
   if (role === 'model') return 'assistant';
   if (role === 'system') return 'system';
   return 'user';
+}
+
+// Map an OpenAI-style finish_reason (lowercase, e.g. "stop") to the Gemini
+// FinishReason enum value (uppercase, e.g. "STOP"). The downstream stream
+// validator in geminiChat throws NO_FINISH_REASON (a *retryable* error) when a
+// turn without tool calls has no finish reason — which makes the whole answer
+// repeat on every retry. So we must always surface a valid finish reason.
+function mapFinishReason(
+  reason: string | null | undefined,
+): string | undefined {
+  if (!reason) return undefined;
+  switch (reason) {
+    case 'length':
+      return 'MAX_TOKENS';
+    case 'content_filter':
+      return 'SAFETY';
+    case 'stop':
+    case 'tool_calls':
+    case 'function_call':
+    default:
+      return 'STOP';
+  }
 }
 
 function partsToText(parts: Part[]): string {
@@ -239,7 +298,7 @@ function openAIResponseToGemini(
     candidates: [
       {
         content: { role: 'model', parts },
-        finishReason: choice.finish_reason as string,
+        finishReason: mapFinishReason(choice.finish_reason) ?? 'STOP',
         index: choice.index,
       },
     ],
@@ -269,6 +328,13 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
       baseUrl ?? process.env['OPENRND_BASE_URL'] ?? 'http://localhost:11434/v1';
     this.apiKey = apiKey ?? process.env['OPENRND_API_KEY'] ?? 'ollama';
     this.model = model ?? process.env['OPENRND_MODEL'] ?? 'llama3.2';
+
+    debugLog('INFO', 'OpenAICompatibleContentGenerator initialized', {
+      baseUrl: this.baseUrl,
+      model: this.model,
+      apiKeySet: this.apiKey !== 'ollama' ? '(custom)' : '(default: ollama)',
+      debugLogPath: process.env['OPENRND_DEBUG'] ? getLogPath() : '(disabled)',
+    });
   }
 
   private buildRequest(
@@ -316,24 +382,67 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
     _role: LlmRole,
   ): Promise<GenerateContentResponse> {
     const body = this.buildRequest(request, false);
+    const url = `${this.baseUrl}/chat/completions`;
 
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
+    debugLog('DEBUG', 'generateContent → request', {
+      url,
+      model: body.model,
+      messageCount: body.messages.length,
+      toolCount: body.tools?.length ?? 0,
+      messages: body.messages.map((m) => ({
+        role: m.role,
+        contentLength: typeof m.content === 'string' ? m.content.length : 0,
+      })),
+    });
+
+    let response: Awaited<ReturnType<typeof fetch>>;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      debugLog(
+        'ERROR',
+        'generateContent → fetch failed (network/connection error)',
+        {
+          url,
+          error: String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+        },
+      );
+      throw err;
+    }
+
+    debugLog('DEBUG', 'generateContent → response received', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
+      debugLog('ERROR', 'generateContent → HTTP error', {
+        status: response.status,
+        body: errorText,
+      });
       throw new Error(
         `OpenAI-compatible API error ${response.status}: ${errorText}`,
       );
     }
 
     const data = (await response.json()) as OpenAIChatResponse;
+    debugLog('DEBUG', 'generateContent → success', {
+      id: data.id,
+      model: data.model,
+      finishReason: data.choices[0]?.finish_reason,
+      usage: data.usage,
+      contentLength: data.choices[0]?.message?.content?.length ?? 0,
+    });
     return openAIResponseToGemini(data, this.model);
   }
 
@@ -343,18 +452,54 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
     _role: LlmRole,
   ): Promise<AsyncGenerator<GenerateContentResponse>> {
     const body = this.buildRequest(request, true);
+    const url = `${this.baseUrl}/chat/completions`;
 
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
+    debugLog('DEBUG', 'generateContentStream → request', {
+      url,
+      model: body.model,
+      messageCount: body.messages.length,
+      toolCount: body.tools?.length ?? 0,
+      messages: body.messages.map((m) => ({
+        role: m.role,
+        contentLength: typeof m.content === 'string' ? m.content.length : 0,
+      })),
+    });
+
+    let response: Awaited<ReturnType<typeof fetch>>;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      debugLog(
+        'ERROR',
+        'generateContentStream → fetch failed (network/connection error)',
+        {
+          url,
+          error: String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+        },
+      );
+      throw err;
+    }
+
+    debugLog('DEBUG', 'generateContentStream → response received', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
+      debugLog('ERROR', 'generateContentStream → HTTP error', {
+        status: response.status,
+        body: errorText,
+      });
       throw new Error(
         `OpenAI-compatible API error ${response.status}: ${errorText}`,
       );
@@ -364,10 +509,18 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
 
     async function* streamGenerator(): AsyncGenerator<GenerateContentResponse> {
       const reader = response.body?.getReader();
-      if (!reader) return;
+      if (!reader) {
+        debugLog(
+          'ERROR',
+          'generateContentStream → response.body reader is null',
+        );
+        return;
+      }
 
       const decoder = new TextDecoder();
       let buffer = '';
+      let chunkCount = 0;
+      let totalContentLength = 0;
 
       // Accumulate tool call deltas
       const toolCallAccumulator: Record<
@@ -375,10 +528,18 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
         { id: string; name: string; arguments: string }
       > = {};
 
+      debugLog('DEBUG', 'generateContentStream → stream reading started');
+
       try {
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            debugLog('DEBUG', 'generateContentStream → stream done', {
+              totalChunks: chunkCount,
+              totalContentLength,
+            });
+            break;
+          }
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
@@ -393,7 +554,15 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
             let chunk: OpenAIStreamChunk;
             try {
               chunk = JSON.parse(data) as OpenAIStreamChunk;
-            } catch {
+            } catch (parseErr) {
+              debugLog(
+                'WARN',
+                'generateContentStream → failed to parse SSE chunk',
+                {
+                  raw: data,
+                  error: String(parseErr),
+                },
+              );
               continue;
             }
 
@@ -424,13 +593,19 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
 
             if (delta.content) {
               parts.push({ text: delta.content });
+              chunkCount++;
+              totalContentLength += delta.content.length;
             }
 
+            // A non-null finish_reason marks the final chunk of the turn.
+            // Many OpenAI-compatible servers (e.g. mlx_lm.server) send this
+            // final chunk with empty content, so we must NOT gate emission on
+            // parts being present — otherwise the finish reason is dropped and
+            // the consumer retries the whole stream.
+            const isFinished = choice.finish_reason != null;
+
             // On finish, emit accumulated tool calls
-            if (
-              choice.finish_reason === 'tool_calls' ||
-              choice.finish_reason === 'stop'
-            ) {
+            if (isFinished) {
               for (const [, tc] of Object.entries(toolCallAccumulator)) {
                 let args: Record<string, unknown> = {};
                 try {
@@ -448,12 +623,14 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
               }
             }
 
-            if (parts.length > 0) {
+            if (parts.length > 0 || isFinished) {
               yield {
                 candidates: [
                   {
                     content: { role: 'model', parts },
-                    finishReason: choice.finish_reason ?? undefined,
+                    finishReason: isFinished
+                      ? mapFinishReason(choice.finish_reason)
+                      : undefined,
                     index: choice.index,
                   },
                 ],
@@ -464,6 +641,17 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
             }
           }
         }
+      } catch (streamErr) {
+        debugLog(
+          'ERROR',
+          'generateContentStream → error while reading stream',
+          {
+            error: String(streamErr),
+            stack: streamErr instanceof Error ? streamErr.stack : undefined,
+            chunksReceivedBeforeError: chunkCount,
+          },
+        );
+        throw streamErr;
       } finally {
         reader.releaseLock();
       }

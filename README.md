@@ -133,6 +133,38 @@ export OPENRND_MODEL="your-model-name"
 export OPENRND_API_KEY="your-api-key"
 ```
 
+### 디버그 로깅 (연결 문제 진단)
+
+응답이 오지 않거나 연결 오류가 의심될 때 `OPENRND_DEBUG=true`를 설정하면 상세
+로그가 stderr와 `~/.openrnd/debug.log`에 동시 기록됩니다.
+
+```bash
+OPENRND_DEBUG=true \
+OPENRND_BASE_URL="http://your-llm-server/v1" \
+OPENRND_MODEL="your-model" \
+OPENRND_TRUST_WORKSPACE=true \
+openrnd
+```
+
+로그 확인:
+
+```bash
+# 실시간
+tail -f ~/.openrnd/debug.log
+
+# 전체 덤프
+cat ~/.openrnd/debug.log
+```
+
+| 로그 항목           | 내용                             |
+| ------------------- | -------------------------------- |
+| `initialized`       | 접속 URL·모델 설정 확인          |
+| `request`           | 요청 URL, 메시지 수/길이         |
+| `response received` | HTTP 상태 코드·헤더              |
+| `HTTP error`        | 서버 응답 에러 바디 전문         |
+| `fetch failed`      | 네트워크/연결 에러 스택 트레이스 |
+| `stream done`       | 수신된 총 청크 수                |
+
 ---
 
 ## 실행
@@ -261,21 +293,25 @@ Skill 파일 위치: `~/.openrnd/skills/<name>/SKILL.md`
 
 ## 빌드 스크립트
 
-변경 후 재빌드:
+소스(`packages/**`)를 수정한 뒤에는 **반드시 재빌드**해야 반영됩니다. 실행
+바이너리(`openrnd`)는 `bundle/` 디렉터리의 번들 파일을 실행하기 때문입니다.
 
 ```bash
-# core만 변경한 경우
-npm run build --workspace=@openrnd/core
-
-# cli만 변경한 경우
-npm run build --workspace=@openrnd/cli
-
-# 번들 전체 재생성 (배포용)
-npm run build --workspace=@openrnd/core
-npm run build --workspace=@openrnd/cli
-node esbuild.config.js
-node scripts/copy_bundle_assets.js
+# 이것 하나로 충분 — tsc 없이 esbuild가 TypeScript를 직접 컴파일·번들링
+rm -rf bundle
+npm run bundle
 ```
+
+> `rm -rf bundle`은 esbuild가 outdir를 비우지 않아 content-hash 청크가 쌓이는
+> 것을 방지합니다. 매번 실행하는 것을 권장합니다.
+
+`npm run bundle` 내부 순서:
+
+1. `generate` — git 커밋 정보 생성
+2. `build` (devtools) — 클라이언트 에셋 빌드
+3. `bundle:browser-mcp` — browser MCP 번들
+4. `esbuild.config.js` — `packages/**` TypeScript → `bundle/gemini.js` 번들링
+5. `copy_bundle_assets.js` — 정책·문서·Skill 파일 복사
 
 ---
 
