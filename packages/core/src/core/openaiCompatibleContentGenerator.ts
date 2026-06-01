@@ -7,7 +7,6 @@
 
 import type {
   CountTokensResponse,
-  GenerateContentResponse,
   GenerateContentParameters,
   CountTokensParameters,
   EmbedContentResponse,
@@ -15,6 +14,12 @@ import type {
   Part,
   Content,
 } from '@google/genai';
+// Imported as a *value* (not just a type): we must construct real
+// GenerateContentResponse instances so that accessor getters like
+// `.functionCalls` / `.text` work. Plain object literals don't have those
+// getters, which silently dropped tool calls (the model would announce a
+// tool call but it was never executed, ending the turn).
+import { FinishReason, GenerateContentResponse } from '@google/genai';
 import type { ContentGenerator } from './contentGenerator.js';
 import type { LlmRole } from '../telemetry/llmRole.js';
 import { fetch } from 'undici';
@@ -157,19 +162,32 @@ function geminiRoleToOpenAI(role: string): 'user' | 'assistant' | 'system' {
 // repeat on every retry. So we must always surface a valid finish reason.
 function mapFinishReason(
   reason: string | null | undefined,
-): string | undefined {
+): FinishReason | undefined {
   if (!reason) return undefined;
   switch (reason) {
     case 'length':
-      return 'MAX_TOKENS';
+      return FinishReason.MAX_TOKENS;
     case 'content_filter':
-      return 'SAFETY';
+      return FinishReason.SAFETY;
     case 'stop':
     case 'tool_calls':
     case 'function_call':
     default:
-      return 'STOP';
+      return FinishReason.STOP;
   }
+}
+
+// Build a *real* GenerateContentResponse instance from a plain shape. This is
+// required so the SDK's computed getters (`functionCalls`, `text`, ...) work —
+// downstream consumers (turn.ts, geminiChat) read `response.functionCalls` to
+// decide whether to execute a tool and continue the turn. A plain object
+// literal returns `undefined` there, so tool calls were silently dropped.
+function makeGenerateContentResponse(
+  shape: Partial<GenerateContentResponse>,
+): GenerateContentResponse {
+  const response = new GenerateContentResponse();
+  Object.assign(response, shape);
+  return response;
 }
 
 function partsToText(parts: Part[]): string {
@@ -264,11 +282,10 @@ function openAIResponseToGemini(
 ): GenerateContentResponse {
   const choice = response.choices[0];
   if (!choice) {
-    return {
+    return makeGenerateContentResponse({
       candidates: [],
       usageMetadata: {},
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any;
+    });
   }
 
   const parts: Part[] = [];
@@ -298,11 +315,12 @@ function openAIResponseToGemini(
     }
   }
 
-  return {
+  return makeGenerateContentResponse({
     candidates: [
       {
         content: { role: 'model', parts },
-        finishReason: mapFinishReason(choice.finish_reason) ?? 'STOP',
+        finishReason:
+          mapFinishReason(choice.finish_reason) ?? FinishReason.STOP,
         index: choice.index,
       },
     ],
@@ -314,8 +332,7 @@ function openAIResponseToGemini(
         }
       : {},
     modelVersion: modelUsed,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -713,7 +730,7 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
             }
 
             if (parts.length > 0 || isFinished) {
-              yield {
+              yield makeGenerateContentResponse({
                 candidates: [
                   {
                     content: { role: 'model', parts },
@@ -725,8 +742,7 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
                 ],
                 usageMetadata: {},
                 modelVersion: model,
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              } as any;
+              });
             }
           }
         }
