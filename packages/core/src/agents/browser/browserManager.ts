@@ -340,9 +340,16 @@ export class BrowserManager {
       this.actionCounter++;
     }
 
-    const errorMessage = this.checkNavigationRestrictions(toolName, args);
-    if (errorMessage) {
-      throw new DomainNotAllowedError(errorMessage);
+    // The domain allowlist is a security policy for the autonomous browser
+    // agent's own navigations. Internal (code-initiated) navigations — e.g.
+    // web_fetch opening a URL the user explicitly requested — are trusted and
+    // exempt; otherwise the default allowlist (github/google/localhost) would
+    // block all intranet URLs.
+    if (!isInternal) {
+      const errorMessage = this.checkNavigationRestrictions(toolName, args);
+      if (errorMessage) {
+        throw new DomainNotAllowedError(errorMessage);
+      }
     }
 
     const client = await this.getRawMcpClient();

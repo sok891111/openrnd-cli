@@ -296,6 +296,27 @@ describe('BrowserManager', () => {
       ).rejects.toThrow(DomainNotAllowedError);
     });
 
+    it('should let internal navigations bypass the domain allowlist', async () => {
+      // web_fetch opens user-requested URLs (incl. intranet) via internal
+      // calls — these must not be blocked by the agent's domain allowlist.
+      const restrictedConfig = makeFakeConfig({
+        agents: {
+          browser: {
+            allowedDomains: ['google.com'],
+          },
+        },
+      });
+      const manager = new BrowserManager(restrictedConfig);
+      const result = await manager.callTool(
+        'new_page',
+        { url: 'https://intranet.corp' },
+        undefined,
+        true, // isInternal
+      );
+      expect(result.isError).toBe(false);
+      expect((result.content || [])[0]?.text).toBe('Tool result');
+    });
+
     it('should block proxy URL with embedded disallowed domain in query params', async () => {
       const restrictedConfig = makeFakeConfig({
         agents: {
