@@ -9,7 +9,6 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { writeToStderr } from './stdio.js';
 
 /**
  * Office document extensions that must be read through win32com COM automation.
@@ -53,10 +52,6 @@ export interface OfficeReadResult {
 
 /** Timeout for the win32com extraction process (Office launch can be slow). */
 const OFFICE_READ_TIMEOUT_MS = 120_000;
-
-function logOffice(message: string): void {
-  writeToStderr(`[office-read] ${message}\n`);
-}
 
 function detectPythonExecutable(): string {
   // win32com (pywin32) only exists on Windows. On other platforms we still
@@ -234,15 +229,11 @@ if __name__ == "__main__":
 export async function readOfficeFile(
   filePath: string,
 ): Promise<OfficeReadResult> {
-  const ext = path.extname(filePath).toLowerCase();
-  logOffice(`win32com 로 읽기 시작: ${filePath} (확장자 ${ext})`);
-
   if (process.platform !== 'win32') {
     const error =
       'win32com 기반 Office 읽기는 Windows에서만 지원됩니다. ' +
       '현재 플랫폼: ' +
       process.platform;
-    logOffice(`건너뜀: ${error}`);
     return { error };
   }
 
@@ -251,7 +242,6 @@ export async function readOfficeFile(
 
   try {
     await fs.writeFile(tmpScript, WIN32COM_EXTRACT_SCRIPT, 'utf-8');
-    logOffice(`Python 실행: ${pythonExe} <script> "${filePath}"`);
 
     const { stdout, stderr, code } = await new Promise<{
       stdout: string;
@@ -277,14 +267,7 @@ export async function readOfficeFile(
         out += d.toString('utf-8');
       });
       child.stderr.on('data', (d: Buffer) => {
-        const chunk = d.toString('utf-8');
-        err += chunk;
-        // Surface win32com diagnostics directly in the terminal.
-        for (const line of chunk.split(/\r?\n/)) {
-          if (line.trim()) {
-            logOffice(`[python] ${line.trim()}`);
-          }
-        }
+        err += d.toString('utf-8');
       });
       child.on('error', (e) => {
         clearTimeout(timer);
@@ -308,11 +291,9 @@ export async function readOfficeFile(
       const error =
         `win32com Office 읽기 실패 (exit ${code}). ` +
         (stderr.trim() || '진단 메시지 없음');
-      logOffice(`실패: ${error}`);
       return { error };
     }
 
-    logOffice(`완료: ${stdout.length} chars 추출 (${filePath})`);
     return { text: stdout };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -321,7 +302,6 @@ export async function readOfficeFile(
         ? `Python 실행 파일 '${pythonExe}' 을(를) 찾을 수 없습니다. ` +
           `Python 3 와 pywin32 (pip install pywin32) 가 설치되어 있어야 합니다.`
         : `win32com Office 읽기 중 오류: ${message}`;
-    logOffice(`오류: ${error}`);
     return { error };
   } finally {
     await fs.rm(tmpScript, { force: true }).catch(() => {});
