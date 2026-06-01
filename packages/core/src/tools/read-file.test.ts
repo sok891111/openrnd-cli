@@ -361,7 +361,7 @@ describe('ReadFileTool', () => {
       expect(result.returnDisplay).toBe('Read image file: image.png');
     });
 
-    it('should handle PDF file and return appropriate content', async () => {
+    it('should route PDF reads through the win32com office path (not inlineData)', async () => {
       const pdfPath = path.join(tempRootDir, 'document.pdf');
       // Minimal PDF header
       const pdfHeader = Buffer.from('%PDF-1.4');
@@ -370,13 +370,12 @@ describe('ReadFileTool', () => {
       const invocation = tool.build(params);
 
       const result = await invocation.execute({ abortSignal });
-      expect(result.llmContent).toEqual({
-        inlineData: {
-          data: pdfHeader.toString('base64'),
-          mimeType: 'application/pdf',
-        },
-      });
-      expect(result.returnDisplay).toBe('Read pdf file: document.pdf');
+      // PDFs are DRM-read via win32com (Word reflow), never as inlineData.
+      expect(result.llmContent).not.toHaveProperty('inlineData');
+      if (process.platform !== 'win32') {
+        // win32com is Windows-only; on other platforms it errors clearly.
+        expect(result.error?.message).toContain('win32com');
+      }
     });
 
     it('should handle binary file and skip content', async () => {

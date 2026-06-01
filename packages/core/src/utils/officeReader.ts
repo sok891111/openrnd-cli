@@ -11,14 +11,13 @@ import os from 'node:os';
 import path from 'node:path';
 
 /**
- * Office document extensions that must be read through win32com COM automation.
+ * Document extensions that must be read through win32com COM automation.
  *
- * In-house Office files (Word/PowerPoint/Excel) are protected by a DRM policy
- * that prevents them from being read directly off disk. Opening them through the
- * installed Office application via win32com (pywin32) is the only path that the
- * DRM agent allows, so reads for these extensions are routed there.
- *
- * PDF is intentionally excluded: it keeps its existing inlineData handling.
+ * In-house Office files (Word/PowerPoint/Excel) and PDFs are protected by a DRM
+ * policy that prevents them from being read directly off disk. Opening them
+ * through the installed Office application via win32com (pywin32) is the only
+ * path that the DRM agent allows, so reads for these extensions are routed
+ * there. PDFs are opened with Word (PDF reflow, Word 2013+) to extract text.
  */
 export const OFFICE_EXTENSIONS: readonly string[] = [
   // Word
@@ -36,6 +35,8 @@ export const OFFICE_EXTENSIONS: readonly string[] = [
   '.ppt',
   '.pptx',
   '.pptm',
+  // PDF (opened via Word reflow)
+  '.pdf',
 ];
 
 /**
@@ -121,6 +122,31 @@ def read_word(path):
     finally:
         word.Quit()
 
+def read_pdf(path):
+    # Word 2013+ reflows a PDF into an editable document on open, which lets us
+    # extract its text through the same COM path the DRM agent already allows.
+    import win32com.client
+    word = win32com.client.DispatchEx("Word.Application")
+    word.Visible = False
+    try:
+        word.DisplayAlerts = False  # suppress the "convert PDF" prompt
+    except Exception:
+        pass
+    try:
+        doc = word.Documents.Open(
+            path,
+            ConfirmConversions=False,
+            ReadOnly=True,
+            AddToRecentFiles=False,
+            Format=0,  # wdOpenFormatAuto -> triggers PDF reflow
+        )
+        try:
+            return doc.Content.Text
+        finally:
+            doc.Close(False)
+    finally:
+        word.Quit()
+
 def read_excel(path):
     import win32com.client
     excel = win32com.client.DispatchEx("Excel.Application")
@@ -197,6 +223,8 @@ def main():
     try:
         if ext in (".doc", ".docx", ".docm", ".dot", ".dotx"):
             text = read_word(path)
+        elif ext == ".pdf":
+            text = read_pdf(path)
         elif ext in (".xls", ".xlsx", ".xlsm", ".xlsb"):
             text = read_excel(path)
         elif ext in (".ppt", ".pptx", ".pptm"):

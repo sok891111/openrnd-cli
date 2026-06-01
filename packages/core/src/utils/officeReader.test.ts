@@ -20,19 +20,21 @@ describe('isOfficeFile', () => {
     'b.xlsx',
     'c.ppt',
     'c.pptx',
+    'd.pdf',
+    'D.PDF',
     '/abs/path/to/report.docm',
-  ])('returns true for office file %s', (file) => {
+  ])('returns true for win32com-routed file %s', (file) => {
     expect(isOfficeFile(file)).toBe(true);
   });
 
-  it.each(['a.txt', 'a.pdf', 'a.png', 'a.ts', 'README', 'a.csv'])(
+  it.each(['a.txt', 'a.png', 'a.ts', 'README', 'a.csv'])(
     'returns false for non-office file %s',
     (file) => {
       expect(isOfficeFile(file)).toBe(false);
     },
   );
 
-  it('covers Word, Excel and PowerPoint extensions', () => {
+  it('covers Word, Excel, PowerPoint and PDF extensions', () => {
     expect(OFFICE_EXTENSIONS).toEqual(
       expect.arrayContaining([
         '.doc',
@@ -41,6 +43,7 @@ describe('isOfficeFile', () => {
         '.xlsx',
         '.ppt',
         '.pptx',
+        '.pdf',
       ]),
     );
   });

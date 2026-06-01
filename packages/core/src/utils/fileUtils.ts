@@ -376,9 +376,9 @@ export async function detectFileType(
 > {
   const ext = path.extname(filePath).toLowerCase();
 
-  // In-house Office documents (Word/Excel/PowerPoint) are DRM-protected and can
-  // only be read through win32com COM automation. Detect them before the
-  // generic binary check so reads are routed to the win32com path.
+  // In-house Office documents (Word/Excel/PowerPoint) and PDFs are DRM-protected
+  // and can only be read through win32com COM automation. Detect them before the
+  // generic binary/pdf checks so reads are routed to the win32com path.
   if (isOfficeFile(filePath)) {
     return 'office';
   }

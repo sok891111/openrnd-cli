@@ -696,7 +696,6 @@ describe('fileUtils', () => {
     it.each([
       { type: 'image', file: 'file.png', mime: 'image/png' },
       { type: 'image', file: 'file.jpg', mime: 'image/jpeg' },
-      { type: 'pdf', file: 'file.pdf', mime: 'application/pdf' },
       { type: 'binary', file: 'archive.zip', mime: 'application/zip' },
       { type: 'binary', file: 'app.exe', mime: 'application/octet-stream' },
     ])(
@@ -714,7 +713,9 @@ describe('fileUtils', () => {
       'data.xlsx',
       'deck.ppt',
       'deck.pptx',
+      'scan.pdf',
     ])('should detect office type for %s (DRM win32com path)', async (file) => {
+      mockMimeGetType.mockReturnValueOnce('application/pdf');
       expect(await detectFileType(file)).toBe('office');
     });
 
@@ -881,7 +882,7 @@ describe('fileUtils', () => {
       expect(result.returnDisplay).toContain('Read image file: image.png');
     });
 
-    it('should process a PDF file', async () => {
+    it('should route PDF reads through the win32com office path (not inlineData)', async () => {
       const fakePdfData = Buffer.from('fake pdf data');
       actualNodeFs.writeFileSync(testPdfFilePath, fakePdfData);
       mockMimeGetType.mockReturnValue('application/pdf');
@@ -890,17 +891,12 @@ describe('fileUtils', () => {
         tempRootDir,
         new StandardFileSystemService(),
       );
-      expect(
-        (result.llmContent as { inlineData: unknown }).inlineData,
-      ).toBeDefined();
-      expect(
-        (result.llmContent as { inlineData: { mimeType: string } }).inlineData
-          .mimeType,
-      ).toBe('application/pdf');
-      expect(
-        (result.llmContent as { inlineData: { data: string } }).inlineData.data,
-      ).toBe(fakePdfData.toString('base64'));
-      expect(result.returnDisplay).toContain('Read pdf file: document.pdf');
+      // PDFs are DRM-read via win32com (Word reflow), never as inlineData.
+      expect(result.llmContent).not.toHaveProperty('inlineData');
+      if (process.platform !== 'win32') {
+        // win32com is Windows-only; on other platforms it errors clearly.
+        expect(result.error).toContain('win32com');
+      }
     });
 
     it('should process an audio file', async () => {

@@ -475,65 +475,26 @@ describe('ReadManyFilesTool', () => {
       ]);
     });
 
-    it('should skip PDF files if not explicitly requested by extension or name', async () => {
-      createBinaryFile('document.pdf', Buffer.from('%PDF-1.4...'));
-      createFile('notes.txt', 'text notes');
-      const params = { include: ['*'] }; // Generic glob, not specific to .pdf
-      const invocation = tool.build(params);
-      const result = await invocation.execute({
-        abortSignal: new AbortController().signal,
-      });
-      const content = result.llmContent as string[];
-      const expectedPath = path.join(tempRootDir, 'notes.txt');
-      expect(
-        content.some(
-          (c) =>
-            typeof c === 'string' &&
-            c.includes(`--- ${expectedPath} ---\n\ntext notes\n\n`),
-        ),
-      ).toBe(true);
-      expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
-        '**Skipped 1 item(s):**',
-      );
-      expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
-        '- `document.pdf` (Reason: asset file (image/pdf/audio) was not explicitly requested by name or extension)',
-      );
-    });
-
-    it('should include PDF files as inlineData parts if explicitly requested by extension', async () => {
+    it('should route PDF files through the win32com path (not inlineData)', async () => {
       createBinaryFile('important.pdf', Buffer.from('%PDF-1.4...'));
-      const params = { include: ['*.pdf'] }; // Explicitly requesting .pdf files
+      const params = { include: ['*.pdf'] };
       const invocation = tool.build(params);
       const result = await invocation.execute({
         abortSignal: new AbortController().signal,
       });
-      expect(result.llmContent).toEqual([
-        {
-          inlineData: {
-            data: Buffer.from('%PDF-1.4...').toString('base64'),
-            mimeType: 'application/pdf',
-          },
-        },
-        '\n--- End of content ---',
-      ]);
-    });
-
-    it('should include PDF files as inlineData parts if explicitly requested by name', async () => {
-      createBinaryFile('report-final.pdf', Buffer.from('%PDF-1.4...'));
-      const params = { include: ['report-final.pdf'] };
-      const invocation = tool.build(params);
-      const result = await invocation.execute({
-        abortSignal: new AbortController().signal,
-      });
-      expect(result.llmContent).toEqual([
-        {
-          inlineData: {
-            data: Buffer.from('%PDF-1.4...').toString('base64'),
-            mimeType: 'application/pdf',
-          },
-        },
-        '\n--- End of content ---',
-      ]);
+      // PDFs are DRM-read via win32com (Word reflow), never as inlineData.
+      const parts = result.llmContent as unknown[];
+      expect(
+        parts.some(
+          (p) => typeof p === 'object' && p !== null && 'inlineData' in p,
+        ),
+      ).toBe(false);
+      if (process.platform !== 'win32') {
+        // win32com is Windows-only; on other platforms the read errors clearly.
+        expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
+          'win32com',
+        );
+      }
     });
 
     it('should return error if path is ignored by a .geminiignore pattern', async () => {
