@@ -318,11 +318,14 @@ describe('WebFetchTool', () => {
     // covered by its own dedicated test(s) which re-enable it explicitly.
     process.env['OPENRND_WEBFETCH_BROWSER_FALLBACK'] = '0';
     process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'] = '0';
+    // No artificial post-navigation wait during tests.
+    process.env['OPENRND_WEBFETCH_BROWSER_WAIT_MS'] = '0';
   });
 
   afterEach(() => {
     delete process.env['OPENRND_WEBFETCH_BROWSER_FALLBACK'];
     delete process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'];
+    delete process.env['OPENRND_WEBFETCH_BROWSER_WAIT_MS'];
   });
 
   describe('validateToolParamValues', () => {

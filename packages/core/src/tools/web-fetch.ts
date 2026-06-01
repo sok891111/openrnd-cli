@@ -45,6 +45,9 @@ const MAX_EXPERIMENTAL_FETCH_SIZE = 10 * 1024 * 1024; // 10MB
 // stub even on HTTP 200 — corporate IdPs often serve a tiny (~1KB) bootstrap
 // page instead of a redirect. Tunable via OPENRND_WEBFETCH_MIN_CONTENT_LENGTH.
 const DEFAULT_SSO_STUB_THRESHOLD = 1500;
+// How long to wait after navigation before extracting page text, so SPA /
+// detail pages have time to render. Tunable via OPENRND_WEBFETCH_BROWSER_WAIT_MS.
+const DEFAULT_BROWSER_SETTLE_MS = 5000;
 const USER_AGENT =
   'Mozilla/5.0 (compatible; Google-Gemini-CLI/1.0; +https://github.com/google-gemini/gemini-cli)';
 const TRUNCATION_WARNING = '\n\n... [Content truncated due to size limit] ...';
@@ -447,6 +450,16 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     try {
       await manager.callTool('new_page', { url: urlStr }, signal, true);
 
+      // Give SPA / detail pages time to render before reading their text.
+      const settleMs = this.getBrowserSettleMs();
+      if (settleMs > 0) {
+        coreEvents.emitFeedback(
+          'info',
+          `⏳ [web_fetch] 페이지 렌더링 대기 ${settleMs}ms 후 텍스트 추출: ${urlStr}`,
+        );
+        await this.waitForPageSettle(signal);
+      }
+
       // Identify the tab we just opened (the selected page) so we can close it.
       // Page lines look like: "<id>: <url> [selected]".
       try {
@@ -564,6 +577,45 @@ class WebFetchToolInvocation extends BaseToolInvocation<
   private extractSelectedPageId(listing: string): number | undefined {
     const match = listing.match(/^\s*(\d+):\s+\S.*\[selected\]/m);
     return match ? Number(match[1]) : undefined;
+  }
+
+  /**
+   * Milliseconds to wait after navigation before reading page text, giving
+   * SPA / detail pages time to render. Tunable via
+   * OPENRND_WEBFETCH_BROWSER_WAIT_MS; 0 disables the wait.
+   */
+  private getBrowserSettleMs(): number {
+    const raw = process.env['OPENRND_WEBFETCH_BROWSER_WAIT_MS'];
+    if (raw !== undefined) {
+      const n = Number.parseInt(raw, 10);
+      if (Number.isFinite(n) && n >= 0) {
+        return n;
+      }
+    }
+    return DEFAULT_BROWSER_SETTLE_MS;
+  }
+
+  /** Abortable sleep used to let the page settle after navigation. */
+  private async waitForPageSettle(signal: AbortSignal): Promise<void> {
+    const ms = this.getBrowserSettleMs();
+    if (ms <= 0) {
+      return;
+    }
+    await new Promise<void>((resolve, reject) => {
+      if (signal.aborted) {
+        reject(signal.reason ?? new Error('Operation cancelled'));
+        return;
+      }
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(signal.reason ?? new Error('Operation cancelled'));
+      };
+      const timer = setTimeout(() => {
+        signal.removeEventListener('abort', onAbort);
+        resolve();
+      }, ms);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
   /** Wraps a browser fetch into a ToolResult for the experimental path. */
