@@ -27,21 +27,55 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { coreEvents } from '../utils/events.js';
+import { Storage } from '../config/storage.js';
 
 // ---------------------------------------------------------------------------
-// Debug logger — enabled via OPENRND_DEBUG=true
-// Writes to ~/.openrnd/debug.log and stderr simultaneously
+// Debug logger
+// ---------------------------------------------------------------------------
+// Disabled by default. Enable via either:
+//   - settings.json:  { "general": { "debugLogging": true } }
+//   - env override:   OPENRND_DEBUG=true  (or =false to force-disable)
+// The env var, when set, always wins over the settings.json value.
+// Writes to ~/.openrnd/debug.log and stderr simultaneously.
 // ---------------------------------------------------------------------------
 
 function getLogPath(): string {
   return path.join(os.homedir(), '.openrnd', 'debug.log');
 }
 
+// Resolved once per process (debug logging rarely toggles mid-session, and a
+// per-call file read would be wasteful). Changing the setting takes effect on
+// the next openrnd start.
+let cachedDebugEnabled: boolean | undefined;
+
+function isDebugEnabled(): boolean {
+  if (cachedDebugEnabled !== undefined) return cachedDebugEnabled;
+
+  // 1) Explicit env override always wins.
+  const env = process.env['OPENRND_DEBUG'];
+  if (env !== undefined) {
+    cachedDebugEnabled = env === 'true' || env === '1';
+    return cachedDebugEnabled;
+  }
+
+  // 2) Otherwise read settings.json (general.debugLogging); default OFF.
+  try {
+    const raw = fs.readFileSync(Storage.getGlobalSettingsPath(), 'utf8');
+    const parsed = JSON.parse(raw) as {
+      general?: { debugLogging?: boolean };
+    };
+    cachedDebugEnabled = parsed.general?.debugLogging === true;
+  } catch {
+    cachedDebugEnabled = false;
+  }
+  return cachedDebugEnabled;
+}
+
 function debugLog(
   level: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG',
   ...args: unknown[]
 ): void {
-  if (process.env['OPENRND_DEBUG'] === 'false') return;
+  if (!isDebugEnabled()) return;
 
   const timestamp = new Date().toISOString();
   const prefix = `[${timestamp}] [${level}] [openai-compat]`;

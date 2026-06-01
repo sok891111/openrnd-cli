@@ -253,6 +253,19 @@ const SETTINGS_SCHEMA = {
         description: 'Enable DevTools inspector on launch.',
         showInDialog: false,
       },
+      debugLogging: {
+        type: 'boolean',
+        label: 'Debug Logging',
+        category: 'General',
+        requiresRestart: true,
+        default: false,
+        description: oneLine`
+          Write verbose LLM/provider debug logs to ~/.openrnd/debug.log.
+          Overridden by the OPENRND_DEBUG environment variable when set
+          (OPENRND_DEBUG=true/false).
+        `,
+        showInDialog: true,
+      },
       enableAutoUpdate: {
         type: 'boolean',
         label: 'Enable Auto Update',
