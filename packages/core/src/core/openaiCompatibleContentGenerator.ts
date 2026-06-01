@@ -35,7 +35,7 @@ function debugLog(
   level: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG',
   ...args: unknown[]
 ): void {
-  if (!process.env['OPENRND_DEBUG']) return;
+  if (process.env['OPENRND_DEBUG'] === 'false') return;
 
   const timestamp = new Date().toISOString();
   const prefix = `[${timestamp}] [${level}] [openai-compat]`;
