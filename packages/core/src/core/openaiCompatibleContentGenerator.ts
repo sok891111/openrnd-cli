@@ -47,12 +47,15 @@ function debugLog(
 
   process.stderr.write(line);
 
+  const logPath = getLogPath();
   try {
-    const logDir = path.join(os.homedir(), '.openrnd');
+    const logDir = path.dirname(logPath);
     fs.mkdirSync(logDir, { recursive: true });
-    fs.appendFileSync(getLogPath(), line, 'utf8');
-  } catch {
-    // silently ignore log-write failures
+    fs.appendFileSync(logPath, line, 'utf8');
+  } catch (e) {
+    process.stderr.write(
+      `[openrnd] Failed to write log to ${logPath}: ${String(e)}\n`,
+    );
   }
 }
 
