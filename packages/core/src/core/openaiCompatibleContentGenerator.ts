@@ -71,6 +71,15 @@ function isDebugEnabled(): boolean {
   return cachedDebugEnabled;
 }
 
+// Surface an informational diagnostic in the terminal/chat window, but ONLY
+// when debug logging is enabled. Errors/warnings still emit unconditionally so
+// real failures are never hidden — this just silences the per-message
+// "[LLM] Connecting/Connected/..." chatter during normal conversation.
+function debugFeedback(message: string): void {
+  if (!isDebugEnabled()) return;
+  coreEvents.emitFeedback('info', message);
+}
+
 function debugLog(
   level: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG',
   ...args: unknown[]
@@ -449,10 +458,7 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
         contentLength: typeof m.content === 'string' ? m.content.length : 0,
       })),
     });
-    coreEvents.emitFeedback(
-      'info',
-      `[LLM] Connecting → ${url} (model: ${body.model})`,
-    );
+    debugFeedback(`[LLM] Connecting → ${url} (model: ${body.model})`);
 
     let response: Awaited<ReturnType<typeof fetch>>;
     try {
@@ -502,8 +508,7 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
       );
     }
 
-    coreEvents.emitFeedback(
-      'info',
+    debugFeedback(
       `[LLM] Connected (HTTP ${response.status}), reading response...`,
     );
     const data = (await response.json()) as OpenAIChatResponse;
@@ -535,10 +540,7 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
         contentLength: typeof m.content === 'string' ? m.content.length : 0,
       })),
     });
-    coreEvents.emitFeedback(
-      'info',
-      `[LLM] Connecting → ${url} (model: ${body.model}, stream)`,
-    );
+    debugFeedback(`[LLM] Connecting → ${url} (model: ${body.model}, stream)`);
 
     let response: Awaited<ReturnType<typeof fetch>>;
     try {
@@ -587,10 +589,7 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
         `OpenAI-compatible API error ${response.status}: ${errorText}`,
       );
     }
-    coreEvents.emitFeedback(
-      'info',
-      `[LLM] Connected (HTTP ${response.status}), streaming...`,
-    );
+    debugFeedback(`[LLM] Connected (HTTP ${response.status}), streaming...`);
 
     const model = this.model;
 
@@ -652,10 +651,7 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
           if (!rawPreviewEmitted) {
             rawPreviewEmitted = true;
             const preview = decoded.slice(0, 300).replace(/\n/g, '\\n');
-            coreEvents.emitFeedback(
-              'info',
-              `[LLM] First raw response chunk: ${preview}`,
-            );
+            debugFeedback(`[LLM] First raw response chunk: ${preview}`);
           }
 
           buffer += decoded;
