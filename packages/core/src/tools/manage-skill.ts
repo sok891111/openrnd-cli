@@ -194,7 +194,7 @@ class ManageSkillInvocation extends BaseToolInvocation<
     return 'List skills';
   }
 
-  override async execute(_options: ExecuteOptions): Promise<ToolResult> {
+  override async execute(options: ExecuteOptions): Promise<ToolResult> {
     const { action, scope = 'user' } = this.params;
     const skillsDir = getSkillsDir(scope);
 
@@ -369,30 +369,39 @@ class ManageSkillInvocation extends BaseToolInvocation<
         // Clone via the system git so existing SSH keys / known_hosts and
         // credential helpers are reused. This is what makes ssh:// and git@
         // (internal Bitbucket) URLs work.
+        // Shared environment + spawn options so neither the clone nor the
+        // checkout can block on an interactive prompt or run unbounded.
+        // BatchMode/StrictHostKeyChecking are *appended* to any existing
+        // GIT_SSH_COMMAND so a pre-set value (common in corporate setups)
+        // doesn't silently disable the non-interactive guard.
+        const baseSshCommand = process.env['GIT_SSH_COMMAND'] ?? 'ssh';
+        const gitExecOptions = {
+          env: {
+            ...process.env,
+            // Never block on an interactive password prompt — fail fast
+            // instead of hanging the turn (which looked like a silent exit).
+            GIT_TERMINAL_PROMPT: '0',
+            GIT_SSH_COMMAND: `${baseSshCommand} -o BatchMode=yes -o StrictHostKeyChecking=accept-new`,
+          },
+          timeout: 120_000,
+          // Honor turn cancellation (ESC) so the child git process is killed
+          // instead of being orphaned while the turn appears to hang.
+          signal: options.abortSignal,
+        };
+
         try {
           await execFileAsync(
             'git',
             ['clone', '--depth', '1', repoUrl, skillDir],
-            {
-              env: {
-                ...process.env,
-                // Never block on an interactive password prompt — fail fast
-                // instead of hanging the turn (which looked like a silent exit).
-                GIT_TERMINAL_PROMPT: '0',
-                GIT_SSH_COMMAND:
-                  process.env['GIT_SSH_COMMAND'] ?? 'ssh -o BatchMode=yes',
-              },
-              timeout: 120_000,
-            },
+            gitExecOptions,
           );
 
           if (ref && ref.trim()) {
-            await execFileAsync('git', [
-              '-C',
-              skillDir,
-              'checkout',
-              ref.trim(),
-            ]);
+            await execFileAsync(
+              'git',
+              ['-C', skillDir, 'checkout', ref.trim()],
+              gitExecOptions,
+            );
           }
         } catch (err) {
           // Clean up a partial clone so a retry isn't blocked by "already exists".
