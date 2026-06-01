@@ -41,6 +41,10 @@ import type { AgentLoopContext } from '../config/agent-loop-context.js';
 const URL_FETCH_TIMEOUT_MS = 10000;
 const MAX_CONTENT_LENGTH = 250000;
 const MAX_EXPERIMENTAL_FETCH_SIZE = 10 * 1024 * 1024; // 10MB
+// Responses at or below this size (bytes) are treated as a likely SSO/login
+// stub even on HTTP 200 — corporate IdPs often serve a tiny (~1KB) bootstrap
+// page instead of a redirect. Tunable via OPENRND_WEBFETCH_MIN_CONTENT_LENGTH.
+const DEFAULT_SSO_STUB_THRESHOLD = 1500;
 const USER_AGENT =
   'Mozilla/5.0 (compatible; Google-Gemini-CLI/1.0; +https://github.com/google-gemini/gemini-cli)';
 const TRUNCATION_WARNING = '\n\n... [Content truncated due to size limit] ...';
@@ -345,6 +349,81 @@ class WebFetchToolInvocation extends BaseToolInvocation<
   }
 
   /**
+   * Size (bytes) at/under which a 200 response is treated as an SSO stub.
+   * Tunable via OPENRND_WEBFETCH_MIN_CONTENT_LENGTH; set to 0 to disable.
+   */
+  private getSsoStubThreshold(): number {
+    const raw = process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'];
+    if (raw !== undefined) {
+      const n = Number.parseInt(raw, 10);
+      if (Number.isFinite(n) && n >= 0) {
+        return n;
+      }
+    }
+    return DEFAULT_SSO_STUB_THRESHOLD;
+  }
+
+  /**
+   * Effective body size: prefers the Content-Length header, falls back to the
+   * actual number of bytes read. Returns undefined when neither is known.
+   */
+  private responseSize(
+    response: Response,
+    bodyByteLength?: number,
+  ): number | undefined {
+    const declared = Number.parseInt(
+      response.headers.get('content-length') ?? '',
+      10,
+    );
+    if (Number.isFinite(declared)) {
+      return declared;
+    }
+    return bodyByteLength;
+  }
+
+  /**
+   * Heuristic for SSO that returns HTTP 200 with a tiny login/bootstrap page.
+   */
+  private looksLikeSsoStub(
+    response: Response,
+    bodyByteLength?: number,
+  ): boolean {
+    const threshold = this.getSsoStubThreshold();
+    if (threshold <= 0 || !response.ok) {
+      return false;
+    }
+    // SSO bootstrap pages are HTML (or send no content-type). A small JSON /
+    // plain-text / image response is legitimate, so don't treat it as a stub.
+    const contentType = (
+      response.headers.get('content-type') || ''
+    ).toLowerCase();
+    if (!(contentType.includes('text/html') || contentType === '')) {
+      return false;
+    }
+    const size = this.responseSize(response, bodyByteLength);
+    return size !== undefined && size <= threshold;
+  }
+
+  /**
+   * Returns a human-readable reason to fall back to the browser, or null if the
+   * direct fetch looks like a genuine, complete response.
+   */
+  private browserFallbackReason(
+    url: string,
+    response: Response,
+    bodyByteLength?: number,
+  ): string | null {
+    if (this.looksLikeAuthRedirect(url, response)) {
+      return `SSO/인증 벽 감지 (status ${response.status}, 최종 URL ${response.url})`;
+    }
+    if (this.looksLikeSsoStub(response, bodyByteLength)) {
+      const size = this.responseSize(response, bodyByteLength);
+      return `SSO 의심 — 응답 크기 ${size}B ≤ ${this.getSsoStubThreshold()}B (status ${response.status})`;
+    }
+    return null;
+  }
+
+  /**
    * Fetches a URL through the user's signed-in browser session, reusing the
    * existing BrowserManager (chrome-devtools-mcp). Because the browser carries
    * the user's SSO cookies, this bypasses intranet auth walls that a
@@ -516,7 +595,7 @@ class WebFetchToolInvocation extends BaseToolInvocation<
   private async nodeFetchText(
     url: string,
     signal: AbortSignal,
-  ): Promise<{ response: Response; text: string }> {
+  ): Promise<{ response: Response; text: string; byteLength: number }> {
     const response = await retryWithBackoff(
       async () => {
         const res = await fetchWithTimeout(url, URL_FETCH_TIMEOUT_MS, {
@@ -564,7 +643,7 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       textContent = rawContent;
     }
 
-    return { response, text: textContent };
+    return { response, text: textContent, byteLength: bodyBuffer.length };
   }
 
   private async executeFallbackForUrl(
@@ -583,16 +662,18 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     // back to the user's signed-in browser session.
     if (this.shouldUseBrowserFetch()) {
       try {
-        const { response, text } = await this.nodeFetchText(url, signal);
-        if (this.looksLikeAuthRedirect(url, response)) {
+        const { response, text, byteLength } = await this.nodeFetchText(
+          url,
+          signal,
+        );
+        const reason = this.browserFallbackReason(url, response, byteLength);
+        if (reason) {
           coreEvents.emitFeedback(
             'info',
-            `🔐 [web_fetch] SSO/인증 벽 감지 (status ${response.status}, 최종 URL ${response.url}) → 브라우저 세션으로 폴백: ${url}`,
+            `🔐 [web_fetch] ${reason} → 브라우저 세션으로 폴백: ${url}`,
           );
           debugLogger.warn(
-            `[WebFetchTool] Auth/SSO wall detected for ${url} ` +
-              `(status ${response.status}, final ${response.url}). ` +
-              `Falling back to browser session.`,
+            `[WebFetchTool] ${reason} for ${url}. Falling back to browser session.`,
           );
           return await this.fetchViaBrowser(url, signal);
         }
@@ -962,6 +1043,19 @@ Response: ${rawResponseText}`;
           llmContent: errorContent,
           returnDisplay: `Failed to fetch ${url} (Status: ${status})`,
         };
+      }
+
+      // HTTP 200 but a suspiciously small body — likely an SSO/login stub.
+      if (
+        this.shouldUseBrowserFetch() &&
+        this.looksLikeSsoStub(response, bodyBuffer.length)
+      ) {
+        const size = this.responseSize(response, bodyBuffer.length);
+        coreEvents.emitFeedback(
+          'info',
+          `🔐 [web_fetch] SSO 의심 — 응답 크기 ${size}B ≤ ${this.getSsoStubThreshold()}B (status ${status}) → 브라우저 세션으로 폴백: ${url}`,
+        );
+        return await this.browserFetchResult(url, signal);
       }
 
       const lowContentType = contentType.toLowerCase();

@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  type Mock,
+} from 'vitest';
 import {
   WebFetchTool,
   parsePrompt,
@@ -58,6 +66,16 @@ vi.mock('../utils/fetch.js', async (importOriginal) => {
 
 vi.mock('node:crypto', () => ({
   randomUUID: vi.fn(),
+}));
+
+// Mock the (dynamically imported) browser manager so the SSO browser fallback
+// can be exercised without a real Chrome.
+const { mockBrowserCallTool, mockBrowserGetInstance } = vi.hoisted(() => {
+  const callTool = vi.fn();
+  return { mockBrowserCallTool: callTool, mockBrowserGetInstance: vi.fn() };
+});
+vi.mock('../agents/browser/browserManager.js', () => ({
+  BrowserManager: { getInstance: mockBrowserGetInstance },
 }));
 
 /**
@@ -295,6 +313,14 @@ describe('WebFetchTool', () => {
       isInteractive: () => false,
       isContextManagementEnabled: vi.fn().mockReturnValue(false),
     } as unknown as Config;
+    // Disable the small-response SSO-stub heuristic by default so these
+    // content-behavior tests aren't routed to the browser fallback. The
+    // heuristic itself is covered by its own dedicated test below.
+    process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'] = '0';
+  });
+
+  afterEach(() => {
+    delete process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'];
   });
 
   describe('validateToolParamValues', () => {
@@ -669,6 +695,74 @@ describe('WebFetchTool', () => {
         }
       },
     );
+
+    it('routes a small HTTP 200 HTML response (SSO stub) to the browser session', async () => {
+      // Enable the heuristic (the suite disables it by default).
+      process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'] = '1500';
+
+      // A tiny HTML page (well under 1500 bytes), HTTP 200, no redirect.
+      mockFetch('https://intranet.corp/', {
+        headers: new Headers({ 'content-type': 'text/html' }),
+        text: () => Promise.resolve('<html><body>SSO</body></html>'),
+      });
+
+      // Wire up the mocked browser to return real page text via innerText.
+      const fakeManager = {
+        acquire: vi.fn(),
+        release: vi.fn(),
+        callTool: mockBrowserCallTool,
+      };
+      mockBrowserGetInstance.mockReturnValue(fakeManager);
+      mockBrowserCallTool.mockImplementation(async (name: string) => {
+        if (name === 'list_pages') {
+          return {
+            content: [
+              { type: 'text', text: '0: https://intranet.corp/ [selected]' },
+            ],
+            isError: false,
+          };
+        }
+        if (name === 'evaluate_script') {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Script ran on page and returned:\n```json\n"REAL INTRANET CONTENT"\n```',
+              },
+            ],
+            isError: false,
+          };
+        }
+        return { content: [], isError: false };
+      });
+
+      // Fallback LLM echoes the content it was given so we can assert on it.
+      mockGenerateContent.mockImplementationOnce(async (_, req) => ({
+        candidates: [{ content: { parts: [{ text: req[0].parts[0].text }] } }],
+      }));
+
+      const tool = new WebFetchTool(mockConfig, bus);
+      const invocation = tool.build({ prompt: 'fetch https://intranet.corp' });
+      const result = await invocation.execute({
+        abortSignal: new AbortController().signal,
+      });
+
+      // The browser path was used (new tab opened) and innerText was extracted.
+      expect(mockBrowserGetInstance).toHaveBeenCalled();
+      expect(mockBrowserCallTool).toHaveBeenCalledWith(
+        'new_page',
+        { url: 'https://intranet.corp/' },
+        expect.anything(),
+        true,
+      );
+      expect(mockBrowserCallTool).toHaveBeenCalledWith(
+        'close_page',
+        { pageId: 0 },
+        expect.anything(),
+        true,
+      );
+      expect(result.llmContent).toContain('REAL INTRANET CONTENT');
+    });
   });
 
   describe('shouldConfirmExecute', () => {
