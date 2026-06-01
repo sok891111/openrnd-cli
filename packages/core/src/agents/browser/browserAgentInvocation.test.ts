@@ -855,5 +855,73 @@ describe('BrowserAgentInvocation', () => {
       expect(removeInputBlocker).toHaveBeenCalledTimes(3);
       expect(removeAutomationOverlay).toHaveBeenCalledTimes(3);
     });
+
+    it('closes only tabs opened during the task, keeping pre-existing tabs', async () => {
+      let listPagesCalls = 0;
+      const mockBrowserManager = {
+        callTool: vi.fn().mockImplementation(async (toolName: string) => {
+          if (toolName === 'list_pages') {
+            listPagesCalls += 1;
+            // First call = snapshot before the task (only the user's tab).
+            // Later calls = cleanup, after the task opened a new tab (id 1).
+            const text =
+              listPagesCalls === 1
+                ? '0: https://user-tab\n'
+                : '0: https://user-tab\n1: https://opened-by-task\n';
+            return { content: [{ type: 'text', text }], isError: false };
+          }
+          return { isError: false };
+        }),
+        release: vi.fn(),
+      };
+
+      vi.mocked(createBrowserAgentDefinition).mockResolvedValue({
+        definition: {
+          name: 'browser_agent',
+          description: 'mock definition',
+          kind: 'local',
+          inputConfig: {} as never,
+          outputConfig: {} as never,
+          processOutput: () => '',
+          modelConfig: { model: 'test' },
+          runConfig: {},
+          promptConfig: { query: '', systemPrompt: '' },
+          toolConfig: { tools: [] },
+        },
+        browserManager: mockBrowserManager as never,
+        visionEnabled: true,
+        sessionMode: 'persistent',
+      });
+
+      vi.mocked(LocalAgentExecutor.create).mockResolvedValue({
+        run: vi.fn().mockResolvedValue({
+          result: JSON.stringify({ success: true }),
+          terminate_reason: 'GOAL',
+        }),
+      } as never);
+
+      const invocation = new BrowserAgentInvocation(
+        mockConfig,
+        { task: 'test' },
+        mockMessageBus,
+      );
+
+      await invocation.execute({ abortSignal: new AbortController().signal });
+
+      // The task-opened tab (id 1) is closed.
+      expect(mockBrowserManager.callTool).toHaveBeenCalledWith(
+        'close_page',
+        { pageId: 1 },
+        expect.anything(),
+        true,
+      );
+      // The pre-existing user tab (id 0) is NOT closed.
+      expect(mockBrowserManager.callTool).not.toHaveBeenCalledWith(
+        'close_page',
+        { pageId: 0 },
+        expect.anything(),
+        true,
+      );
+    });
   });
 });

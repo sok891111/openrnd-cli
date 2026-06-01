@@ -36,6 +36,7 @@ import {
 } from '../types.js';
 import type { MessageBus } from '../../confirmation-bus/message-bus.js';
 import { createBrowserAgentDefinition } from './browserAgentFactory.js';
+import type { BrowserManager } from './browserManager.js';
 import { removeInputBlocker } from './inputBlocker.js';
 import { logBrowserAgentTaskOutcome } from '../../telemetry/loggers.js';
 import {
@@ -116,6 +117,9 @@ export class BrowserAgentInvocation extends BaseToolInvocation<
     let sessionMode: 'persistent' | 'isolated' | 'existing' = 'persistent';
     let visionEnabled = false;
     let taskSuccess = false;
+    // Page IDs that already existed before this task ran. Only tabs opened
+    // during the task are closed on cleanup; pre-existing user tabs are kept.
+    let initialPageIds: number[] = [];
 
     try {
       if (updateOutput) {
@@ -314,6 +318,10 @@ export class BrowserAgentInvocation extends BaseToolInvocation<
         onActivity,
       );
 
+      // Snapshot existing tabs before the agent runs so cleanup only closes
+      // tabs THIS task opens (pre-existing user tabs are kept).
+      initialPageIds = await this.listOpenPageIds(browserManager, signal);
+
       const output = await executor.run(this.params, signal);
 
       try {
@@ -418,16 +426,7 @@ ${output.result}`;
 
         // try cleaning up overlays in previous opened pages if any
         try {
-          const listResult = await browserManager.callTool(
-            'list_pages',
-            {},
-            signal,
-            true,
-          );
-          const pagesText =
-            listResult.content?.find((c) => c.type === 'text')?.text || '';
-          const pageMatches = Array.from(pagesText.matchAll(/^(\d+):/gm));
-          const pageIds = pageMatches.map((m) => parseInt(m[1], 10));
+          const pageIds = await this.listOpenPageIds(browserManager, signal);
           if (pageIds.length > 1) {
             for (const pageId of pageIds) {
               try {
@@ -444,11 +443,67 @@ ${output.result}`;
               }
             }
           }
+
+          // Close tabs this task opened, leaving pre-existing user tabs alone.
+          await this.closeNewPages(
+            browserManager,
+            pageIds,
+            initialPageIds,
+            signal,
+          );
         } catch {
           // Ignore errors for removing the overlays.
         } finally {
           browserManager.release();
         }
+      }
+    }
+  }
+
+  /**
+   * Returns the IDs of all pages/tabs currently open in the browser, parsed
+   * from the `list_pages` tool output (lines look like `<id>: <url> ...`).
+   */
+  private async listOpenPageIds(
+    browserManager: BrowserManager,
+    signal: AbortSignal,
+  ): Promise<number[]> {
+    try {
+      const listResult = await browserManager.callTool(
+        'list_pages',
+        {},
+        signal,
+        true,
+      );
+      const pagesText =
+        listResult.content?.find((c) => c.type === 'text')?.text || '';
+      return Array.from(pagesText.matchAll(/^(\d+):/gm)).map((m) =>
+        parseInt(m[1], 10),
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Closes tabs that were opened during this task — i.e. page IDs present now
+   * but not when the task started. Pre-existing user tabs are never closed.
+   * chrome-devtools-mcp refuses to close the last remaining page, so this is a
+   * best-effort cleanup and individual failures are ignored.
+   */
+  private async closeNewPages(
+    browserManager: BrowserManager,
+    currentPageIds: number[],
+    initialPageIds: number[],
+    signal: AbortSignal,
+  ): Promise<void> {
+    const initial = new Set(initialPageIds);
+    const newPageIds = currentPageIds.filter((id) => !initial.has(id));
+    for (const pageId of newPageIds) {
+      try {
+        await browserManager.callTool('close_page', { pageId }, signal, true);
+      } catch {
+        // Best-effort: ignore failures (e.g. last remaining page).
       }
     }
   }
