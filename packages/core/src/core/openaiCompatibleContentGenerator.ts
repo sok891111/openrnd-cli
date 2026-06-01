@@ -683,9 +683,14 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
               for (const tc of delta.tool_calls) {
                 const idx = tc.index;
                 if (!toolCallAccumulator[idx]) {
+                  // Initialize name/arguments empty; they are accumulated via
+                  // `+=` below. Seeding name with tc.function.name here AND
+                  // appending it would double it (e.g. "manage_skill" became
+                  // "manage_skillmanage_skill"), so the tool lookup failed and
+                  // the model retried in a loop.
                   toolCallAccumulator[idx] = {
                     id: tc.id ?? `call_${idx}`,
-                    name: tc.function?.name ?? '',
+                    name: '',
                     arguments: '',
                   };
                 }
