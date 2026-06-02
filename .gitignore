@@ -72,3 +72,6 @@ conductor/
 
 # Large test fixtures that exceed GitHub's 50MB limit
 memory-tests/large-chat-session.json
+
+# Distribution tarballs
+release/
