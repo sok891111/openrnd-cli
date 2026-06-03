@@ -3,11 +3,13 @@
  * Copyright 2025 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+/* eslint-disable @typescript-eslint/no-unsafe-type-assertion */
 
 import { spawn } from 'node:child_process';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { getCredentialEnv } from './corporate-credentials.js';
 
 /**
  * ============================================================================
@@ -128,7 +130,8 @@ function runPythonDispatcher(
 
   return new Promise<string>((resolve, reject) => {
     const child = spawn(python, [dispatcher], {
-      env: process.env,
+      // 등록된 사내 API 키를 OPENRND_CRED_<ID> 환경변수로 주입.
+      env: { ...process.env, ...getCredentialEnv() },
       shell: process.platform === 'win32',
     });
 
@@ -230,6 +233,61 @@ export const corporateFetchHandlers: CorporateFetchHandler[] = [
     fetch: (url, ctx) => runPythonDispatcher(url, ctx),
   },
 ];
+
+/** 사내 시스템(핸들러) 메타데이터 — dispatch.py --list-systems 결과. */
+export interface CorporateSystemInfo {
+  /** 시스템 id (자격증명 키, 예: "jira"). */
+  id: string;
+  /** 사람이 읽는 이름. */
+  name?: string;
+  /** 시스템 설명(어떤 키가 필요한지 등). */
+  description?: string;
+  /** 핸들러 모듈 파일명. */
+  module: string;
+  /** 이 핸들러가 읽는 환경변수명 (예: "OPENRND_CRED_JIRA"). */
+  env: string;
+}
+
+/**
+ * dispatch.py 를 `--list-systems` 모드로 실행해, handlers/ 가 선언한 SYSTEM
+ * 메타데이터 목록을 가져온다. manage_credential 툴이 "어떤 시스템에 키가
+ * 필요한지" 안내하는 데 사용한다. Python 미설치/디스패처 없음 → 빈 배열.
+ */
+export function listCorporateSystems(
+  signal?: AbortSignal,
+): Promise<CorporateSystemInfo[]> {
+  const dispatcher = resolveDispatcherPath();
+  if (!dispatcher) {
+    return Promise.resolve([]);
+  }
+  const python = detectPythonExecutable();
+  return new Promise<CorporateSystemInfo[]>((resolve) => {
+    const child = spawn(python, [dispatcher, '--list-systems'], {
+      env: process.env,
+      shell: process.platform === 'win32',
+    });
+    let stdout = '';
+    child.stdout.on('data', (d: Buffer) => {
+      stdout += d.toString();
+    });
+    child.on('error', () => resolve([]));
+    child.on('close', () => {
+      try {
+        const parsed: unknown = JSON.parse(stdout);
+        if (Array.isArray(parsed)) {
+          resolve(parsed as CorporateSystemInfo[]);
+          return;
+        }
+      } catch {
+        // ignore malformed output
+      }
+      resolve([]);
+    });
+    if (signal) {
+      signal.addEventListener('abort', () => child.kill(), { once: true });
+    }
+  });
+}
 
 /**
  * 등록된 핸들러들을 순서대로 시도한다.

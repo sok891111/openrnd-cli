@@ -251,6 +251,8 @@ export * from './tools/ask-user.js';
 export * from './tools/python-exec.js';
 export * from './tools/manage-mcp.js';
 export * from './tools/manage-skill.js';
+export * from './tools/manage-credential.js';
+export * from './tools/corporate-credentials.js';
 
 // MCP OAuth
 export { MCPOAuthProvider } from './mcp/oauth-provider.js';

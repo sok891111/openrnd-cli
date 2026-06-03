@@ -293,21 +293,31 @@ packages/core/src/tools/corporate_fetchers/
 (`handlers/sample_naver_market.py` 를 복사해서 시작하세요.)
 
 ```python
-# handlers/wiki_corp.py
+# handlers/jira_corp.py
 import os
 import sys
 from urllib.parse import urlparse
+import requests
+
+# 시스템 메타데이터(선택). manage_credential 의 'list' 가 이 정보로 사용자에게
+# "어떤 시스템에 키가 필요한지" 안내합니다. id 가 자격증명 키이자 환경변수
+# (OPENRND_CRED_<ID>)의 기준이 됩니다 → id "jira" ⇒ OPENRND_CRED_JIRA.
+SYSTEM = {
+    "id": "jira",
+    "name": "사내 Jira",
+    "description": "사내 Jira REST API. Personal Access Token 필요.",
+}
 
 
 def can_handle(url: str) -> bool:
-    return urlparse(url).hostname == "wiki.corp.com"
+    return urlparse(url).hostname == "jira.corp.com"
 
 
 def fetch(url: str) -> str:
-    print(f"사내 위키 조회: {url}", file=sys.stderr)   # 로그는 stderr 로
-    import requests
+    print(f"사내 Jira 조회: {url}", file=sys.stderr)        # 로그는 stderr 로
+    token = os.environ.get("OPENRND_CRED_JIRA")            # 등록된 키가 주입됨
     res = requests.get(url, timeout=15,
-                       headers={"Authorization": f"Bearer {os.environ['WIKI_TOKEN']}"})
+                       headers={"Authorization": f"Bearer {token}"})
     res.raise_for_status()
     return res.text        # ← 본문 문자열 반환
 ```
@@ -323,13 +333,50 @@ def fetch(url: str) -> str:
 `dispatch.py` 가 `handlers/` 의 모든 핸들러를 자동 검색해, `can_handle(url)` 이
 `True` 인 첫 핸들러의 `fetch(url)` 결과를 사용합니다.
 
+### API 키(자격증명) 관리 — 프롬프트로 등록
+
+사내 시스템 키는 핸들러 코드에 넣지 않고, **프롬프트로 등록**해서 관리합니다.
+`manage_credential` 도구가 이를 처리합니다.
+
+```
+# 등록
+> 사내 jira 키는 abc123 이야. 등록해줘
+  → manage_credential set(system="jira", value="abc123")
+
+# 목록 (어떤 시스템에 키가 필요한지, 등록 여부 확인 — 값은 안 보여줌)
+> 등록된 사내 키 목록 보여줘
+  → manage_credential list
+
+# 삭제
+> jira 키 삭제해줘
+  → manage_credential remove(system="jira")
+```
+
+동작 방식:
+
+1. **시스템 식별**: 각 핸들러의 `SYSTEM["id"]`(예: `jira`)가 키의 식별자입니다.
+   `list` 는 `handlers/` 의 `SYSTEM` 메타데이터를 읽어 사용자에게 안내합니다.
+2. **저장**: 키는 `~/.openrnd/credentials.json` 에 `chmod 600` 으로 저장됩니다
+   (git 범위 밖, 평문 — 공유 PC 에서는 주의). 값은 화면에 다시 노출되지
+   않습니다.
+3. **주입**: fetch 실행 시 등록된 키가 환경변수 `OPENRND_CRED_<ID>` 로 핸들러에
+   주입됩니다. id `jira` ⇒ `OPENRND_CRED_JIRA`, `wiki-corp` ⇒
+   `OPENRND_CRED_WIKI_CORP` (영숫자 외 문자는 `_`, 전부 대문자).
+
+핸들러는 그 환경변수를 **읽기만** 하면 됩니다:
+
+```python
+token = os.environ.get("OPENRND_CRED_JIRA")
+```
+
 ### 규약 / 팁
 
 - **stdout = 본문 전용.** 본문 외의 출력을 stdout 으로 내보내지 마세요.
 - **로그는 `print(..., file=sys.stderr)`.** stderr 한 줄이 openrnd 대화 터미널에
   `🐍` 접두로 바로 표시됩니다(디버깅·감사 로그용).
-- **시크릿/토큰은 환경변수로** (`os.environ["..."]`). openrnd 프로세스의
-  환경변수가 Python 핸들러로 그대로 전달됩니다.
+- **API 키는 `manage_credential` 로 등록** →
+  `os.environ.get("OPENRND_CRED_<ID>")` 로 읽기. 키를 핸들러 코드/깃에
+  하드코딩하지 마세요.
 - **의존성**: `requests` 등은 시스템 Python 3(`python3`/Windows `python`)에 미리
   설치돼 있어야 합니다. (`run_python` 도구와 동일 전제)
 
@@ -375,6 +422,9 @@ Python 핸들러는 빌드 시 `bundle/corporate_fetchers/` 로 복사됩니다.
 `.openrnd/settings.json` — 프로젝트별 설정 (워크스페이스 스코프)
 
 `~/.openrnd/skills/` — 사용자 Skill 저장 위치
+
+`~/.openrnd/credentials.json` — 사내 fetch API 키 (chmod 600,
+`manage_credential` 도구가 관리, git 범위 밖)
 
 ---
 
@@ -433,11 +483,13 @@ openrnd/
 │   │           ├── python-exec.ts      # Python 실행 도구
 │   │           ├── manage-mcp.ts       # MCP 관리 도구
 │   │           ├── manage-skill.ts     # Skill 관리 도구
-│   │           ├── web-fetch.ts        # URL 수집 + 3단계 폴백 체인
-│   │           ├── corporate-fetch.ts  # 사내 fetch → Python 디스패처 브리지
-│   │           └── corporate_fetchers/ # ★ 사내 URL별 Python 핸들러
+│   │           ├── web-fetch.ts            # URL 수집 + 3단계 폴백 체인
+│   │           ├── corporate-fetch.ts      # 사내 fetch → Python 디스패처 브리지
+│   │           ├── corporate-credentials.ts # API 키 저장(~/.openrnd/credentials.json)
+│   │           ├── manage-credential.ts    # manage_credential 도구(프롬프트 등록)
+│   │           └── corporate_fetchers/     # ★ 사내 URL별 Python 핸들러
 │   │               ├── dispatch.py
-│   │               └── handlers/       #   <도메인>.py 하나씩 추가
+│   │               └── handlers/           #   <도메인>.py 하나씩 추가
 │   └── cli/                     # CLI 진입점
 │       └── src/
 │           └── commands/

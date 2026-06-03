@@ -16,12 +16,19 @@ corporate_fetchers 디스패처 — TS 브리지(corporate-fetch.ts)가 실행�
 """
 
 import importlib
+import json
 import pkgutil
+import re
 import sys
 import traceback
 from pathlib import Path
 
 HANDLERS_DIR = Path(__file__).parent / "handlers"
+
+
+def credential_env_var(system_id: str) -> str:
+    """시스템 id -> 환경변수명. TS(corporate-credentials.ts)와 규칙이 같아야 함."""
+    return "OPENRND_CRED_" + re.sub(r"[^A-Za-z0-9]", "_", system_id).upper()
 
 
 def _log(msg: str) -> None:
@@ -52,7 +59,38 @@ def _load_handlers():
     return loaded
 
 
+def list_systems() -> None:
+    """handlers/ 의 SYSTEM 메타데이터를 JSON 배열로 stdout 에 출력.
+
+    manage_credential 툴이 "어떤 시스템에 키가 필요한지" 안내하는 데 사용.
+    핸들러는 모듈 상단에 다음과 같이 선언할 수 있습니다(선택):
+
+        SYSTEM = {"id": "jira", "name": "사내 Jira", "description": "..."}
+    """
+    out = []
+    for name, mod in _load_handlers():
+        spec = getattr(mod, "SYSTEM", None)
+        if not isinstance(spec, dict):
+            spec = {}
+        sid = spec.get("id", name)
+        out.append(
+            {
+                "id": sid,
+                "name": spec.get("name"),
+                "description": spec.get("description"),
+                "module": name,
+                "env": credential_env_var(sid),
+            }
+        )
+    sys.stdout.write(json.dumps(out, ensure_ascii=False))
+    sys.stdout.flush()
+
+
 def main() -> int:
+    if "--list-systems" in sys.argv[1:]:
+        list_systems()
+        return 0
+
     url = sys.stdin.read().strip()
     if not url:
         return 0

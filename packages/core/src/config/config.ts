@@ -51,6 +51,7 @@ import { TopicState } from './topicState.js';
 import { PythonExecTool } from '../tools/python-exec.js';
 import { ManageMcpTool } from '../tools/manage-mcp.js';
 import { ManageSkillTool } from '../tools/manage-skill.js';
+import { ManageCredentialTool } from '../tools/manage-credential.js';
 import { AgentTool } from '../agents/agent-tool.js';
 import { ExitPlanModeTool } from '../tools/exit-plan-mode.js';
 import { EnterPlanModeTool } from '../tools/enter-plan-mode.js';
@@ -3965,6 +3966,9 @@ export class Config implements McpContext, AgentLoopContext {
     );
     maybeRegister(ManageSkillTool, () =>
       registry.registerTool(new ManageSkillTool(this.messageBus)),
+    );
+    maybeRegister(ManageCredentialTool, () =>
+      registry.registerTool(new ManageCredentialTool(this.messageBus)),
     );
     maybeRegister(ListBackgroundProcessesTool, () =>
       registry.registerTool(
