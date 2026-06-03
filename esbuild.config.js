@@ -63,6 +63,9 @@ const external = [
   '@lydell/node-pty-win32-arm64',
   '@lydell/node-pty-win32-x64',
   '@github/keytar',
+  // node-oracledb 는 동적 import 로 런타임에 로드한다(미설치 시 친절한 에러).
+  // 번들에 포함하지 않고 node_modules 에서 해석되도록 external 로 둔다.
+  'oracledb',
 ];
 
 const baseConfig = {

@@ -17,6 +17,7 @@ Google Gemini CLI를 기반으로 바이브 코딩 기능을 제거하고, 크�
 | **Skill 관리**             | 프롬프트로 재사용 가능한 워크플로 Skill 생성/관리         |
 | **파일 조작**              | 읽기·쓰기·편집, 검색, 디렉터리 탐색                       |
 | **웹 검색 / 페이지 수집**  | 웹 검색, URL 수집(web fetch → 사내 fetch → 브라우저 폴백) |
+| **Oracle DB 조회**         | TNS 접속 등록 후 **SELECT 전용** 조회(다층 가드레일)      |
 | **셸 실행**                | 백그라운드 프로세스 포함 임의 명령 실행                   |
 
 ---
@@ -249,6 +250,63 @@ openrnd
 ```
 
 Skill 파일 위치: `~/.openrnd/skills/<name>/SKILL.md`
+
+---
+
+## Oracle DB 조회 (`manage_oracle_connection`, `oracle_query`)
+
+사내 Oracle DB 의 데이터를 **SELECT 조회 전용**으로 직접 볼 수 있습니다.
+사용자가 TNS 접속 정보를 등록하면 그 정보로 접속해 조회합니다.
+
+> **읽기 전용 보장(가드레일).** 어떤 경우에도 SELECT 만 실행됩니다.
+> INSERT/UPDATE/DELETE 같은 DML, DROP/TRUNCATE/ALTER/CREATE 같은 DDL, PL/SQL
+> 블록, 다중 문장, `DBMS_*`/`UTL_*` 호출, `SELECT ... FOR UPDATE` 는 실행
+> **전에** 거부됩니다. 추가로 접속 직후 `SET TRANSACTION READ ONLY` 로
+> 트랜잭션을 읽기 전용으로 고정하고 절대 commit 하지 않으므로, DB 레벨에서도
+> 쓰기가 차단됩니다(만약의 우회 시 Oracle 이 ORA-01456 에러).
+
+### 1) 접속 등록 — 프롬프트로
+
+```
+오라클 prod 접속 등록해줘.
+user=scott, password=tiger,
+tns=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=db.corp)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=ORCL)))
+  → manage_oracle_connection set(alias="prod", user="scott", password="tiger", connect_string="(DESCRIPTION=...)")
+```
+
+`connect_string` 에는 다음 중 무엇이든 넣을 수 있습니다:
+
+- **tnsnames.ora 풀 디스크립터**:
+  `(DESCRIPTION=(ADDRESS=...)(CONNECT_DATA=...))`
+- **Easy Connect**: `db.corp:1521/ORCL`
+- **net service name**: `MYDB` (환경변수 `TNS_ADMIN` 으로 tnsnames.ora 위치 지정
+  시)
+
+등록 정보는 `~/.openrnd/oracle-connections.json` (chmod 600, git 범위 밖)에
+저장되며, 비밀번호는 화면에 마스킹되어 표시됩니다.
+
+```
+등록된 오라클 접속 목록 보여줘     → manage_oracle_connection list
+오라클 prod 연결 테스트해줘        → manage_oracle_connection test(alias="prod")
+오라클 dev 접속 삭제해줘           → manage_oracle_connection remove(alias="dev")
+```
+
+### 2) 조회
+
+```
+오라클 prod 에서 최근 주문 10건 보여줘
+  → oracle_query(connection="prod", sql="SELECT * FROM orders ORDER BY created_at DESC", max_rows=10)
+```
+
+- `max_rows`: 최대 반환 행 수 (기본 100, 최대 1000).
+- 결과는 표로 표시되고, 모델에는 구조화된 JSON 으로도 전달됩니다.
+
+### 요구사항
+
+- Oracle 드라이버 **`oracledb`** (optional dependency). Thin 모드로 동작하므로
+  Oracle Instant Client 설치는 **불필요**합니다.
+- 배포 tarball 등에서 누락된 경우 `npm install oracledb` 한 번이면 됩니다.
+  (미설치 시 조회 툴이 친절한 안내 에러를 냅니다.)
 
 ---
 

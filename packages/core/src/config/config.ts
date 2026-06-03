@@ -52,6 +52,8 @@ import { PythonExecTool } from '../tools/python-exec.js';
 import { ManageMcpTool } from '../tools/manage-mcp.js';
 import { ManageSkillTool } from '../tools/manage-skill.js';
 import { ManageCredentialTool } from '../tools/manage-credential.js';
+import { ManageOracleConnectionTool } from '../tools/manage-oracle-connection.js';
+import { OracleQueryTool } from '../tools/oracle-query.js';
 import { AgentTool } from '../agents/agent-tool.js';
 import { ExitPlanModeTool } from '../tools/exit-plan-mode.js';
 import { EnterPlanModeTool } from '../tools/enter-plan-mode.js';
@@ -3969,6 +3971,12 @@ export class Config implements McpContext, AgentLoopContext {
     );
     maybeRegister(ManageCredentialTool, () =>
       registry.registerTool(new ManageCredentialTool(this.messageBus)),
+    );
+    maybeRegister(ManageOracleConnectionTool, () =>
+      registry.registerTool(new ManageOracleConnectionTool(this.messageBus)),
+    );
+    maybeRegister(OracleQueryTool, () =>
+      registry.registerTool(new OracleQueryTool(this.messageBus)),
     );
     maybeRegister(ListBackgroundProcessesTool, () =>
       registry.registerTool(

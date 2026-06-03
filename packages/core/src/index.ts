@@ -253,6 +253,11 @@ export * from './tools/manage-mcp.js';
 export * from './tools/manage-skill.js';
 export * from './tools/manage-credential.js';
 export * from './tools/corporate-credentials.js';
+export * from './tools/oracle-connections.js';
+export * from './tools/oracle-sql-guard.js';
+export * from './tools/oracle-client.js';
+export * from './tools/manage-oracle-connection.js';
+export * from './tools/oracle-query.js';
 
 // MCP OAuth
 export { MCPOAuthProvider } from './mcp/oauth-provider.js';
