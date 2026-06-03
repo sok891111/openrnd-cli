@@ -37,6 +37,10 @@ import { WEB_FETCH_DEFINITION } from './definitions/coreTools.js';
 import { resolveToolDeclaration } from './definitions/resolver.js';
 import { LRUCache } from 'mnemonist';
 import type { AgentLoopContext } from '../config/agent-loop-context.js';
+import {
+  tryCorporateFetch,
+  type CorporateFetchContext,
+} from './corporate-fetch.js';
 
 const URL_FETCH_TIMEOUT_MS = 10000;
 const MAX_CONTENT_LENGTH = 250000;
@@ -638,6 +642,64 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     return text;
   }
 
+  /** Builds the context passed to corporate (사내) fetch handlers. */
+  private makeCorporateFetchContext(
+    signal: AbortSignal,
+  ): CorporateFetchContext {
+    return {
+      signal,
+      emitInfo: (message: string) => coreEvents.emitFeedback('info', message),
+    };
+  }
+
+  /**
+   * Fallback step between the direct fetch and the browser session: try the
+   * corporate per-URL fetch handlers defined in corporate-fetch.ts; if none
+   * match or all fail, fall back to the signed-in browser. Returns page text.
+   */
+  private async corporateThenBrowser(
+    url: string,
+    signal: AbortSignal,
+  ): Promise<string> {
+    const corp = await tryCorporateFetch(
+      url,
+      this.makeCorporateFetchContext(signal),
+    );
+    if (corp) {
+      coreEvents.emitFeedback(
+        'info',
+        `✅ [web_fetch] 사내 fetch 핸들러(${corp.handlerName})로 ${corp.text.length}자 읽음: ${url}`,
+      );
+      return corp.text;
+    }
+    return this.fetchViaBrowser(url, signal);
+  }
+
+  /**
+   * ToolResult-returning variant of {@link corporateThenBrowser} for the
+   * experimental direct-fetch path.
+   */
+  private async corporateOrBrowserResult(
+    url: string,
+    signal: AbortSignal,
+  ): Promise<ToolResult> {
+    const corp = await tryCorporateFetch(
+      url,
+      this.makeCorporateFetchContext(signal),
+    );
+    if (corp) {
+      coreEvents.emitFeedback(
+        'info',
+        `✅ [web_fetch] 사내 fetch 핸들러(${corp.handlerName})로 ${corp.text.length}자 읽음: ${url}`,
+      );
+      return {
+        llmContent: this.applyFallbackTruncation(corp.text),
+        returnDisplay: `Fetched content from ${url} via corporate fetch handler (${corp.handlerName}).`,
+      };
+    }
+    return this.browserFetchResult(url, signal);
+  }
+
   /**
    * Server-side fetch of a URL, returning both the response (for auth-wall
    * detection) and the converted text. Throws on non-auth error statuses
@@ -722,24 +784,24 @@ class WebFetchToolInvocation extends BaseToolInvocation<
         if (reason) {
           coreEvents.emitFeedback(
             'info',
-            `🔐 [web_fetch] ${reason} → 브라우저 세션으로 폴백: ${url}`,
+            `🔐 [web_fetch] ${reason} → 사내 fetch/브라우저 세션으로 폴백: ${url}`,
           );
           debugLogger.warn(
-            `[WebFetchTool] ${reason} for ${url}. Falling back to browser session.`,
+            `[WebFetchTool] ${reason} for ${url}. Falling back to corporate/browser fetch.`,
           );
-          return await this.fetchViaBrowser(url, signal);
+          return await this.corporateThenBrowser(url, signal);
         }
         return this.applyFallbackTruncation(text);
       } catch (error) {
         coreEvents.emitFeedback(
           'info',
-          `⚠️ [web_fetch] 직접 fetch 실패 (${getErrorMessage(error)}) → 브라우저 세션으로 폴백: ${url}`,
+          `⚠️ [web_fetch] 직접 fetch 실패 (${getErrorMessage(error)}) → 사내 fetch/브라우저 세션으로 폴백: ${url}`,
         );
         debugLogger.warn(
           `[WebFetchTool] Direct fetch failed for ${url} ` +
-            `(${getErrorMessage(error)}). Falling back to browser session.`,
+            `(${getErrorMessage(error)}). Falling back to corporate/browser fetch.`,
         );
-        return this.fetchViaBrowser(url, signal);
+        return this.corporateThenBrowser(url, signal);
       }
     }
 
@@ -1058,13 +1120,13 @@ ${aggregatedContent}
       ) {
         coreEvents.emitFeedback(
           'info',
-          `🔐 [web_fetch] SSO/인증 벽 감지 (status ${status}, 최종 URL ${response.url}) → 브라우저 세션으로 폴백: ${url}`,
+          `🔐 [web_fetch] SSO/인증 벽 감지 (status ${status}, 최종 URL ${response.url}) → 사내 fetch/브라우저 세션으로 폴백: ${url}`,
         );
         debugLogger.warn(
           `[WebFetchTool] Auth/SSO wall detected for ${url} ` +
-            `(status ${status}). Using browser session.`,
+            `(status ${status}). Using corporate/browser fetch.`,
         );
-        return await this.browserFetchResult(url, signal);
+        return await this.corporateOrBrowserResult(url, signal);
       }
 
       const bodyBuffer = await this.readResponseWithLimit(
@@ -1105,9 +1167,9 @@ Response: ${rawResponseText}`;
         const size = this.responseSize(response, bodyBuffer.length);
         coreEvents.emitFeedback(
           'info',
-          `🔐 [web_fetch] SSO 의심 — 응답 크기 ${size}B ≤ ${this.getSsoStubThreshold()}B (status ${status}) → 브라우저 세션으로 폴백: ${url}`,
+          `🔐 [web_fetch] SSO 의심 — 응답 크기 ${size}B ≤ ${this.getSsoStubThreshold()}B (status ${status}) → 사내 fetch/브라우저 세션으로 폴백: ${url}`,
         );
-        return await this.browserFetchResult(url, signal);
+        return await this.corporateOrBrowserResult(url, signal);
       }
 
       const lowContentType = contentType.toLowerCase();
@@ -1178,18 +1240,18 @@ Response: ${rawResponseText}`;
       if (this.shouldUseBrowserFetch()) {
         coreEvents.emitFeedback(
           'info',
-          `⚠️ [web_fetch] 직접 fetch 실패 (${getErrorMessage(e)}) → 브라우저 세션으로 폴백: ${url}`,
+          `⚠️ [web_fetch] 직접 fetch 실패 (${getErrorMessage(e)}) → 사내 fetch/브라우저 세션으로 폴백: ${url}`,
         );
         debugLogger.warn(
           `[WebFetchTool] Experimental fetch failed for ${url} ` +
-            `(${getErrorMessage(e)}). Falling back to browser session.`,
+            `(${getErrorMessage(e)}). Falling back to corporate/browser fetch.`,
         );
         try {
-          return await this.browserFetchResult(url, signal);
+          return await this.corporateOrBrowserResult(url, signal);
         } catch (browserError) {
           const errorMessage =
             `Error during experimental fetch for ${url}: ${getErrorMessage(e)}; ` +
-            `browser fallback also failed: ${getErrorMessage(browserError)}`;
+            `corporate/browser fallback also failed: ${getErrorMessage(browserError)}`;
           debugLogger.error(`[WebFetchTool] ${errorMessage}`);
           return {
             llmContent: `Error: ${errorMessage}`,
