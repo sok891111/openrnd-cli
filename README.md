@@ -2,8 +2,9 @@
 
 업무용 AI CLI — OpenAI-compatible LLM에 연결하는 터미널 에이전트.
 
-Google Gemini CLI를 기반으로 바이브 코딩 기능을 제거하고, 크롤링·데이터
-처리·자동화·MCP 연동 등 실무 작업에 특화한 경량 CLI입니다.
+Google Gemini CLI를 기반으로, 파일 읽기·쓰기·편집·검색·셸 실행 등 코딩 도구는
+그대로 유지하면서 크롤링·데이터 처리·자동화·MCP 연동·사내 시스템(웹 fetch,
+Oracle DB) 연동 등 실무 작업에 특화한 CLI입니다.
 
 ---
 
