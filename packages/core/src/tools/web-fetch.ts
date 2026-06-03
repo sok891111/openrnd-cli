@@ -41,6 +41,7 @@ import {
   tryCorporateFetch,
   type CorporateFetchContext,
 } from './corporate-fetch.js';
+import { isDebugLoggingEnabled } from '../utils/debugLogging.js';
 
 const URL_FETCH_TIMEOUT_MS = 10000;
 const MAX_CONTENT_LENGTH = 250000;
@@ -642,13 +643,25 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     return text;
   }
 
-  /** Builds the context passed to corporate (사내) fetch handlers. */
+  /**
+   * Builds the context passed to corporate (사내) fetch handlers.
+   *
+   * `emitInfo` carries the handlers' Python `print(..., file=sys.stderr)`
+   * lines (🐍 …) plus per-handler trace messages. These are *informational*
+   * logs, so they are gated on the same debug-logging switch as the rest of
+   * the app (settings.general.debugLogging / OPENRND_DEBUG): turning logging
+   * off silences them all. Real failures still surface via the ⚠️/✅ feedback
+   * emitted directly by the callers below.
+   */
   private makeCorporateFetchContext(
     signal: AbortSignal,
   ): CorporateFetchContext {
+    const logging = isDebugLoggingEnabled();
     return {
       signal,
-      emitInfo: (message: string) => coreEvents.emitFeedback('info', message),
+      emitInfo: logging
+        ? (message: string) => coreEvents.emitFeedback('info', message)
+        : () => {},
     };
   }
 
@@ -666,10 +679,12 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       this.makeCorporateFetchContext(signal),
     );
     if (corp) {
-      coreEvents.emitFeedback(
-        'info',
-        `✅ [web_fetch] 사내 fetch 핸들러(${corp.handlerName})로 ${corp.text.length}자 읽음: ${url}`,
-      );
+      if (isDebugLoggingEnabled()) {
+        coreEvents.emitFeedback(
+          'info',
+          `✅ [web_fetch] 사내 fetch 핸들러(${corp.handlerName})로 ${corp.text.length}자 읽음: ${url}`,
+        );
+      }
       return corp.text;
     }
     return this.fetchViaBrowser(url, signal);
@@ -688,10 +703,12 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       this.makeCorporateFetchContext(signal),
     );
     if (corp) {
-      coreEvents.emitFeedback(
-        'info',
-        `✅ [web_fetch] 사내 fetch 핸들러(${corp.handlerName})로 ${corp.text.length}자 읽음: ${url}`,
-      );
+      if (isDebugLoggingEnabled()) {
+        coreEvents.emitFeedback(
+          'info',
+          `✅ [web_fetch] 사내 fetch 핸들러(${corp.handlerName})로 ${corp.text.length}자 읽음: ${url}`,
+        );
+      }
       return {
         llmContent: this.applyFallbackTruncation(corp.text),
         returnDisplay: `Fetched content from ${url} via corporate fetch handler (${corp.handlerName}).`,

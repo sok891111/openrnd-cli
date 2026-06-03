@@ -27,7 +27,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { coreEvents } from '../utils/events.js';
-import { Storage } from '../config/storage.js';
+import { isDebugLoggingEnabled } from '../utils/debugLogging.js';
 
 // ---------------------------------------------------------------------------
 // Debug logger
@@ -43,33 +43,9 @@ function getLogPath(): string {
   return path.join(os.homedir(), '.openrnd', 'debug.log');
 }
 
-// Resolved once per process (debug logging rarely toggles mid-session, and a
-// per-call file read would be wasteful). Changing the setting takes effect on
-// the next openrnd start.
-let cachedDebugEnabled: boolean | undefined;
-
-function isDebugEnabled(): boolean {
-  if (cachedDebugEnabled !== undefined) return cachedDebugEnabled;
-
-  // 1) Explicit env override always wins.
-  const env = process.env['OPENRND_DEBUG'];
-  if (env !== undefined) {
-    cachedDebugEnabled = env === 'true' || env === '1';
-    return cachedDebugEnabled;
-  }
-
-  // 2) Otherwise read settings.json (general.debugLogging); default OFF.
-  try {
-    const raw = fs.readFileSync(Storage.getGlobalSettingsPath(), 'utf8');
-    const parsed = JSON.parse(raw) as {
-      general?: { debugLogging?: boolean };
-    };
-    cachedDebugEnabled = parsed.general?.debugLogging === true;
-  } catch {
-    cachedDebugEnabled = false;
-  }
-  return cachedDebugEnabled;
-}
+// Single source of truth for the debug-logging toggle lives in
+// ../utils/debugLogging.ts so the corporate-fetch path and others share it.
+const isDebugEnabled = isDebugLoggingEnabled;
 
 // Surface an informational diagnostic in the terminal/chat window, but ONLY
 // when debug logging is enabled. Errors/warnings still emit unconditionally so
