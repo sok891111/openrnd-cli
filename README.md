@@ -9,15 +9,15 @@ Google Gemini CLI를 기반으로 바이브 코딩 기능을 제거하고, 크�
 
 ## 주요 기능
 
-| 기능                       | 설명                                                     |
-| -------------------------- | -------------------------------------------------------- |
-| **OpenAI-compatible 연결** | Ollama, LM Studio, OpenAI, vLLM 등 모든 호환 서비스 지원 |
-| **Python 실행**            | 크롤링·데이터 처리 스크립트를 대화 중 직접 실행          |
-| **MCP 서버 관리**          | 프롬프트 한 줄로 MCP 서버 추가/삭제                      |
-| **Skill 관리**             | 프롬프트로 재사용 가능한 워크플로 Skill 생성/관리        |
-| **파일 조작**              | 읽기·쓰기·편집, 검색, 디렉터리 탐색                      |
-| **웹 검색 / 페이지 수집**  | 웹 검색 및 URL 콘텐츠 가져오기                           |
-| **셸 실행**                | 백그라운드 프로세스 포함 임의 명령 실행                  |
+| 기능                       | 설명                                                      |
+| -------------------------- | --------------------------------------------------------- |
+| **OpenAI-compatible 연결** | Ollama, LM Studio, OpenAI, vLLM 등 모든 호환 서비스 지원  |
+| **Python 실행**            | 크롤링·데이터 처리 스크립트를 대화 중 직접 실행           |
+| **MCP 서버 관리**          | 프롬프트 한 줄로 MCP 서버 추가/삭제                       |
+| **Skill 관리**             | 프롬프트로 재사용 가능한 워크플로 Skill 생성/관리         |
+| **파일 조작**              | 읽기·쓰기·편집, 검색, 디렉터리 탐색                       |
+| **웹 검색 / 페이지 수집**  | 웹 검색, URL 수집(web fetch → 사내 fetch → 브라우저 폴백) |
+| **셸 실행**                | 백그라운드 프로세스 포함 임의 명령 실행                   |
 
 ---
 
@@ -252,6 +252,106 @@ Skill 파일 위치: `~/.openrnd/skills/<name>/SKILL.md`
 
 ---
 
+## 웹 페이지 수집 (`web_fetch`) 과 사내 fetch 커스터마이징
+
+URL 콘텐츠를 가져올 때 openrnd는 다음 **3단계 폴백 체인**으로 동작합니다. 앞
+단계가 실패하거나 SSO/인증 벽에 막히면 다음 단계로 넘어갑니다.
+
+```
+1) web fetch            서버사이드 HTTP fetch (일반 공개 URL)
+        │  (실패 / 인증벽 / SSO 스텁 감지)
+        ▼
+2) 사내 URL별 fetch     ★ Python 핸들러로 구현하는 영역 ★
+        │  (매칭 핸들러 없음 / 모두 실패)
+        ▼
+3) 브라우저 세션 열기    로그인된 Chrome 세션으로 페이지를 직접 읽음
+```
+
+사내 인트라넷 URL은 보통 SSO 뒤에 있어 1)번 서버 fetch가 통하지 않습니다. 2)번
+단계의 **사내 URL별 전용 fetch 방법**(REST API 토큰, 사내 프록시 경유 등)을
+**Python 으로** 작성해 끼워 넣을 수 있습니다.
+
+### 디렉터리 구조 (프로젝트 안에서 git 으로 관리)
+
+```
+packages/core/src/tools/corporate_fetchers/
+├── dispatch.py                       # 디스패처 (거의 손댈 일 없음)
+└── handlers/
+    ├── __init__.py
+    ├── sample_naver_market.py        # 샘플 핸들러
+    └── <도메인>.py                   # ★ URL별 핸들러를 하나씩 추가 ★
+```
+
+- **한 파일 = 한 핸들러.** URL(도메인)별로 파일을 나눠 두면 여러 명이 각자
+  파일만 추가/수정하므로 **머지 충돌이 나지 않습니다.**
+- TS(`corporate-fetch.ts`)는 이 Python 을 실행하는 **얇은 브리지**일 뿐이라 손댈
+  필요가 없습니다.
+
+### 핸들러 추가하기
+
+`handlers/` 에 새 `.py` 파일을 만들고 **두 함수만** 정의하면 됩니다.
+(`handlers/sample_naver_market.py` 를 복사해서 시작하세요.)
+
+```python
+# handlers/wiki_corp.py
+import os
+import sys
+from urllib.parse import urlparse
+
+
+def can_handle(url: str) -> bool:
+    return urlparse(url).hostname == "wiki.corp.com"
+
+
+def fetch(url: str) -> str:
+    print(f"사내 위키 조회: {url}", file=sys.stderr)   # 로그는 stderr 로
+    import requests
+    res = requests.get(url, timeout=15,
+                       headers={"Authorization": f"Bearer {os.environ['WIKI_TOKEN']}"})
+    res.raise_for_status()
+    return res.text        # ← 본문 문자열 반환
+```
+
+**반환값에 따른 동작 (중요):**
+
+| `fetch` 반환값             | 결과                                                   |
+| -------------------------- | ------------------------------------------------------ |
+| 공백이 아닌 문자열         | **성공** — 그 내용을 사용하고 ★브라우저 폴백을 건너뜀★ |
+| 빈 문자열 `""` 또는 공백만 | 실패로 간주 → 다음 핸들러(없으면 브라우저)로 진행      |
+| 예외(raise)                | 실패로 간주(에러 로깅) → 다음 단계로 진행              |
+
+`dispatch.py` 가 `handlers/` 의 모든 핸들러를 자동 검색해, `can_handle(url)` 이
+`True` 인 첫 핸들러의 `fetch(url)` 결과를 사용합니다.
+
+### 규약 / 팁
+
+- **stdout = 본문 전용.** 본문 외의 출력을 stdout 으로 내보내지 마세요.
+- **로그는 `print(..., file=sys.stderr)`.** stderr 한 줄이 openrnd 대화 터미널에
+  `🐍` 접두로 바로 표시됩니다(디버깅·감사 로그용).
+- **시크릿/토큰은 환경변수로** (`os.environ["..."]`). openrnd 프로세스의
+  환경변수가 Python 핸들러로 그대로 전달됩니다.
+- **의존성**: `requests` 등은 시스템 Python 3(`python3`/Windows `python`)에 미리
+  설치돼 있어야 합니다. (`run_python` 도구와 동일 전제)
+
+### 수정 후 반영
+
+```bash
+npm run bundle
+```
+
+Python 핸들러는 빌드 시 `bundle/corporate_fetchers/` 로 복사됩니다. 핸들러를
+추가/수정한 뒤 위 명령으로 재번들해야 배포본에 반영됩니다.
+
+### 관련 환경변수 (선택)
+
+| 환경변수                              | 기본값 | 설명                                                          |
+| ------------------------------------- | ------ | ------------------------------------------------------------- |
+| `OPENRND_WEBFETCH_BROWSER_FALLBACK`   | 켜짐   | `0`/`false`/`off` 로 설정 시 2·3단계 폴백을 끄고 1단계만 사용 |
+| `OPENRND_WEBFETCH_MIN_CONTENT_LENGTH` | `5000` | 이 크기(byte) 이하 200 응답을 SSO 로그인 스텁으로 간주        |
+| `OPENRND_WEBFETCH_BROWSER_WAIT_MS`    | `5000` | 브라우저로 열 때 페이지 렌더링 대기 시간(ms)                  |
+
+---
+
 ## 설정 파일
 
 `~/.openrnd/settings.json` — 사용자 전역 설정
@@ -330,9 +430,14 @@ openrnd/
 │   │       ├── core/
 │   │       │   └── openaiCompatibleContentGenerator.ts  # LLM 어댑터
 │   │       └── tools/
-│   │           ├── python-exec.ts   # Python 실행 도구
-│   │           ├── manage-mcp.ts    # MCP 관리 도구
-│   │           └── manage-skill.ts  # Skill 관리 도구
+│   │           ├── python-exec.ts      # Python 실행 도구
+│   │           ├── manage-mcp.ts       # MCP 관리 도구
+│   │           ├── manage-skill.ts     # Skill 관리 도구
+│   │           ├── web-fetch.ts        # URL 수집 + 3단계 폴백 체인
+│   │           ├── corporate-fetch.ts  # 사내 fetch → Python 디스패처 브리지
+│   │           └── corporate_fetchers/ # ★ 사내 URL별 Python 핸들러
+│   │               ├── dispatch.py
+│   │               └── handlers/       #   <도메인>.py 하나씩 추가
 │   └── cli/                     # CLI 진입점
 │       └── src/
 │           └── commands/

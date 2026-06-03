@@ -115,4 +115,17 @@ if (existsSync(extensionExamplesSrc)) {
   console.log('Copied extension examples to bundle/examples/');
 }
 
+// 7. Copy corporate (사내) Python fetch handlers
+//    Runtime resolves these next to the bundle entry: bundle/corporate_fetchers/
+const corpFetchSrc = join(root, 'packages/core/src/tools/corporate_fetchers');
+const corpFetchDest = join(bundleDir, 'corporate_fetchers');
+if (existsSync(corpFetchSrc)) {
+  cpSync(corpFetchSrc, corpFetchDest, {
+    recursive: true,
+    dereference: true,
+    filter: (src) => !src.includes('__pycache__'),
+  });
+  console.log('Copied corporate fetch handlers to bundle/corporate_fetchers/');
+}
+
 console.log('Assets copied to bundle/');
