@@ -86,6 +86,11 @@ export class SkillManager {
       return;
     }
 
+    // Legacy <root>/.gemini/skills first (lowest in the workspace tier), so
+    // current locations override it on name conflicts.
+    const projectLegacyDir = storage.getProjectLegacyGeminiSkillsDir();
+    this.addSkillsWithPrecedence(await loadSkillsFromDir(projectLegacyDir));
+
     const projectSkills = await loadSkillsFromDir(
       storage.getProjectSkillsDir(),
     );

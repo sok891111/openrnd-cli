@@ -24,6 +24,10 @@ export const TRUSTED_FOLDERS_FILENAME = 'trustedFolders.json';
 const TMP_DIR_NAME = 'tmp';
 const BIN_DIR_NAME = 'bin';
 const AGENTS_DIR_NAME = '.agents';
+// Legacy gemini-cli config dir name. The active config dir is GEMINI_DIR
+// ('.openrnd'), but workspaces/users may still keep skills under '.gemini'
+// (e.g. committed `.gemini/skills/`), so we also read from there.
+const LEGACY_GEMINI_DIR_NAME = '.gemini';
 
 export const AUTO_SAVED_POLICY_FILENAME = 'auto-saved.toml';
 
@@ -300,6 +304,11 @@ export class Storage {
 
   getProjectSkillsDir(): string {
     return path.join(this.getGeminiDir(), 'skills');
+  }
+
+  /** Legacy workspace skills dir (<root>/.gemini/skills). */
+  getProjectLegacyGeminiSkillsDir(): string {
+    return path.join(this.targetDir, LEGACY_GEMINI_DIR_NAME, 'skills');
   }
 
   getProjectAgentSkillsDir(): string {
