@@ -285,6 +285,23 @@ describe('ReadManyFilesTool', () => {
       );
     });
 
+    it('reads a file given by an absolute path within the workspace', async () => {
+      createFile('abs/doc.txt', 'Absolute content');
+      const absPath = path.join(tempRootDir, 'abs/doc.txt');
+      const params = { include: [absPath] };
+      const invocation = tool.build(params);
+      const result = await invocation.execute({
+        abortSignal: new AbortController().signal,
+      });
+      expect(result.llmContent).toEqual([
+        `--- ${absPath} ---\n\nAbsolute content\n\n`,
+        `\n--- End of content ---`,
+      ]);
+      expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
+        'Successfully read and concatenated content from **1 file(s)**',
+      );
+    });
+
     it('should read multiple specified files', async () => {
       createFile('file1.txt', 'Content1');
       createFile('subdir/file2.js', 'Content2');

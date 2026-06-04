@@ -206,9 +206,34 @@ ${finalExclusionPatternsForDescription
       const allEntries = new Set<string>();
       const workspaceDirs = this.config.getWorkspaceContext().getDirectories();
 
+      // Absolute paths that point directly at an existing file are added as-is.
+      // They must NOT be joined with a workspace dir: path.join(dir, absolute)
+      // is wrong on every platform and breaks Windows drive paths (e.g.
+      // path.join('C:\\ws', 'C:/a/b.docx') -> 'C:\\ws\\C:\\a\\b.docx'), which
+      // made correct absolute paths report "file not found". Relative entries
+      // and glob patterns still go through the per-workspace-dir glob below.
+      const globIncludes: string[] = [];
+      for (const p of include) {
+        if (path.isAbsolute(p)) {
+          try {
+            const st = await fsPromises.stat(p);
+            if (st.isFile()) {
+              allEntries.add(path.resolve(p));
+              continue;
+            }
+          } catch {
+            // Not an existing file; fall through to glob handling.
+          }
+        }
+        globIncludes.push(p);
+      }
+
       for (const dir of workspaceDirs) {
+        if (globIncludes.length === 0) {
+          break;
+        }
         const processedPatterns = [];
-        for (const p of include) {
+        for (const p of globIncludes) {
           const normalizedP = p.replace(/\\/g, '/');
           const fullPath = path.join(dir, normalizedP);
           let exists = false;
