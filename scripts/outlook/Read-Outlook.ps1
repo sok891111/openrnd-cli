@@ -68,10 +68,13 @@ $DefaultFolders = @{
 function Resolve-Folder {
   param($Namespace, [string]$Spec)
 
-  $parts = $Spec -split '/' | Where-Object { $_ -ne '' }
+  # @(...) forces an array even when the split yields a single segment;
+  # otherwise PowerShell unwraps it to a scalar string and $parts[0] would
+  # return the first *character* (a [char], which has no ToLowerInvariant()).
+  $parts = @($Spec -split '/' | Where-Object { $_ -ne '' })
   if ($parts.Count -eq 0) { $parts = @('Inbox') }
 
-  $rootKey = $parts[0].ToLowerInvariant()
+  $rootKey = ([string]$parts[0]).ToLowerInvariant()
   if ($DefaultFolders.ContainsKey($rootKey)) {
     $current = $Namespace.GetDefaultFolder($DefaultFolders[$rootKey])
   }
@@ -114,7 +117,7 @@ if ($UnreadOnly) {
 }
 
 $cutoff = if ($SinceDays -gt 0) { (Get-Date).AddDays(-$SinceDays) } else { $null }
-$searchLower = $Search.ToLowerInvariant()
+$searchLower = ([string]$Search).ToLowerInvariant()
 
 $results = New-Object System.Collections.ArrayList
 $item = $items.GetFirst()
