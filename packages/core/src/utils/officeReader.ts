@@ -51,6 +51,21 @@ export interface OfficeReadResult {
   error?: string;
 }
 
+/**
+ * Leading marker the in-house DRM agent prepends to protected documents when
+ * they are read off disk without the Office application. A file whose content
+ * starts with this marker is DRM-wrapped and must be read via win32com,
+ * regardless of its extension.
+ */
+export const DRM_DOCUMENT_MARKER = '<DOCUMENT SAFER';
+
+/**
+ * Which installed Office app to use as a LAST RESORT when the file's extension
+ * is not a recognized office type. Extension-based dispatch always takes
+ * precedence over this.
+ */
+export type OfficeFallbackReader = 'word' | 'excel' | 'ppt' | 'pdf';
+
 /** Timeout for the win32com extraction process (Office launch can be slow). */
 const OFFICE_READ_TIMEOUT_MS = 120_000;
 
@@ -208,6 +223,7 @@ def main():
         sys.stderr.write("MISSING_PATH_ARG\n")
         return 2
     path = os.path.abspath(sys.argv[1])
+    forced = (sys.argv[2].strip().lower() if len(sys.argv) > 2 else "")
     ext = os.path.splitext(path)[1].lower()
     if not ensure_pywin32():
         sys.stderr.write(
@@ -221,6 +237,9 @@ def main():
     except Exception:
         pass
     try:
+        # Extension-based dispatch takes precedence; the optional fallback
+        # reader (argv[2]) is only used when the extension is unrecognized
+        # (e.g. a DRM-marked file with a non-office extension).
         if ext in (".doc", ".docx", ".docm", ".dot", ".dotx"):
             text = read_word(path)
         elif ext == ".pdf":
@@ -228,6 +247,14 @@ def main():
         elif ext in (".xls", ".xlsx", ".xlsm", ".xlsb"):
             text = read_excel(path)
         elif ext in (".ppt", ".pptx", ".pptm"):
+            text = read_ppt(path)
+        elif forced == "word":
+            text = read_word(path)
+        elif forced == "pdf":
+            text = read_pdf(path)
+        elif forced == "excel":
+            text = read_excel(path)
+        elif forced == "ppt":
             text = read_ppt(path)
         else:
             sys.stderr.write("UNSUPPORTED_OFFICE_EXT:%s\n" % ext)
@@ -256,6 +283,7 @@ if __name__ == "__main__":
  */
 export async function readOfficeFile(
   filePath: string,
+  options?: { fallbackReader?: OfficeFallbackReader },
 ): Promise<OfficeReadResult> {
   if (process.platform !== 'win32') {
     const error =
@@ -276,7 +304,10 @@ export async function readOfficeFile(
       stderr: string;
       code: number | null;
     }>((resolve, reject) => {
-      const child = spawn(pythonExe, [tmpScript, filePath], {
+      const spawnArgs = options?.fallbackReader
+        ? [tmpScript, filePath, options.fallbackReader]
+        : [tmpScript, filePath];
+      const child = spawn(pythonExe, spawnArgs, {
         env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
         shell: process.platform === 'win32',
         windowsHide: true,

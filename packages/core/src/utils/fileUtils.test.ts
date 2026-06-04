@@ -831,6 +831,30 @@ describe('fileUtils', () => {
       expect(result.returnDisplay).toContain('File not found');
     });
 
+    it('routes DRM-marked files (<DOCUMENT SAFER ...) through the win32com path', async () => {
+      // A non-office extension whose content starts with the DRM envelope
+      // marker must be routed to win32com (not read as raw text). On non-Windows
+      // the win32com helper returns an error, which proves the routing happened
+      // (a normal text read would have returned the raw content instead).
+      actualNodeFs.writeFileSync(
+        testTextFilePath,
+        '<DOCUMENT SAFER v=1>\nencrypted-payload-not-real-text',
+      );
+      const result = await processSingleFileContent(
+        testTextFilePath,
+        tempRootDir,
+        new StandardFileSystemService(),
+      );
+      if (process.platform === 'win32') {
+        // On Windows the result depends on Office/pywin32 availability; just
+        // assert it did not return the raw DRM envelope as plain text.
+        expect(String(result.llmContent)).not.toContain('<DOCUMENT SAFER');
+      } else {
+        expect(result.error).toContain('win32com');
+        expect(String(result.llmContent)).toContain('Office');
+      }
+    });
+
     it('should handle read errors for text files', async () => {
       actualNodeFs.writeFileSync(testTextFilePath, 'content'); // File must exist for initial statSync
       const readError = new Error('Simulated read error');

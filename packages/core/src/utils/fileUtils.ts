@@ -15,7 +15,13 @@ import { ToolErrorType } from '../tools/tool-error.js';
 import { BINARY_EXTENSIONS } from './ignorePatterns.js';
 import { createRequire as createModuleRequire } from 'node:module';
 import { debugLogger } from './debugLogger.js';
-import { isOfficeFile, readOfficeFile } from './officeReader.js';
+import {
+  isOfficeFile,
+  readOfficeFile,
+  DRM_DOCUMENT_MARKER,
+  type OfficeFallbackReader,
+} from './officeReader.js';
+import type { FileHandle } from 'node:fs/promises';
 
 import {
   DEFAULT_MAX_LINES_TEXT_FILE,
@@ -523,6 +529,74 @@ function formatTextContent(
  * @param endLine Optional 1-based line number to end reading at (inclusive).
  * @returns ProcessedFileReadResult object.
  */
+/**
+ * Returns true when the file's leading bytes match the in-house DRM envelope
+ * marker ({@link DRM_DOCUMENT_MARKER}). Such files are protected documents that
+ * must be read through win32com (the Office DRM agent), even when their
+ * extension/detected type would otherwise be treated as plain text.
+ */
+async function startsWithDrmMarker(filePath: string): Promise<boolean> {
+  let handle: FileHandle | undefined;
+  try {
+    handle = await fsPromises.open(filePath, 'r');
+    const buf = Buffer.alloc(128);
+    const { bytesRead } = await handle.read(buf, 0, 128, 0);
+    const slice = buf.subarray(0, bytesRead);
+    // Try a few common encodings; the marker is ASCII so it survives all of
+    // them, but the surrounding bytes may carry a BOM or be UTF-16. The marker
+    // is distinctive, so a near-start substring match is sufficient and robust.
+    return [
+      slice.toString('utf8'),
+      slice.toString('utf16le'),
+      slice.toString('latin1'),
+    ].some((s) => s.includes(DRM_DOCUMENT_MARKER));
+  } catch {
+    return false;
+  } finally {
+    await handle?.close().catch(() => {});
+  }
+}
+
+/**
+ * Reads a document through win32com (Office COM automation) and formats the
+ * result. Shared by the extension-based 'office' path and the DRM-marker
+ * fallback. The win32com helper always dispatches by file extension first;
+ * fallbackReader is only used when the extension is not a recognized office
+ * type (e.g. a DRM-marked file with a non-office extension).
+ */
+async function readOfficeViaWin32com(
+  filePath: string,
+  relativePathForDisplay: string,
+  startLine?: number,
+  endLine?: number,
+  fallbackReader?: OfficeFallbackReader,
+): Promise<ProcessedFileReadResult> {
+  const officeResult = await readOfficeFile(
+    filePath,
+    fallbackReader ? { fallbackReader } : undefined,
+  );
+  if (officeResult.error || officeResult.text === undefined) {
+    const message =
+      officeResult.error ?? 'win32com 으로 텍스트를 추출하지 못했습니다.';
+    return {
+      llmContent: `Office 파일을 읽을 수 없습니다 (${relativePathForDisplay}): ${message}`,
+      returnDisplay: `Office read failed: ${relativePathForDisplay} — ${message}`,
+      error: `win32com office read failed for ${filePath}: ${message}`,
+      errorType: ToolErrorType.READ_CONTENT_FAILURE,
+    };
+  }
+  const result = formatTextContent(
+    officeResult.text,
+    relativePathForDisplay,
+    startLine,
+    endLine,
+  );
+  if (!result.returnDisplay) {
+    result.returnDisplay = `Read Office file via win32com: ${relativePathForDisplay}`;
+  }
+  return result;
+}
+
 export async function processSingleFileContent(
   filePath: string,
   rootDirectory: string,
@@ -567,6 +641,23 @@ export async function processSingleFileContent(
       .relative(rootDirectory, filePath)
       .replace(/\\/g, '/');
 
+    // In-house DRM documents are served with a plain-text envelope beginning
+    // with the DRM marker when read off disk without the Office application.
+    // Detect that and route through win32com so the Office DRM agent decrypts
+    // them. Office-extension files are already handled by the 'office' case
+    // (dispatched to the correct app by extension), so this only matters for
+    // DRM files whose extension is not a recognized office type — for those we
+    // let win32com fall back to Word as a last resort.
+    if (fileType !== 'office' && (await startsWithDrmMarker(filePath))) {
+      return await readOfficeViaWin32com(
+        filePath,
+        relativePathForDisplay,
+        startLine,
+        endLine,
+        'word',
+      );
+    }
+
     switch (fileType) {
       case 'binary': {
         return {
@@ -590,29 +681,14 @@ export async function processSingleFileContent(
       }
       case 'office': {
         // DRM-protected in-house Office files can only be read through
-        // win32com COM automation (Windows + pywin32). Never fall back to
-        // reading raw bytes.
-        const officeResult = await readOfficeFile(filePath);
-        if (officeResult.error || officeResult.text === undefined) {
-          const message =
-            officeResult.error ?? 'win32com 으로 텍스트를 추출하지 못했습니다.';
-          return {
-            llmContent: `Office 파일을 읽을 수 없습니다 (${relativePathForDisplay}): ${message}`,
-            returnDisplay: `Office read failed: ${relativePathForDisplay} — ${message}`,
-            error: `win32com office read failed for ${filePath}: ${message}`,
-            errorType: ToolErrorType.READ_CONTENT_FAILURE,
-          };
-        }
-        const result = formatTextContent(
-          officeResult.text,
+        // win32com COM automation (Windows + pywin32), dispatched to the
+        // correct app by extension. Never fall back to reading raw bytes.
+        return await readOfficeViaWin32com(
+          filePath,
           relativePathForDisplay,
           startLine,
           endLine,
         );
-        if (!result.returnDisplay) {
-          result.returnDisplay = `Read Office file via win32com: ${relativePathForDisplay}`;
-        }
-        return result;
       }
       case 'text': {
         // Use BOM-aware reader to avoid leaving a BOM character in content and to support UTF-16/32 transparently
