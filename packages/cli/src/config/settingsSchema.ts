@@ -1299,7 +1299,7 @@ const SETTINGS_SCHEMA = {
             label: 'Browser Session Mode',
             category: 'Advanced',
             requiresRestart: true,
-            default: 'persistent',
+            default: 'existing',
             description:
               "Session mode: 'persistent', 'isolated', or 'existing'.",
             showInDialog: false,

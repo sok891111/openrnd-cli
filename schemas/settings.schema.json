@@ -102,6 +102,13 @@
           "default": false,
           "type": "boolean"
         },
+        "debugLogging": {
+          "title": "Debug Logging",
+          "description": "Write verbose LLM/provider debug logs to ~/.openrnd/debug.log. Overridden by the OPENRND_DEBUG environment variable when set (OPENRND_DEBUG=true/false).",
+          "markdownDescription": "Write verbose LLM/provider debug logs to ~/.openrnd/debug.log. Overridden by the OPENRND_DEBUG environment variable when set (OPENRND_DEBUG=true/false).\n\n- Category: `General`\n- Requires restart: `yes`\n- Default: `false`",
+          "default": false,
+          "type": "boolean"
+        },
         "enableAutoUpdate": {
           "title": "Enable Auto Update",
           "description": "Enable automatic updates.",
@@ -631,8 +638,8 @@
         "usageStatisticsEnabled": {
           "title": "Enable Usage Statistics",
           "description": "Enable collection of usage statistics",
-          "markdownDescription": "Enable collection of usage statistics\n\n- Category: `Privacy`\n- Requires restart: `yes`\n- Default: `true`",
-          "default": true,
+          "markdownDescription": "Enable collection of usage statistics\n\n- Category: `Privacy`\n- Requires restart: `yes`\n- Default: `false`",
+          "default": false,
           "type": "boolean"
         }
       },
@@ -2536,8 +2543,8 @@
             "sessionMode": {
               "title": "Browser Session Mode",
               "description": "Session mode: 'persistent', 'isolated', or 'existing'.",
-              "markdownDescription": "Session mode: 'persistent', 'isolated', or 'existing'.\n\n- Category: `Advanced`\n- Requires restart: `yes`\n- Default: `persistent`",
-              "default": "persistent",
+              "markdownDescription": "Session mode: 'persistent', 'isolated', or 'existing'.\n\n- Category: `Advanced`\n- Requires restart: `yes`\n- Default: `existing`",
+              "default": "existing",
               "type": "string",
               "enum": ["persistent", "isolated", "existing"]
             },
@@ -3795,6 +3802,34 @@
             }
           },
           "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "llm": {
+      "title": "LLM Connection",
+      "description": "OpenAI-compatible LLM connection settings for openrnd.",
+      "markdownDescription": "OpenAI-compatible LLM connection settings for openrnd.\n\n- Category: `LLM`\n- Requires restart: `yes`\n- Default: `{}`",
+      "default": {},
+      "type": "object",
+      "properties": {
+        "baseUrl": {
+          "title": "Base URL",
+          "description": "Base URL for the OpenAI-compatible API endpoint. Example: https://api.openai.com/v1 or http://localhost:11434/v1",
+          "markdownDescription": "Base URL for the OpenAI-compatible API endpoint. Example: https://api.openai.com/v1 or http://localhost:11434/v1\n\n- Category: `LLM`\n- Requires restart: `yes`",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "description": "Model name to use. Example: gpt-4o, llama3.2, claude-3-5-sonnet.",
+          "markdownDescription": "Model name to use. Example: gpt-4o, llama3.2, claude-3-5-sonnet.\n\n- Category: `LLM`\n- Requires restart: `yes`",
+          "type": "string"
+        },
+        "apiKey": {
+          "title": "API Key",
+          "description": "API key for the LLM service. For Ollama, use \"ollama\". For OpenAI, use your API key.",
+          "markdownDescription": "API key for the LLM service. For Ollama, use \"ollama\". For OpenAI, use your API key.\n\n- Category: `LLM`\n- Requires restart: `yes`",
+          "type": "string"
         }
       },
       "additionalProperties": false
