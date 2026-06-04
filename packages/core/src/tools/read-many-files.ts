@@ -28,6 +28,7 @@ import {
   getSpecificMimeType,
   type ProcessedFileReadResult,
 } from '../utils/fileUtils.js';
+import { OFFICE_EXTENSIONS } from '../utils/officeReader.js';
 import type { PartListUnion } from '@google/genai';
 import {
   type Config,
@@ -115,8 +116,21 @@ type FileProcessingResult =
  * This combines the shared patterns with dynamic patterns like GEMINI.md.
  * TODO(adh): Consider making this configurable or extendable through a command line argument.
  */
+/**
+ * Glob ignore patterns for the office extensions that openrnd can read through
+ * win32com (one pattern per OFFICE_EXTENSIONS entry, e.g. the docx ignore
+ * glob). These are removed from the default excludes so that explicitly
+ * requested in-house DRM Office files reach processSingleFileContent (the
+ * win32com extraction path) instead of being silently filtered out at the
+ * glob stage.
+ */
+const OFFICE_READABLE_IGNORE_PATTERNS = new Set(
+  OFFICE_EXTENSIONS.map((ext) => `**/*${ext}`),
+);
+
 function getDefaultExcludes(config?: Config): string[] {
-  return config?.getFileExclusions().getReadManyFilesExcludes() ?? [];
+  const excludes = config?.getFileExclusions().getReadManyFilesExcludes() ?? [];
+  return excludes.filter((p) => !OFFICE_READABLE_IGNORE_PATTERNS.has(p));
 }
 
 const DEFAULT_OUTPUT_SEPARATOR_FORMAT = '--- {filePath} ---';
@@ -296,7 +310,8 @@ ${finalExclusionPatternsForDescription
           if (
             fileType === 'image' ||
             fileType === 'pdf' ||
-            fileType === 'audio'
+            fileType === 'audio' ||
+            fileType === 'office'
           ) {
             const fileExtension = path.extname(filePath).toLowerCase();
             const fileNameWithoutExtension = path.basename(
@@ -315,7 +330,7 @@ ${finalExclusionPatternsForDescription
                 filePath,
                 relativePathForDisplay,
                 reason:
-                  'asset file (image/pdf/audio) was not explicitly requested by name or extension',
+                  'asset file (image/pdf/audio/office) was not explicitly requested by name or extension',
               };
             }
           }
