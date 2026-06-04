@@ -6,6 +6,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-type-assertion */
 
 import { spawn } from 'node:child_process';
+import { StringDecoder } from 'node:string_decoder';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -131,10 +132,20 @@ function runPythonDispatcher(
   return new Promise<string>((resolve, reject) => {
     const child = spawn(python, [dispatcher], {
       // 등록된 사내 API 키를 OPENRND_CRED_<ID> 환경변수로 주입.
-      env: { ...process.env, ...getCredentialEnv() },
-      shell: process.platform === 'win32',
+      // PYTHONUTF8/PYTHONIOENCODING: Windows 레거시 코드페이지(CP949) 대신
+      // UTF-8 로 stdout·파일 입출력을 통일해 한글 본문이 깨지거나
+      // UnicodeEncodeError 가 나지 않도록 한다. shell 은 쓰지 않는다 — cmd.exe
+      // 를 거치면 명령줄이 코드페이지로 재인코딩되어 비ASCII 가 깨진다.
+      env: {
+        ...process.env,
+        ...getCredentialEnv(),
+        PYTHONUTF8: '1',
+        PYTHONIOENCODING: 'utf-8',
+      },
     });
 
+    const stdoutDecoder = new StringDecoder('utf8');
+    const stderrDecoder = new StringDecoder('utf8');
     let stdout = '';
     let stderrBuf = '';
     let settled = false;
@@ -173,12 +184,12 @@ function runPythonDispatcher(
     ctx.signal.addEventListener('abort', onAbort, { once: true });
 
     child.stdout.on('data', (d: Buffer) => {
-      stdout += d.toString();
+      stdout += stdoutDecoder.write(d);
     });
 
     // stderr 는 줄 단위로 잘라 터미널 로그로 전달.
     child.stderr.on('data', (d: Buffer) => {
-      stderrBuf += d.toString();
+      stderrBuf += stderrDecoder.write(d);
       let idx: number;
       while ((idx = stderrBuf.indexOf('\n')) >= 0) {
         const line = stderrBuf.slice(0, idx).trimEnd();
@@ -205,6 +216,8 @@ function runPythonDispatcher(
     });
 
     child.on('close', () => {
+      stdout += stdoutDecoder.end();
+      stderrBuf += stderrDecoder.end();
       const tail = stderrBuf.trim();
       if (tail) {
         ctx.emitInfo(`🐍 ${tail}`);
@@ -212,8 +225,8 @@ function runPythonDispatcher(
       finish(() => resolve(stdout));
     });
 
-    // URL 을 stdin 으로 전달.
-    child.stdin.write(urlStr);
+    // URL 을 stdin 으로 전달 (UTF-8).
+    child.stdin.write(urlStr, 'utf-8');
     child.stdin.end();
   });
 }
@@ -263,15 +276,16 @@ export function listCorporateSystems(
   const python = detectPythonExecutable();
   return new Promise<CorporateSystemInfo[]>((resolve) => {
     const child = spawn(python, [dispatcher, '--list-systems'], {
-      env: process.env,
-      shell: process.platform === 'win32',
+      env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
     });
+    const stdoutDecoder = new StringDecoder('utf8');
     let stdout = '';
     child.stdout.on('data', (d: Buffer) => {
-      stdout += d.toString();
+      stdout += stdoutDecoder.write(d);
     });
     child.on('error', () => resolve([]));
     child.on('close', () => {
+      stdout += stdoutDecoder.end();
       try {
         const parsed: unknown = JSON.parse(stdout);
         if (Array.isArray(parsed)) {

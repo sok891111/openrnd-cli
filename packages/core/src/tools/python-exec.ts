@@ -9,6 +9,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { StringDecoder } from 'node:string_decoder';
 import {
   BaseDeclarativeTool,
   BaseToolInvocation,
@@ -127,9 +128,30 @@ class PythonExecInvocation extends BaseToolInvocation<
       await new Promise<void>((resolve, reject) => {
         const child = spawn(pythonExe, [tmpFile], {
           cwd,
-          env: process.env,
-          shell: process.platform === 'win32',
+          // Force Python into UTF-8 mode. Without this, on Windows Python uses
+          // the legacy locale code page (e.g. CP949) for stdout/stderr and the
+          // default file encoding, so scripts that print or read non-ASCII text
+          // (Korean, emoji, ...) raise UnicodeEncodeError/UnicodeDecodeError and
+          // the bytes we capture are mis-decoded into mojibake. PYTHONUTF8 makes
+          // stdio + open() default to UTF-8; PYTHONIOENCODING is a belt-and-
+          // suspenders for the stdio streams specifically.
+          env: {
+            ...process.env,
+            PYTHONUTF8: '1',
+            PYTHONIOENCODING: 'utf-8',
+          },
+          // Do NOT route through a shell: on Windows `shell: true` runs the
+          // command via cmd.exe, which re-encodes the command line through the
+          // console code page and corrupts non-ASCII characters (e.g. a temp
+          // path under a Korean user profile). Spawning directly passes argv to
+          // CreateProcessW as Unicode; libuv still resolves `python` on PATH.
+          windowsHide: true,
         });
+
+        // Decode incrementally so a multi-byte UTF-8 character split across two
+        // data chunks is not turned into replacement characters.
+        const stdoutDecoder = new StringDecoder('utf8');
+        const stderrDecoder = new StringDecoder('utf8');
 
         const timer = setTimeout(() => {
           killed = true;
@@ -143,16 +165,14 @@ class PythonExecInvocation extends BaseToolInvocation<
         abortSignal.addEventListener('abort', abortHandler, { once: true });
 
         child.stdout.on('data', (data: Buffer) => {
-          const chunk = data.toString();
-          stdout += chunk;
+          stdout += stdoutDecoder.write(data);
           if (updateOutput) {
             updateOutput(stdout + (stderr ? `\n[stderr]\n${stderr}` : ''));
           }
         });
 
         child.stderr.on('data', (data: Buffer) => {
-          const chunk = data.toString();
-          stderr += chunk;
+          stderr += stderrDecoder.write(data);
         });
 
         child.on('error', (err) => {
@@ -175,6 +195,9 @@ class PythonExecInvocation extends BaseToolInvocation<
         child.on('close', (code) => {
           clearTimeout(timer);
           abortSignal.removeEventListener('abort', abortHandler);
+          // Flush any bytes the decoders are holding back at a chunk boundary.
+          stdout += stdoutDecoder.end();
+          stderr += stderrDecoder.end();
           if (killed) {
             reject(
               new Error(

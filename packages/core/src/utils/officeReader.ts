@@ -307,9 +307,18 @@ export async function readOfficeFile(
       const spawnArgs = options?.fallbackReader
         ? [tmpScript, filePath, options.fallbackReader]
         : [tmpScript, filePath];
+      // IMPORTANT: do NOT spawn through a shell here. On Windows `shell: true`
+      // runs `cmd.exe /d /s /c "..."`, and cmd.exe re-encodes the command line
+      // through the console's OEM code page (e.g. CP437/949). Any character not
+      // representable there -- e.g. a Korean file name like "한글.xlsx", even
+      // with no spaces -- is replaced with "?", so win32com receives a corrupted
+      // path and reports "file not found". It also splits unquoted paths on
+      // spaces. Spawning without a shell passes the argv array straight to
+      // CreateProcessW as Unicode (libuv does the quoting), which preserves
+      // both Unicode characters and spaces. libuv still resolves `python` on
+      // PATH via PATHEXT, so we don't need the shell to find the interpreter.
       const child = spawn(pythonExe, spawnArgs, {
         env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
-        shell: process.platform === 'win32',
         windowsHide: true,
       });
 
