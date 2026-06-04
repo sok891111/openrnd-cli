@@ -49,7 +49,7 @@ const MAX_EXPERIMENTAL_FETCH_SIZE = 10 * 1024 * 1024; // 10MB
 // Responses at or below this size (bytes) are treated as a likely SSO/login
 // stub even on HTTP 200 — corporate IdPs often serve a tiny (~1KB) bootstrap
 // page instead of a redirect. Tunable via OPENRND_WEBFETCH_MIN_CONTENT_LENGTH.
-const DEFAULT_SSO_STUB_THRESHOLD = 5000;
+const DEFAULT_SSO_STUB_THRESHOLD = 10000;
 // How long to wait after navigation before extracting page text, so SPA /
 // detail pages have time to render. Tunable via OPENRND_WEBFETCH_BROWSER_WAIT_MS.
 const DEFAULT_BROWSER_SETTLE_MS = 5000;
