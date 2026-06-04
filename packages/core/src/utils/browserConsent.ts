@@ -23,10 +23,21 @@ const BROWSER_PROFILE_DIR = 'cli-browser-profile';
  * content is exposed to the AI model. A sentinel file is written to the
  * browser profile directory once the user accepts.
  *
+ * @param skipConsent When `true`, bypass the dialog entirely and proceed as if
+ *   consent was granted. Sourced from the `agents.browser.skipPrivacyConsent`
+ *   setting; the `OPENRND_SKIP_BROWSER_CONSENT=true` environment variable also
+ *   forces this behavior.
  * @returns `true` if consent was already given or the user accepted,
  *          `false` if the user declined.
  */
-export async function getBrowserConsentIfNeeded(): Promise<boolean> {
+export async function getBrowserConsentIfNeeded(
+  skipConsent = false,
+): Promise<boolean> {
+  // Explicit opt-out via setting or environment variable: never prompt.
+  if (skipConsent || process.env['OPENRND_SKIP_BROWSER_CONSENT'] === 'true') {
+    return true;
+  }
+
   const consentFilePath = path.join(
     Storage.getGlobalGeminiDir(),
     BROWSER_PROFILE_DIR,

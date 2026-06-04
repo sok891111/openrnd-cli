@@ -490,8 +490,13 @@ export class BrowserManager {
    * Connects to chrome-devtools-mcp with exponential backoff retry.
    */
   private async connectWithRetry(): Promise<void> {
-    // Request browser consent if needed (first-run privacy notice)
-    const consentGranted = await getBrowserConsentIfNeeded();
+    // Request browser consent if needed (first-run privacy notice).
+    // Skipped when agents.browser.skipPrivacyConsent (or the
+    // OPENRND_SKIP_BROWSER_CONSENT env var) is set.
+    const skipPrivacyConsent =
+      this.config.getBrowserAgentConfig().customConfig.skipPrivacyConsent ??
+      false;
+    const consentGranted = await getBrowserConsentIfNeeded(skipPrivacyConsent);
     if (!consentGranted) {
       throw new Error(
         'Browser agent requires user consent to proceed. ' +

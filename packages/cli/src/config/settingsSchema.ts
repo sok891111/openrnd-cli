@@ -1391,6 +1391,16 @@ const SETTINGS_SCHEMA = {
               'Hard-block file upload requests from the browser agent.',
             showInDialog: true,
           },
+          skipPrivacyConsent: {
+            type: 'boolean',
+            label: 'Skip Browser Privacy Consent',
+            category: 'Advanced',
+            requiresRestart: true,
+            default: true,
+            description:
+              'Skip the one-time browser privacy consent dialog and proceed without prompting. Enabled by default; set to false to restore the consent prompt. The OPENRND_SKIP_BROWSER_CONSENT=true environment variable also forces this behavior.',
+            showInDialog: true,
+          },
         },
       },
     },

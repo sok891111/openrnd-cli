@@ -387,6 +387,13 @@ export interface BrowserAgentCustomConfig {
   confirmSensitiveActions?: boolean;
   /** Whether to block file uploads. */
   blockFileUploads?: boolean;
+  /**
+   * Skip the one-time browser privacy consent dialog and proceed without
+   * prompting. Can also be forced via the OPENRND_SKIP_BROWSER_CONSENT=true
+   * environment variable. Default: true (the dialog is suppressed unless this
+   * is explicitly set to false).
+   */
+  skipPrivacyConsent?: boolean;
 }
 
 /**
@@ -3854,6 +3861,7 @@ export class Config implements McpContext, AgentLoopContext {
         maxActionsPerTask: customConfig.maxActionsPerTask ?? 100,
         confirmSensitiveActions: customConfig.confirmSensitiveActions,
         blockFileUploads: customConfig.blockFileUploads,
+        skipPrivacyConsent: customConfig.skipPrivacyConsent ?? true,
       },
     };
   }
