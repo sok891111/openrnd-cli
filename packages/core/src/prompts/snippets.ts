@@ -16,6 +16,7 @@ import {
   GLOB_TOOL_NAME,
   GREP_TOOL_NAME,
   READ_FILE_TOOL_NAME,
+  READ_MANY_FILES_TOOL_NAME,
   SHELL_TOOL_NAME,
   WRITE_FILE_TOOL_NAME,
   WRITE_TODOS_TOOL_NAME,
@@ -440,6 +441,7 @@ export function renderOperationalGuidelines(
     options.interactiveShellEnabled,
   )}${toolUsageRememberingFacts(options)}
 - **Confirmation Protocol:** If a tool call is declined or cancelled, respect the decision immediately. Do not re-attempt the action or "negotiate" for the same tool call unless the user explicitly directs you to. Offer an alternative technical path if possible.
+- **Office / Excel files (MANDATORY):** To read Microsoft Office documents — Excel (\`.xls\`, \`.xlsx\`, \`.xlsm\`, \`.xlsb\`), Word (\`.doc\`, \`.docx\`, \`.docm\`), PowerPoint (\`.ppt\`, \`.pptx\`, \`.pptm\`) — and PDFs, you MUST use the ${formatToolName(READ_FILE_TOOL_NAME)} or ${formatToolName(READ_MANY_FILES_TOOL_NAME)} tool. These in-house files are DRM-protected and are transparently decrypted and text-extracted through the installed Office application (win32com) by those tools. NEVER attempt to read or parse them by writing or running Python (e.g. \`run_python\`, \`pandas\`, \`openpyxl\`, \`python-docx\`), by using ${formatToolName(SHELL_TOOL_NAME)}, or by reading their raw bytes — those paths only see the encrypted DRM envelope (content begins with \`<DOCUMENT SAFER\`) and WILL fail. Always call the file-read tool FIRST; only consider another approach if the file-read tool itself returns an explicit error.
 
 ## Interaction Details
 - **Help Command:** The user can use '/help' to display help information.
