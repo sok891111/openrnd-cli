@@ -202,6 +202,10 @@ export const WEB_SEARCH_DISPLAY_NAME = 'GoogleSearch';
 export const WEB_FETCH_DISPLAY_NAME = 'WebFetch';
 export const READ_MANY_FILES_DISPLAY_NAME = 'ReadManyFiles';
 
+// Built-in read-only Outlook desktop mail reader (Windows, via PowerShell COM).
+export const READ_OUTLOOK_TOOL_NAME = 'read_outlook';
+export const READ_OUTLOOK_DISPLAY_NAME = 'ReadOutlook';
+
 /**
  * Mapping of legacy tool names to their current names.
  * This ensures backward compatibility for user-defined policies, skills, and hooks.

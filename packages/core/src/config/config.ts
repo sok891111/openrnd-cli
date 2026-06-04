@@ -41,6 +41,7 @@ import { EditTool } from '../tools/edit.js';
 import { ShellTool } from '../tools/shell.js';
 import { WriteFileTool } from '../tools/write-file.js';
 import { WebFetchTool } from '../tools/web-fetch.js';
+import { ReadOutlookTool } from '../tools/read-outlook.js';
 import {
   setGeminiMdFilename,
   getCurrentGeminiMdFilename,
@@ -3958,6 +3959,9 @@ export class Config implements McpContext, AgentLoopContext {
     );
     maybeRegister(WebFetchTool, () =>
       registry.registerTool(new WebFetchTool(this, this.messageBus)),
+    );
+    maybeRegister(ReadOutlookTool, () =>
+      registry.registerTool(new ReadOutlookTool(this, this.messageBus)),
     );
     maybeRegister(ReadMcpResourceTool, () =>
       registry.registerTool(new ReadMcpResourceTool(this, this.messageBus)),
