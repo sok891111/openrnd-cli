@@ -38,6 +38,7 @@ const MAX_TIMEOUT_MS = 600_000;
 export type CreatePptxLayout =
   | 'title'
   | 'section'
+  | 'content'
   | 'bullets'
   | 'two_col'
   | 'table'
@@ -61,9 +62,27 @@ export interface CreatePptxSlide {
   mode?: 'auto' | 'reuse' | 'themed_new';
   /** 1-based index of the sample slide to clone when mode === 'reuse'. */
   sample_slide_index?: number;
+  /**
+   * Slide title. For content slides write an "action title" — a full-sentence
+   * takeaway ("매출은 전년 대비 12% 성장하며 목표를 초과 달성했다"), not a topic
+   * label ("매출 현황"). This is what makes a deck read like a consultant's.
+   */
   title?: string;
   /** Subtitle / lead text (title & section layouts). */
   subtitle?: string;
+  /**
+   * Rich content blocks rendered top-to-bottom (consulting/no-sample style).
+   * Prefer this over plain `bullets` for professional layouts. Each block:
+   *   { type: 'bullets',  items: string[] }
+   *   { type: 'columns',  columns: [{ heading?: string, bullets: string[] }] }
+   *   { type: 'kpis',     items: [{ value: string, label: string }] }   // stat cards
+   *   { type: 'callout',  text: string }                                 // highlighted insight
+   *   { type: 'table',    rows: string[][] }                             // first row = header
+   *   { type: 'text',     text: string }
+   */
+  body?: CreatePptxBlock[];
+  /** One-line "so-what" shown in a highlighted bar at the bottom of the slide. */
+  takeaway?: string;
   /** Bullet lines for the main body (or the left column of two_col). */
   bullets?: string[];
   /** Bullet lines for the right column of a two_col layout. */
@@ -74,6 +93,20 @@ export interface CreatePptxSlide {
   image_path?: string;
   /** Presenter notes for this slide. */
   notes?: string;
+}
+
+/** A content block in a consulting-style slide body. */
+export interface CreatePptxBlock {
+  type: 'bullets' | 'columns' | 'kpis' | 'callout' | 'table' | 'text';
+  items?:
+    | Array<string | { text: string; level?: number }>
+    | Array<{
+        value: string;
+        label: string;
+      }>;
+  columns?: Array<{ heading?: string; bullets: string[] }>;
+  rows?: string[][];
+  text?: string;
 }
 
 export interface CreatePptxParams {
@@ -97,6 +130,10 @@ export interface CreatePptxParams {
   style?: 'consulting' | 'plain';
   /** Optional footer label shown on content slides (e.g. team / "Confidential"). */
   footer?: string;
+  /** Optional brand primary color (hex, e.g. "1F3864") for the consulting style. */
+  primary?: string;
+  /** Optional brand accent color (hex, e.g. "2E75B6") for the consulting style. */
+  accent?: string;
   /** Open the generated deck in PowerPoint when done. Default: true. */
   open?: boolean;
   /** Max build time in seconds (default 180, max 600). */
@@ -1078,6 +1115,362 @@ if __name__ == "__main__":
     sys.exit(main())
 `;
 
+/**
+ * Consultant-style renderer used when NO sample deck is given. Uses python-pptx
+ * (cross-platform, no PowerPoint needed, so it also runs on the dev machine and
+ * is unit-testable) to draw a clean McKinsey/BCG-like deck: full-sentence action
+ * titles, an accent rule, structured content blocks (bullets / columns / KPI
+ * callouts / insight callout / table / text), an optional "so-what" takeaway bar,
+ * and a footer with page numbers. Reads the same JSON spec (argv[1]) and writes
+ * the deck to argv[2]; prints a one-line JSON summary on success.
+ */
+const CONSULTING_PPTX_SCRIPT = String.raw`# -*- coding: utf-8 -*-
+import os
+import sys
+import json
+
+
+def ensure_pptx():
+    try:
+        import pptx  # noqa: F401
+        return True
+    except ImportError:
+        pass
+    import subprocess
+    sys.stderr.write("PPTX_MISSING: installing python-pptx with %s\n" % sys.executable)
+    try:
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "--user", "--quiet", "python-pptx"]
+        )
+        import pptx  # noqa: F401
+        return True
+    except Exception as exc:
+        sys.stderr.write("PPTX_INSTALL_FAILED: %s\n" % exc)
+        return False
+
+
+WARN = []
+
+
+def warn(m):
+    WARN.append(str(m))
+
+
+def _txt(v):
+    return "" if v is None else str(v)
+
+
+def main():
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+    if len(sys.argv) < 3:
+        sys.stderr.write("USAGE: consulting.py <spec.json> <out.pptx>\n")
+        return 2
+    spec_path = sys.argv[1]
+    out_path = os.path.abspath(sys.argv[2])
+    with open(spec_path, "r", encoding="utf-8") as f:
+        spec = json.load(f)
+
+    if not ensure_pptx():
+        sys.stderr.write("PPTX_IMPORT_ERROR: python-pptx required.\n")
+        return 4
+
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+    from pptx.enum.shapes import MSO_SHAPE
+    from pptx.oxml.ns import qn
+
+    slides = spec.get("slides") or []
+    style = (spec.get("style") or "consulting").lower()
+    footer = spec.get("footer")
+
+    def hexcolor(h, default):
+        h = (h or "").lstrip("#")
+        try:
+            return RGBColor.from_string(h)
+        except Exception:
+            return default
+
+    C_PRIMARY = hexcolor(spec.get("primary"), RGBColor(0x1F, 0x38, 0x64))
+    C_ACCENT = hexcolor(spec.get("accent"), RGBColor(0x2E, 0x75, 0xB6))
+    C_TEXT = RGBColor(0x33, 0x33, 0x33)
+    C_MUTED = RGBColor(0x7F, 0x7F, 0x7F)
+    C_LIGHT = RGBColor(0xF2, 0xF4, 0xF7)
+    C_WHITE = RGBColor(0xFF, 0xFF, 0xFF)
+    C_SUBTLE = RGBColor(0xD0, 0xD8, 0xE8)
+
+    FONT = "Calibri"
+    FONT_KR = "맑은 고딕"
+
+    prs = Presentation()
+    prs.slide_width = Inches(13.333)
+    prs.slide_height = Inches(7.5)
+    SW = prs.slide_width
+    SH = prs.slide_height
+    BLANK = prs.slide_layouts[6]
+    MARGIN = Inches(0.6)
+    CONTENT_W = SW - 2 * MARGIN
+
+    def set_font(run, size, color, bold=False):
+        run.font.size = Pt(size)
+        run.font.bold = bold
+        run.font.color.rgb = color
+        run.font.name = FONT
+        try:
+            rPr = run._r.get_or_add_rPr()
+            ea = rPr.find(qn("a:ea"))
+            if ea is None:
+                ea = rPr.makeelement(qn("a:ea"), {})
+                rPr.append(ea)
+            ea.set("typeface", FONT_KR)
+        except Exception:
+            pass
+
+    def add_rect(slide, left, top, width, height, color):
+        shp = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, width, height)
+        shp.fill.solid()
+        shp.fill.fore_color.rgb = color
+        shp.line.fill.background()
+        shp.shadow.inherit = False
+        return shp
+
+    def add_text(slide, left, top, width, height, text, size, color,
+                 bold=False, align=PP_ALIGN.LEFT, anchor=MSO_ANCHOR.TOP):
+        tb = slide.shapes.add_textbox(left, top, width, height)
+        tf = tb.text_frame
+        tf.word_wrap = True
+        tf.vertical_anchor = anchor
+        tf.margin_left = 0
+        tf.margin_right = 0
+        tf.margin_top = 0
+        tf.margin_bottom = 0
+        p = tf.paragraphs[0]
+        p.alignment = align
+        run = p.add_run()
+        run.text = _txt(text)
+        set_font(run, size, color, bold)
+        return tb
+
+    def add_bullets(slide, left, top, width, height, items, size=15):
+        tb = slide.shapes.add_textbox(left, top, width, height)
+        tf = tb.text_frame
+        tf.word_wrap = True
+        tf.margin_left = 0
+        tf.margin_right = 0
+        for i, it in enumerate(items):
+            if isinstance(it, dict):
+                txt = _txt(it.get("text"))
+                lvl = int(it.get("level", 0) or 0)
+            else:
+                txt = _txt(it)
+                lvl = 0
+            p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+            p.level = min(lvl, 4)
+            p.space_after = Pt(6)
+            run = p.add_run()
+            run.text = ("▪ " if lvl == 0 else "– ") + txt
+            set_font(run, size, C_TEXT)
+        return tb
+
+    def render_title_slide(slide, s):
+        add_rect(slide, 0, 0, Inches(0.22), SH, C_PRIMARY)
+        add_text(slide, MARGIN, Inches(2.4), CONTENT_W, Inches(1.6),
+                 s.get("title"), 40, C_PRIMARY, bold=True)
+        add_rect(slide, MARGIN, Inches(4.05), Inches(2.2), Pt(4), C_ACCENT)
+        if s.get("subtitle"):
+            add_text(slide, MARGIN, Inches(4.25), CONTENT_W, Inches(0.9),
+                     s.get("subtitle"), 18, C_MUTED)
+
+    def render_section_slide(slide, s):
+        add_rect(slide, 0, 0, SW, SH, C_PRIMARY)
+        add_rect(slide, MARGIN, Inches(3.45), Inches(1.2), Pt(4), C_ACCENT)
+        add_text(slide, MARGIN, Inches(2.9), CONTENT_W, Inches(1.4),
+                 s.get("title"), 34, C_WHITE, bold=True)
+        if s.get("subtitle"):
+            add_text(slide, MARGIN, Inches(4.4), CONTENT_W, Inches(0.8),
+                     s.get("subtitle"), 16, C_SUBTLE)
+
+    def render_bullets_block(slide, blk, left, top, width, height):
+        add_bullets(slide, left, top, width, height, blk.get("items") or [])
+
+    def render_columns_block(slide, blk, left, top, width, height):
+        cols = blk.get("columns") or []
+        n = max(1, len(cols))
+        gap = Inches(0.3)
+        col_w = int((width - gap * (n - 1)) / n)
+        for i, col in enumerate(cols):
+            cx = left + i * (col_w + gap)
+            ch_top = top
+            if col.get("heading"):
+                add_rect(slide, cx, ch_top, col_w, Inches(0.45), C_PRIMARY)
+                add_text(slide, cx + Inches(0.12), ch_top, col_w - Inches(0.24),
+                         Inches(0.45), col.get("heading"), 13, C_WHITE,
+                         bold=True, anchor=MSO_ANCHOR.MIDDLE)
+                ch_top = ch_top + Inches(0.55)
+            add_bullets(slide, cx, ch_top, col_w, top + height - ch_top,
+                        col.get("bullets") or [], size=13)
+
+    def render_kpis_block(slide, blk, left, top, width, height):
+        items = blk.get("items") or []
+        n = max(1, len(items))
+        gap = Inches(0.3)
+        card_w = int((width - gap * (n - 1)) / n)
+        card_h = min(height, Inches(1.9))
+        for i, kpi in enumerate(items):
+            cx = left + i * (card_w + gap)
+            add_rect(slide, cx, top, card_w, card_h, C_LIGHT)
+            add_rect(slide, cx, top, card_w, Pt(5), C_ACCENT)
+            add_text(slide, cx + Inches(0.1), top + Inches(0.25), card_w - Inches(0.2),
+                     Inches(0.9), kpi.get("value"), 32, C_PRIMARY, bold=True,
+                     align=PP_ALIGN.CENTER)
+            add_text(slide, cx + Inches(0.1), top + Inches(1.2), card_w - Inches(0.2),
+                     Inches(0.6), kpi.get("label"), 12, C_MUTED,
+                     align=PP_ALIGN.CENTER)
+
+    def render_callout_block(slide, blk, left, top, width, height):
+        h = min(height, Inches(1.4))
+        add_rect(slide, left, top, width, h, C_LIGHT)
+        add_rect(slide, left, top, Pt(5), h, C_ACCENT)
+        add_text(slide, left + Inches(0.3), top, width - Inches(0.5), h,
+                 blk.get("text"), 15, C_PRIMARY, bold=True, anchor=MSO_ANCHOR.MIDDLE)
+
+    def render_text_block(slide, blk, left, top, width, height):
+        add_text(slide, left, top, width, height, blk.get("text"), 15, C_TEXT)
+
+    def render_table_block(slide, blk, left, top, width, height):
+        rows = blk.get("rows") or []
+        if not rows:
+            return
+        nrows = len(rows)
+        ncols = max(len(r) for r in rows)
+        th = min(height, Inches(0.4) * nrows)
+        gtbl = slide.shapes.add_table(nrows, ncols, left, top, width, th).table
+        for r in range(nrows):
+            for c in range(ncols):
+                val = rows[r][c] if c < len(rows[r]) else ""
+                cell = gtbl.cell(r, c)
+                cell.text = _txt(val)
+                para = cell.text_frame.paragraphs[0]
+                run = para.runs[0] if para.runs else para.add_run()
+                if r == 0:
+                    set_font(run, 12, C_WHITE, bold=True)
+                    cell.fill.solid()
+                    cell.fill.fore_color.rgb = C_PRIMARY
+                else:
+                    set_font(run, 11, C_TEXT)
+                    cell.fill.solid()
+                    cell.fill.fore_color.rgb = C_WHITE if r % 2 else C_LIGHT
+
+    BLOCK_RENDERERS = {
+        "bullets": render_bullets_block,
+        "columns": render_columns_block,
+        "kpis": render_kpis_block,
+        "callout": render_callout_block,
+        "text": render_text_block,
+        "table": render_table_block,
+    }
+
+    def normalize_blocks(s):
+        body = s.get("body")
+        if isinstance(body, list) and body:
+            return body
+        blocks = []
+        if s.get("bullets"):
+            blocks.append({"type": "bullets", "items": s.get("bullets")})
+        if s.get("bullets_right"):
+            blocks.append({"type": "bullets", "items": s.get("bullets_right")})
+        if s.get("table"):
+            blocks.append({"type": "table", "rows": s.get("table")})
+        return blocks
+
+    def render_content_slide(slide, s, page_no):
+        add_text(slide, MARGIN, Inches(0.45), CONTENT_W, Inches(0.9),
+                 s.get("title"), 22, C_PRIMARY, bold=True)
+        add_rect(slide, MARGIN, Inches(1.32), CONTENT_W, Pt(2.5), C_ACCENT)
+
+        body_top = Inches(1.65)
+        body_bottom = SH - Inches(0.55)
+        if s.get("takeaway"):
+            body_bottom = body_bottom - Inches(0.7)
+        avail_h = body_bottom - body_top
+
+        blocks = normalize_blocks(s)
+        if not blocks and s.get("subtitle"):
+            blocks = [{"type": "text", "text": s.get("subtitle")}]
+
+        if blocks:
+            weights = []
+            for b in blocks:
+                t = (b.get("type") or "").lower()
+                weights.append(2.5 if t in ("bullets", "columns", "table", "text") else 1.0)
+            total = sum(weights) or 1
+            gap = Inches(0.25)
+            cur = body_top
+            usable = avail_h - gap * (len(blocks) - 1)
+            for b, w in zip(blocks, weights):
+                bh = int(usable * (w / total))
+                t = (b.get("type") or "").lower()
+                renderer = BLOCK_RENDERERS.get(t)
+                if renderer:
+                    try:
+                        renderer(slide, b, MARGIN, cur, CONTENT_W, bh)
+                    except Exception as exc:
+                        warn("block %s on slide %d failed: %s" % (t, page_no, exc))
+                else:
+                    warn("unknown block type: %s" % t)
+                cur = cur + bh + gap
+
+        if s.get("takeaway"):
+            ty = SH - Inches(1.15)
+            add_rect(slide, MARGIN, ty, CONTENT_W, Inches(0.6), C_PRIMARY)
+            add_text(slide, MARGIN + Inches(0.2), ty, CONTENT_W - Inches(0.4),
+                     Inches(0.6), "핵심: " + _txt(s.get("takeaway")), 13, C_WHITE,
+                     bold=True, anchor=MSO_ANCHOR.MIDDLE)
+
+        fy = SH - Inches(0.42)
+        add_rect(slide, MARGIN, fy, CONTENT_W, Pt(1), C_LIGHT)
+        if footer:
+            add_text(slide, MARGIN, fy + Inches(0.03), int(CONTENT_W * 0.7),
+                     Inches(0.3), footer, 9, C_MUTED)
+        add_text(slide, SW - MARGIN - Inches(1.2), fy + Inches(0.03), Inches(1.2),
+                 Inches(0.3), str(page_no), 9, C_MUTED, align=PP_ALIGN.RIGHT)
+
+    for idx, s in enumerate(slides, start=1):
+        layout = (s.get("layout") or "bullets").lower()
+        slide = prs.slides.add_slide(BLANK)
+        try:
+            if layout == "title":
+                render_title_slide(slide, s)
+            elif layout == "section":
+                render_section_slide(slide, s)
+            else:
+                render_content_slide(slide, s, idx)
+        except Exception as exc:
+            warn("slide %d (%s) failed: %s" % (idx, layout, exc))
+
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    prs.save(out_path)
+    print(json.dumps({
+        "output": out_path,
+        "slides": len(slides),
+        "engine": "python-pptx",
+        "sample_used": False,
+        "style": style,
+        "warnings": WARN,
+    }, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+`;
+
 class CreatePptxInvocation extends BaseToolInvocation<
   CreatePptxParams,
   ToolResult
@@ -1133,12 +1526,17 @@ class CreatePptxInvocation extends BaseToolInvocation<
       };
     }
 
-    // PowerPoint COM automation is Windows-only (matches the rest of the
-    // in-house tooling: read_outlook, the win32com Office reader, ...).
-    if (process.platform !== 'win32') {
+    const usingSample = !!(
+      this.params.sample_path && this.params.sample_path.trim()
+    );
+
+    // Cloning a (DRM) sample deck must drive PowerPoint via win32com → Windows
+    // only. The no-sample consulting deck uses python-pptx, which is
+    // cross-platform, so we only gate the sample path on Windows.
+    if (usingSample && process.platform !== 'win32') {
       const msg =
-        'create_pptx는 설치된 PowerPoint를 win32com으로 구동하므로 Windows에서만 동작합니다. ' +
-        `현재 플랫폼: ${process.platform}. 사내 Windows PC에서 실행해 주세요.`;
+        '샘플 deck 복제는 설치된 PowerPoint를 win32com으로 구동하므로 Windows에서만 동작합니다. ' +
+        `현재 플랫폼: ${process.platform}. (샘플 없이 만들면 python-pptx로 어디서든 생성됩니다.)`;
       return {
         llmContent: `Error: ${msg}`,
         returnDisplay: `Error: ${msg}`,
@@ -1191,7 +1589,10 @@ class CreatePptxInvocation extends BaseToolInvocation<
 
     try {
       await fs.mkdir(path.dirname(outPath), { recursive: true });
-      await fs.writeFile(tmpScript, PPTX_BUILD_SCRIPT, 'utf-8');
+      // Sample present → clone it via PowerPoint COM; otherwise render a
+      // consultant-style deck with python-pptx (cross-platform).
+      const script = usingSample ? PPTX_BUILD_SCRIPT : CONSULTING_PPTX_SCRIPT;
+      await fs.writeFile(tmpScript, script, 'utf-8');
       await fs.writeFile(
         tmpSpec,
         JSON.stringify({
@@ -1199,6 +1600,8 @@ class CreatePptxInvocation extends BaseToolInvocation<
           sample_path: samplePath ?? null,
           style: this.params.style ?? 'consulting',
           footer: this.params.footer ?? null,
+          accent: this.params.accent ?? null,
+          primary: this.params.primary ?? null,
         }),
         'utf-8',
       );
@@ -1383,19 +1786,22 @@ export class CreatePptxTool extends BaseDeclarativeTool<
       'Create a PowerPoint (.pptx) deck for internal reporting/sharing and open it. Use this ' +
         'whenever the user asks to make slides or a deck — Korean triggers include PPT/피피티/' +
         '슬라이드/장표 만들어줘, 보고서 슬라이드로, 발표자료 만들어줘. Provide the content as a ' +
-        'list of "slides" (each with a layout and fields like title, subtitle, bullets, table, ' +
-        'image_path, notes). IMPORTANT: whenever the user provides or points at an existing deck ' +
-        'to match the look of, you MUST pass its path as "sample_path" (do NOT just read it for ' +
-        'reference) — that file is what carries the design. The tool opens the sample through ' +
-        'PowerPoint (so DRM-protected in-house files work) and, by default, CLONES the matching ' +
-        "sample slide and swaps its text, so the result keeps the sample's real design (shapes, " +
-        'colors, fonts, positions) — not just the theme. Per slide you can set mode="reuse" with ' +
-        'sample_slide_index to clone a specific sample slide, or mode="themed_new" for a plain ' +
-        'theme-only slide. With NO sample, a built-in consulting-style template is applied by ' +
-        'default (navy/accent palette, title rules, styled bullets, section dividers, footer + ' +
-        'page numbers); pass style="plain" for the default PowerPoint theme, and "footer" for a ' +
-        'footer label. The deck is saved (default under <workspace>/openrnd-ppt/) and opened in ' +
-        'PowerPoint. Windows + PowerPoint only.',
+        'list of "slides".\n\n' +
+        'WITHOUT a sample (the usual case): a built-in CONSULTANT-STYLE deck is rendered with ' +
+        'python-pptx (works everywhere, no PowerPoint needed). To make it genuinely good, write ' +
+        'like a strategy consultant: (1) every content slide\'s "title" is an ACTION TITLE — a ' +
+        'full-sentence takeaway, not a topic label; (2) build the slide from "body" blocks ' +
+        '(kpis = big stat cards, columns = labeled comparison columns, callout = highlighted ' +
+        'insight, bullets, table, text) instead of one long bullet list; (3) add a one-line ' +
+        '"takeaway" (so-what) per slide; (4) open with a layout="title" cover and use ' +
+        'layout="section" dividers between parts. Optional brand colors via "primary"/"accent" ' +
+        '(hex), and a "footer" label.\n\n' +
+        'WITH a sample (match an existing in-house deck): you MUST pass its path as "sample_path" ' +
+        '(do NOT just read it — the file carries the design). The tool opens the sample through ' +
+        'PowerPoint (so DRM-protected in-house files work) and CLONES the best-matching sample ' +
+        'slide, swapping its text. Per slide you can set mode="reuse" + sample_slide_index, or ' +
+        'mode="themed_new". The sample path is Windows + PowerPoint only.\n\n' +
+        'The deck is saved (default under <workspace>/openrnd-ppt/) and opened.',
       Kind.Other,
       {
         type: 'object',
@@ -1413,6 +1819,7 @@ export class CreatePptxTool extends BaseDeclarativeTool<
                   enum: [
                     'title',
                     'section',
+                    'content',
                     'bullets',
                     'two_col',
                     'table',
@@ -1420,9 +1827,9 @@ export class CreatePptxTool extends BaseDeclarativeTool<
                     'blank',
                   ],
                   description:
-                    "Logical layout: 'title' (cover), 'section' (divider), 'bullets' " +
-                    "(title + bullet body), 'two_col' (two bullet columns), 'table', " +
-                    "'image', or 'blank'. Default: 'bullets'.",
+                    "Logical layout: 'title' (cover), 'section' (divider), 'content' " +
+                    "(action title + body blocks; the main consulting layout), 'bullets', " +
+                    "'two_col', 'table', 'image', or 'blank'. Default: 'bullets'.",
                 },
                 mode: {
                   type: 'string',
@@ -1439,11 +1846,81 @@ export class CreatePptxTool extends BaseDeclarativeTool<
                   description:
                     "1-based index of the sample slide to clone when mode is 'reuse'.",
                 },
-                title: { type: 'string', description: 'Slide title.' },
+                title: {
+                  type: 'string',
+                  description:
+                    'Slide title. For content slides write an ACTION TITLE — a full-sentence ' +
+                    'takeaway (e.g. "매출은 전년 대비 12% 성장하며 목표를 초과 달성했다"), not a ' +
+                    'topic label (e.g. "매출 현황"). This drives the consultant feel.',
+                },
                 subtitle: {
                   type: 'string',
                   description:
                     'Subtitle / lead text (title & section layouts).',
+                },
+                body: {
+                  type: 'array',
+                  description:
+                    'Rich content blocks rendered top-to-bottom (preferred over plain `bullets` ' +
+                    'for a professional layout). Mix block types to design the slide.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      type: {
+                        type: 'string',
+                        enum: [
+                          'bullets',
+                          'columns',
+                          'kpis',
+                          'callout',
+                          'table',
+                          'text',
+                        ],
+                        description:
+                          "'bullets' (bullet list), 'columns' (2-3 labeled columns), 'kpis' " +
+                          "(big stat cards: value + label), 'callout' (highlighted insight), " +
+                          "'table' (rows; first row = header), 'text' (paragraph).",
+                      },
+                      items: {
+                        type: 'array',
+                        description:
+                          "For 'bullets': string lines. For 'kpis': objects { value, label }.",
+                        items: {},
+                      },
+                      columns: {
+                        type: 'array',
+                        description:
+                          "For 'columns': each column { heading?, bullets[] }.",
+                        items: {
+                          type: 'object',
+                          properties: {
+                            heading: { type: 'string' },
+                            bullets: {
+                              type: 'array',
+                              items: { type: 'string' },
+                            },
+                          },
+                        },
+                      },
+                      rows: {
+                        type: 'array',
+                        description:
+                          "For 'table': rows of string cells (first row = header).",
+                        items: { type: 'array', items: { type: 'string' } },
+                      },
+                      text: {
+                        type: 'string',
+                        description:
+                          "For 'callout' / 'text': the text content.",
+                      },
+                    },
+                    required: ['type'],
+                  },
+                },
+                takeaway: {
+                  type: 'string',
+                  description:
+                    'One-line "so-what" shown in a highlighted bar at the bottom of the slide.',
                 },
                 bullets: {
                   type: 'array',
@@ -1503,6 +1980,18 @@ export class CreatePptxTool extends BaseDeclarativeTool<
             description:
               'Optional footer label shown on content slides (e.g. team name or ' +
               '"Confidential"). Used with the consulting style.',
+          },
+          primary: {
+            type: 'string',
+            description:
+              'Optional brand primary color as a hex string (e.g. "1F3864") for the consulting ' +
+              'style. Defaults to a navy.',
+          },
+          accent: {
+            type: 'string',
+            description:
+              'Optional brand accent color as a hex string (e.g. "2E75B6") for the consulting ' +
+              'style. Defaults to a blue.',
           },
           open: {
             type: 'boolean',

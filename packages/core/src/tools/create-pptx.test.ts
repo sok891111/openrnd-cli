@@ -215,12 +215,32 @@ describe('CreatePptxTool', () => {
     expect(String(result.llmContent)).toContain('boom');
   });
 
-  it('reports a clear error on non-Windows platforms', async () => {
+  it('requires Windows only for the sample-clone path', async () => {
     setPlatform('darwin');
-    const { result } = await run({ slides: [{ title: 't' }] });
+    const { result } = await run({
+      slides: [{ title: 't' }],
+      sample_path: '/samples/inhouse.pptx',
+    });
     expect(result.error).toBeDefined();
     expect(String(result.llmContent)).toContain('Windows');
     expect(spawnState.calls.length).toBe(0);
+  });
+
+  it('renders the consulting deck via python-pptx on non-Windows (no sample)', async () => {
+    setPlatform('darwin');
+    const { result, spawnArgs } = await run({
+      slides: [
+        {
+          layout: 'content',
+          title: '매출은 12% 성장했다',
+          body: [{ type: 'kpis', items: [{ value: '+12%', label: '성장' }] }],
+          takeaway: '성장 모멘텀 유지',
+        },
+      ],
+    });
+    expect(result.error).toBeUndefined();
+    expect(spawnState.calls.length).toBe(1);
+    expect(spawnArgs?.[2]).toMatch(/\.pptx$/);
   });
 
   it('returns a workspace error when the output path is outside the workspace', async () => {
