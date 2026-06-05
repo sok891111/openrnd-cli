@@ -31,7 +31,7 @@ import {
 import { LlmRole } from '../telemetry/llmRole.js';
 import { WEB_FETCH_TOOL_NAME, WEB_FETCH_DISPLAY_NAME } from './tool-names.js';
 import { debugLogger } from '../utils/debugLogger.js';
-import { coreEvents } from '../utils/events.js';
+import { coreEvents, CoreEvent } from '../utils/events.js';
 import { retryWithBackoff, getRetryErrorType } from '../utils/retry.js';
 import { WEB_FETCH_DEFINITION } from './definitions/coreTools.js';
 import { resolveToolDeclaration } from './definitions/resolver.js';
@@ -53,6 +53,14 @@ const DEFAULT_SSO_STUB_THRESHOLD = 10000;
 // How long to wait after navigation before extracting page text, so SPA /
 // detail pages have time to render. Tunable via OPENRND_WEBFETCH_BROWSER_WAIT_MS.
 const DEFAULT_BROWSER_SETTLE_MS = 5000;
+
+// Shown when the browser fallback can't open / drive the page. The browser
+// agent (chrome-devtools-mcp) attaches over Chrome's remote debugging protocol,
+// which the user must enable first.
+const CHROME_REMOTE_DEBUG_HINT =
+  '브라우저가 열리지 않으면 Chrome 원격 디버깅(remote debugging)이 켜져 있어야 합니다.\n' +
+  '  1) Chrome 주소창에 chrome://inspect/#remote-debugging 를 열어 원격 디버깅을 활성화하거나\n' +
+  '  2) Chrome 을 원격 디버깅 포트로 실행하세요: chrome --remote-debugging-port=9222';
 const USER_AGENT =
   'Mozilla/5.0 (compatible; Google-Gemini-CLI/1.0; +https://github.com/google-gemini/gemini-cli)';
 const TRUNCATION_WARNING = '\n\n... [Content truncated due to size limit] ...';
@@ -520,13 +528,14 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       );
       return text;
     } catch (err) {
-      // Surface the real reason directly in the terminal so the user can tell
-      // whether Chrome remote debugging is disabled or it's a different cause.
+      // Surface the real reason directly in the terminal, and always append the
+      // remote-debugging hint: the most common cause of "the browser won't open"
+      // is that Chrome remote debugging isn't enabled.
       coreEvents.emitFeedback(
         'error',
-        `❌ [web_fetch] 브라우저 폴백 실패 (${urlStr}):\n${getErrorMessage(err)}`,
+        `❌ [web_fetch] 브라우저 폴백 실패 (${urlStr}):\n${getErrorMessage(err)}\n\n💡 ${CHROME_REMOTE_DEBUG_HINT}`,
       );
-      throw err;
+      throw new Error(`${getErrorMessage(err)}\n\n${CHROME_REMOTE_DEBUG_HINT}`);
     } finally {
       if (pageIdToClose !== undefined) {
         // Best-effort: close the tab we opened so we don't litter the browser.
@@ -666,9 +675,77 @@ class WebFetchToolInvocation extends BaseToolInvocation<
   }
 
   /**
+   * Once the user picks "browser" for the SSO fallback, remember it for the rest
+   * of THIS web_fetch call so we don't re-prompt on every subsequent intranet URL
+   * in the same request. Resets naturally on the next call (new invocation).
+   */
+  private browserFallbackApproved = false;
+
+  /** Whether the interactive SSO fallback prompt is disabled (keep auto-browser). */
+  private isBrowserPromptDisabled(): boolean {
+    const raw = (
+      process.env['OPENRND_WEBFETCH_BROWSER_PROMPT'] ?? ''
+    ).toLowerCase();
+    return raw === '0' || raw === 'false' || raw === 'off';
+  }
+
+  /**
+   * When a direct fetch is blocked by SSO and no API key (corporate credential)
+   * produced content, ask the user how to proceed:
+   *   • confirm  → open the URL via the signed-in browser session
+   *   • decline  → stop and use an API key instead (register via manage_credential)
+   *
+   * Returns true to use the browser, false if the user chose the API-key route.
+   * Auto-returns true (legacy behavior) when prompting is disabled, there is no
+   * interactive UI listening, or the user already approved earlier this session.
+   */
+  private async confirmBrowserFallback(url: string): Promise<boolean> {
+    if (this.browserFallbackApproved) {
+      return true;
+    }
+    if (this.isBrowserPromptDisabled()) {
+      return true;
+    }
+    // Non-interactive run (no dialog UI): keep the existing auto-browser path.
+    if (coreEvents.listenerCount(CoreEvent.ConsentRequest) === 0) {
+      return true;
+    }
+
+    const prompt =
+      `🔐 SSO 인증 벽으로 직접 가져오기가 막혔습니다:\n${url}\n\n` +
+      '등록된 API 키(자격증명)가 없어 서버에서 바로 가져올 수 없습니다. ' +
+      '어떻게 진행할까요?\n\n' +
+      '  • 예  → 로그인된 브라우저 세션으로 열어서 내용을 가져옵니다\n' +
+      '  • 아니오 → 중단합니다. API 키를 쓰려면 manage_credential 툴로 해당 ' +
+      '시스템의 키를 등록한 뒤 다시 시도하세요';
+
+    const confirmed = await new Promise<boolean>((resolve) => {
+      coreEvents.emitConsentRequest({
+        prompt,
+        onConfirm: (c: boolean) => resolve(c),
+      });
+    });
+    if (confirmed) {
+      this.browserFallbackApproved = true;
+    }
+    return confirmed;
+  }
+
+  /** Guidance returned when the user chooses the API-key route over the browser. */
+  private apiKeyGuidance(url: string): string {
+    return (
+      'SSO 로 직접 가져오기가 막혔고, 브라우저 열기 대신 API 키 사용을 선택했습니다.\n' +
+      'manage_credential 툴로 해당 시스템의 API 키(자격증명)를 등록한 뒤 web_fetch 를 ' +
+      '다시 실행하세요. 등록되면 사내 fetch 핸들러가 그 키로 자동 인증해 가져옵니다.\n' +
+      `URL: ${url}`
+    );
+  }
+
+  /**
    * Fallback step between the direct fetch and the browser session: try the
    * corporate per-URL fetch handlers defined in corporate-fetch.ts; if none
-   * match or all fail, fall back to the signed-in browser. Returns page text.
+   * match or all fail, ask the user (browser vs API key) and act on the choice.
+   * Returns page text. Throws {@link apiKeyGuidance} if the API-key route is chosen.
    */
   private async corporateThenBrowser(
     url: string,
@@ -686,6 +763,9 @@ class WebFetchToolInvocation extends BaseToolInvocation<
         );
       }
       return corp.text;
+    }
+    if (!(await this.confirmBrowserFallback(url))) {
+      throw new Error(this.apiKeyGuidance(url));
     }
     return this.fetchViaBrowser(url, signal);
   }
@@ -712,6 +792,17 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       return {
         llmContent: this.applyFallbackTruncation(corp.text),
         returnDisplay: `Fetched content from ${url} via corporate fetch handler (${corp.handlerName}).`,
+      };
+    }
+    if (!(await this.confirmBrowserFallback(url))) {
+      const msg = this.apiKeyGuidance(url);
+      return {
+        llmContent: msg,
+        returnDisplay: msg,
+        error: {
+          message: 'User chose the API-key route over the browser fallback.',
+          type: ToolErrorType.WEB_FETCH_PROCESSING_ERROR,
+        },
       };
     }
     return this.browserFetchResult(url, signal);
@@ -790,7 +881,10 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     }
 
     // Try a fast server-side fetch first; on SSO/auth walls or failure, fall
-    // back to the user's signed-in browser session.
+    // back to the corporate handlers / signed-in browser session. The fallback
+    // (corporateThenBrowser) is invoked exactly ONCE — its own errors (e.g. the
+    // user choosing the API-key route, or the browser failing to attach) must
+    // propagate to the caller, not get caught here and retried.
     if (this.shouldUseBrowserFetch()) {
       try {
         const { response, text, byteLength } = await this.nodeFetchText(
@@ -798,17 +892,16 @@ class WebFetchToolInvocation extends BaseToolInvocation<
           signal,
         );
         const reason = this.browserFallbackReason(url, response, byteLength);
-        if (reason) {
-          coreEvents.emitFeedback(
-            'info',
-            `🔐 [web_fetch] ${reason} → 사내 fetch/브라우저 세션으로 폴백: ${url}`,
-          );
-          debugLogger.warn(
-            `[WebFetchTool] ${reason} for ${url}. Falling back to corporate/browser fetch.`,
-          );
-          return await this.corporateThenBrowser(url, signal);
+        if (!reason) {
+          return this.applyFallbackTruncation(text);
         }
-        return this.applyFallbackTruncation(text);
+        coreEvents.emitFeedback(
+          'info',
+          `🔐 [web_fetch] ${reason} → 사내 fetch/브라우저 세션으로 폴백: ${url}`,
+        );
+        debugLogger.warn(
+          `[WebFetchTool] ${reason} for ${url}. Falling back to corporate/browser fetch.`,
+        );
       } catch (error) {
         coreEvents.emitFeedback(
           'info',
@@ -818,8 +911,8 @@ class WebFetchToolInvocation extends BaseToolInvocation<
           `[WebFetchTool] Direct fetch failed for ${url} ` +
             `(${getErrorMessage(error)}). Falling back to corporate/browser fetch.`,
         );
-        return this.corporateThenBrowser(url, signal);
       }
+      return this.corporateThenBrowser(url, signal);
     }
 
     const { text } = await this.nodeFetchText(url, signal);

@@ -28,6 +28,7 @@ import {
   getMockMessageBusInstance,
 } from '../test-utils/mock-message-bus.js';
 import * as fetchUtils from '../utils/fetch.js';
+import { coreEvents, CoreEvent } from '../utils/events.js';
 import { MessageBus } from '../confirmation-bus/message-bus.js';
 import { PolicyEngine } from '../policy/policy-engine.js';
 import {
@@ -772,6 +773,149 @@ describe('WebFetchTool', () => {
         true,
       );
       expect(result.llmContent).toContain('REAL INTRANET CONTENT');
+    });
+  });
+
+  describe('SSO fallback user choice (browser vs API key)', () => {
+    beforeEach(() => {
+      vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
+      process.env['OPENRND_WEBFETCH_BROWSER_FALLBACK'] = '1';
+      process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'] = '1500';
+      delete process.env['OPENRND_WEBFETCH_BROWSER_PROMPT'];
+      mockGenerateContent.mockReset();
+      // Tiny SSO stub so the fetch is routed to the fallback.
+      mockFetch('https://intranet.corp/', {
+        headers: new Headers({ 'content-type': 'text/html' }),
+        text: () => Promise.resolve('<html><body>SSO</body></html>'),
+      });
+      mockGenerateContent.mockImplementation(async (_, req) => ({
+        candidates: [{ content: { parts: [{ text: req[0].parts[0].text }] } }],
+      }));
+    });
+
+    it('asks the user and, when declined, returns the API-key guidance without opening the browser', async () => {
+      const handler = vi.fn(
+        (p: { prompt: string; onConfirm: (c: boolean) => void }) =>
+          p.onConfirm(false),
+      );
+      coreEvents.on(CoreEvent.ConsentRequest, handler);
+      try {
+        const tool = new WebFetchTool(mockConfig, bus);
+        const invocation = tool.build({
+          prompt: 'fetch https://intranet.corp',
+        });
+        const result = await invocation.execute({
+          abortSignal: new AbortController().signal,
+        });
+
+        expect(handler).toHaveBeenCalledTimes(1);
+        // Prompt mentions both options.
+        expect(handler.mock.calls[0][0].prompt).toContain('manage_credential');
+        // The browser was NOT opened.
+        expect(mockBrowserCallTool).not.toHaveBeenCalledWith(
+          'new_page',
+          expect.anything(),
+          expect.anything(),
+          true,
+        );
+        // Guidance surfaced to the model/user.
+        expect(String(result.llmContent)).toContain('manage_credential');
+      } finally {
+        coreEvents.off(CoreEvent.ConsentRequest, handler);
+      }
+    });
+
+    it('opens the browser when the user accepts', async () => {
+      const fakeManager = {
+        acquire: vi.fn(),
+        release: vi.fn(),
+        callTool: mockBrowserCallTool,
+      };
+      mockBrowserGetInstance.mockReturnValue(fakeManager);
+      mockBrowserCallTool.mockImplementation(async (name: string) => {
+        if (name === 'list_pages') {
+          return {
+            content: [
+              { type: 'text', text: '0: https://intranet.corp/ [selected]' },
+            ],
+            isError: false,
+          };
+        }
+        if (name === 'evaluate_script') {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'Script ran on page and returned:\n```json\n"VIA BROWSER"\n```',
+              },
+            ],
+            isError: false,
+          };
+        }
+        return { content: [], isError: false };
+      });
+
+      const handler = vi.fn(
+        (p: { prompt: string; onConfirm: (c: boolean) => void }) =>
+          p.onConfirm(true),
+      );
+      coreEvents.on(CoreEvent.ConsentRequest, handler);
+      try {
+        const tool = new WebFetchTool(mockConfig, bus);
+        const invocation = tool.build({
+          prompt: 'fetch https://intranet.corp',
+        });
+        const result = await invocation.execute({
+          abortSignal: new AbortController().signal,
+        });
+
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(mockBrowserCallTool).toHaveBeenCalledWith(
+          'new_page',
+          { url: 'https://intranet.corp/' },
+          expect.anything(),
+          true,
+        );
+        expect(String(result.llmContent)).toContain('VIA BROWSER');
+      } finally {
+        coreEvents.off(CoreEvent.ConsentRequest, handler);
+      }
+    });
+
+    it('includes the chrome remote-debugging hint when the browser fails to open', async () => {
+      const fakeManager = {
+        acquire: vi.fn(),
+        release: vi.fn(),
+        callTool: mockBrowserCallTool,
+      };
+      mockBrowserGetInstance.mockReturnValue(fakeManager);
+      // new_page throws → browser fallback fails.
+      mockBrowserCallTool.mockImplementation(async (name: string) => {
+        if (name === 'new_page') {
+          throw new Error('connect ECONNREFUSED 127.0.0.1:9222');
+        }
+        return { content: [], isError: false };
+      });
+
+      const handler = (p: {
+        prompt: string;
+        onConfirm: (c: boolean) => void;
+      }) => p.onConfirm(true);
+      coreEvents.on(CoreEvent.ConsentRequest, handler);
+      try {
+        const tool = new WebFetchTool(mockConfig, bus);
+        const invocation = tool.build({
+          prompt: 'fetch https://intranet.corp',
+        });
+        const result = await invocation.execute({
+          abortSignal: new AbortController().signal,
+        });
+        expect(String(result.llmContent)).toContain(
+          'chrome://inspect/#remote-debugging',
+        );
+      } finally {
+        coreEvents.off(CoreEvent.ConsentRequest, handler);
+      }
     });
   });
 
