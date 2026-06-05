@@ -101,6 +101,55 @@ describe('retryWithBackoff', () => {
     expect(mockFn).toHaveBeenCalledTimes(3);
   });
 
+  describe('RPM rate-limit mode (OPENRND_RATE_LIMIT_RETRY_SECONDS)', () => {
+    afterEach(() => {
+      delete process.env['OPENRND_RATE_LIMIT_RETRY_SECONDS'];
+    });
+
+    const rateLimited = () =>
+      new ApiError({ message: 'Too Many Requests', status: 429 });
+
+    it('waits the fixed RPM window and retries on 429 when enabled', async () => {
+      process.env['OPENRND_RATE_LIMIT_RETRY_SECONDS'] = '60';
+      const mockFn = vi
+        .fn()
+        .mockRejectedValueOnce(rateLimited())
+        .mockRejectedValueOnce(rateLimited())
+        .mockResolvedValue('ok');
+      const onRetry = vi.fn();
+
+      const promise = retryWithBackoff(mockFn, { maxAttempts: 5, onRetry });
+      await vi.runAllTimersAsync();
+
+      await expect(promise).resolves.toBe('ok');
+      expect(mockFn).toHaveBeenCalledTimes(3);
+      // Each retry waited the fixed 60s window (not exponential backoff).
+      expect(onRetry).toHaveBeenCalledTimes(2);
+      for (const call of onRetry.mock.calls) {
+        expect(call[2]).toBe(60_000);
+      }
+    });
+
+    it('does not use the fixed window when the env var is unset', async () => {
+      const mockFn = vi
+        .fn()
+        .mockRejectedValueOnce(rateLimited())
+        .mockResolvedValue('ok');
+      const onRetry = vi.fn();
+
+      const promise = retryWithBackoff(mockFn, {
+        maxAttempts: 3,
+        initialDelayMs: 10,
+        maxDelayMs: 100,
+        onRetry,
+      });
+      await vi.runAllTimersAsync();
+
+      await expect(promise).resolves.toBe('ok');
+      expect(onRetry.mock.calls[0]?.[2]).not.toBe(60_000);
+    });
+  });
+
   it('should default to 10 maxAttempts if no options are provided', async () => {
     // This function will fail more than 10 times to ensure all retries are used.
     const mockFn = createFailingFunction(15);

@@ -301,6 +301,29 @@ export async function retryWithBackoff<T>(
 
       const errorCode = getErrorStatus(error);
 
+      // Corporate RPM (requests-per-minute) mode. When OPENRND_RATE_LIMIT_RETRY_SECONDS
+      // is set, treat any rate-limit error as "wait a full reset window, then retry"
+      // instead of the short exponential backoff (which keeps hammering a per-minute
+      // quota and looks like a hang). This takes precedence over the Google-specific
+      // terminal/quota handling so an in-house gateway's 429 keeps retrying until the
+      // window clears. Opt-in via env, so external behavior is unchanged.
+      const rpmDelayMs = getRateLimitRetryDelayMs();
+      if (rpmDelayMs > 0 && isRateLimitError(error, errorCode)) {
+        if (attempt >= getCurrentMaxAttempts()) {
+          throw classifiedError instanceof Error ? classifiedError : error;
+        }
+        logRetryAttempt(attempt, error, errorCode);
+        debugLogger.warn(
+          `Rate limited (RPM). Waiting ${Math.round(rpmDelayMs / 1000)}s before retry (attempt ${attempt}).`,
+        );
+        if (onRetry) {
+          onRetry(attempt, error, rpmDelayMs);
+        }
+        await delay(rpmDelayMs, signal);
+        // Keep a fixed wait per attempt (do not grow); the limit is per-minute.
+        continue;
+      }
+
       if (
         classifiedError instanceof TerminalQuotaError ||
         classifiedError instanceof ModelNotFoundError
@@ -431,6 +454,33 @@ export async function retryWithBackoff<T>(
   }
 
   throw new Error('Retry attempts exhausted');
+}
+
+/**
+ * Fixed delay (ms) to wait before retrying a rate-limited request, or 0 when
+ * disabled. Enabled for in-house LLM gateways that enforce a per-minute (RPM)
+ * quota by setting `OPENRND_RATE_LIMIT_RETRY_SECONDS` (e.g. 60). Unlike the
+ * default exponential backoff, this waits a full quota window so the next try
+ * lands after the limit resets.
+ */
+export function getRateLimitRetryDelayMs(): number {
+  const raw = process.env['OPENRND_RATE_LIMIT_RETRY_SECONDS'];
+  if (!raw) return 0;
+  const seconds = Number(raw.trim());
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 0;
+}
+
+/**
+ * Heuristic: does this error mean the request was rate-limited (HTTP 429 or an
+ * RPM/quota/"too many requests" message)? Covers in-house gateways that signal
+ * the limit with a non-standard status but a recognizable message.
+ */
+export function isRateLimitError(error: unknown, status?: number): boolean {
+  if (status === 429) return true;
+  const msg = error instanceof Error ? error.message : String(error ?? '');
+  return /(\b429\b|too many requests|rate[\s_-]?limit|RESOURCE_EXHAUSTED|\bRPM\b|quota exceeded)/i.test(
+    msg,
+  );
 }
 
 /**
