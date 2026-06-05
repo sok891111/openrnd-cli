@@ -49,11 +49,13 @@ export interface CreatePptxSlide {
   layout?: CreatePptxLayout;
   /**
    * How to realize this slide when a sample deck is provided:
-   * - 'auto' (default): add a slide using the sample's matching layout (inherits
-   *   the sample's theme/fonts/colors) and fill it with this slide's content.
-   * - 'reuse': clone an actual sample slide (see sample_slide_index) and replace
-   *   its text — the most faithful reproduction of the sample's format.
-   * - 'themed_new': compose a fresh slide using the sample's theme only.
+   * - 'auto' (default): clone the sample slide whose layout best matches this
+   *   slide and replace its text — preserves the sample's actual design (shapes,
+   *   colors, fonts, positions), not just the theme.
+   * - 'reuse': clone a specific sample slide (see sample_slide_index) and replace
+   *   its text. Use this to pin an exact slide format.
+   * - 'themed_new': compose a fresh slide using only the sample's theme/layout
+   *   (no design from the sample's slides). Plainer; use when no sample slide fits.
    * Ignored when no sample is provided.
    */
   mode?: 'auto' | 'reuse' | 'themed_new';
@@ -268,6 +270,147 @@ def content_placeholders(slide):
     except Exception as exc:
         warn("content_placeholders: %s" % exc)
     return res
+
+
+def collect_text_shapes(slide):
+    """All shapes on the slide that currently hold text (placeholders or plain
+    text boxes). Hand-designed corporate slides keep their look in these shapes,
+    so to reproduce the design we replace text in EXISTING shapes rather than add
+    new (unstyled) ones."""
+    items = []
+    try:
+        for shp in slide.Shapes:
+            try:
+                if shp.HasTextFrame and shp.TextFrame.HasText:
+                    items.append(shp)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return items
+
+
+def _area(shp):
+    try:
+        return float(shp.Width) * float(shp.Height)
+    except Exception:
+        return 0.0
+
+
+def _top(shp):
+    try:
+        return float(shp.Top)
+    except Exception:
+        return 0.0
+
+
+def _same(a, b):
+    if a is None or b is None:
+        return False
+    try:
+        return a.Id == b.Id
+    except Exception:
+        return a is b
+
+
+def pick_title_target(slide):
+    """The title placeholder if present, else the top-most text shape (the most
+    likely heading on a hand-made slide)."""
+    t = find_title(slide)
+    if t is not None:
+        return t
+    shapes = collect_text_shapes(slide)
+    if not shapes:
+        return None
+    shapes.sort(key=_top)
+    return shapes[0]
+
+
+def pick_body_target(slide, exclude):
+    """The body placeholder if present, else the largest text shape that is not
+    one of the excluded shapes (i.e. the main content region)."""
+    cps = content_placeholders(slide)
+    cps = [c for c in cps if not any(_same(c, e) for e in exclude)]
+    if cps:
+        return cps[0]
+    shapes = collect_text_shapes(slide)
+    cand = [s for s in shapes if not any(_same(s, e) for e in exclude)]
+    if not cand:
+        return None
+    cand.sort(key=_area, reverse=True)
+    return cand[0]
+
+
+def pick_source_slide(pres, orig_count, logical):
+    """Choose which existing sample slide to clone for a requested logical
+    layout, so the clone carries that slide's design. Matches by layout name
+    first, then falls back to position heuristics. The model can override per
+    slide via sample_slide_index."""
+    if orig_count <= 0:
+        return None
+    hints = LAYOUT_NAME_HINTS.get(logical, [])
+    for i in range(1, orig_count + 1):
+        try:
+            nm = (pres.Slides.Item(i).CustomLayout.Name or "").lower()
+        except Exception:
+            nm = ""
+        for h in hints:
+            if h.lower() in nm:
+                return i
+    if logical == "title":
+        return 1
+    if orig_count >= 2:
+        return 2
+    return 1
+
+
+def fill_cloned(slide, spec, sw, sh):
+    """Fill a slide that was cloned from a sample: replace text in the slide's
+    existing (already-styled) shapes so the sample design is preserved. Does NOT
+    force a font — the cloned shapes keep their own formatting."""
+    title = spec.get("title")
+    subtitle = spec.get("subtitle")
+    bullets = spec.get("bullets")
+    bullets_right = spec.get("bullets_right")
+    table = spec.get("table")
+    image_path = spec.get("image_path")
+    notes = spec.get("notes")
+
+    used = []
+    title_shape = None
+    if title:
+        title_shape = pick_title_target(slide)
+        if title_shape is not None:
+            set_text(title_shape, title, None)
+            used.append(title_shape)
+        else:
+            warn("cloned slide has no title shape; title not placed")
+
+    if bullets:
+        bt = pick_body_target(slide, used)
+        if bt is not None:
+            set_bullets(bt, bullets, None)
+            used.append(bt)
+        else:
+            warn("cloned slide has no body shape; bullets not placed")
+    elif subtitle:
+        bt = pick_body_target(slide, used)
+        if bt is not None:
+            set_text(bt, subtitle, None)
+            used.append(bt)
+
+    if bullets_right:
+        rt = pick_body_target(slide, used)
+        if rt is not None:
+            set_bullets(rt, bullets_right, None)
+            used.append(rt)
+
+    if table:
+        add_table(slide, table, sw * 0.06, sh * 0.55, sw * 0.88, sh * 0.4)
+    if image_path:
+        add_picture(slide, os.path.abspath(image_path), sw * 0.55, sh * 0.2, sw * 0.4, sh * 0.5)
+    if notes:
+        set_notes(slide, notes)
 
 
 def add_table(slide, data, left, top, width, height):
@@ -508,20 +651,35 @@ def main():
         for spec_slide in slides:
             logical = (spec_slide.get("layout") or "bullets").lower()
             mode = (spec_slide.get("mode") or "auto").lower()
+            cloned = False
             try:
-                if use_sample and mode == "reuse" and spec_slide.get("sample_slide_index"):
-                    si = int(spec_slide["sample_slide_index"])
-                    if si < 1 or si > orig_count:
-                        warn("sample_slide_index out of range: %s" % si)
-                        sld = add_slide(pres, use_sample, logical, pres.Slides.Count + 1)
-                    else:
-                        sld = reuse_slide(pres, si)
+                if use_sample and mode == "themed_new":
+                    # Explicit: fresh slide using only the sample's theme/layout.
+                    sld = add_slide(pres, True, logical, pres.Slides.Count + 1)
+                elif use_sample:
+                    # Default for a sample deck: clone a real sample slide so its
+                    # design (shapes, colors, fonts, positions) is preserved, then
+                    # just swap the text. This is what makes the output look like
+                    # the in-house deck instead of a plain themed slide.
+                    si = None
+                    if spec_slide.get("sample_slide_index"):
+                        si = int(spec_slide["sample_slide_index"])
+                        if si < 1 or si > orig_count:
+                            warn("sample_slide_index out of range: %s" % si)
+                            si = None
+                    if si is None:
+                        si = pick_source_slide(pres, orig_count, logical) or 1
+                    sld = reuse_slide(pres, si)
+                    cloned = True
                 else:
-                    sld = add_slide(pres, use_sample, logical, pres.Slides.Count + 1)
+                    sld = add_slide(pres, False, logical, pres.Slides.Count + 1)
             except Exception as exc:
                 warn("add slide failed (%s): %s" % (logical, exc))
                 continue
-            fill_slide(sld, spec_slide, logical, sw, sh, font)
+            if cloned:
+                fill_cloned(sld, spec_slide, sw, sh)
+            else:
+                fill_slide(sld, spec_slide, logical, sw, sh, None if use_sample else font)
 
         if use_sample and orig_count > 0:
             for i in range(orig_count, 0, -1):
@@ -835,14 +993,15 @@ export class CreatePptxTool extends BaseDeclarativeTool<
         'whenever the user asks to make slides or a deck — Korean triggers include PPT/피피티/' +
         '슬라이드/장표 만들어줘, 보고서 슬라이드로, 발표자료 만들어줘. Provide the content as a ' +
         'list of "slides" (each with a layout and fields like title, subtitle, bullets, table, ' +
-        'image_path, notes). To match an existing in-house deck\'s look, pass "sample_path" to a ' +
-        'reference .pptx: the tool opens it through PowerPoint (so DRM-protected in-house files ' +
-        'work) and reuses its theme/fonts/colors/layouts. Per slide you can set mode="reuse" with ' +
-        'sample_slide_index to clone a specific sample slide and just swap its text (most faithful), ' +
-        'mode="themed_new" to compose a fresh slide in the sample\'s style, or "auto" (default) to ' +
-        'let the tool pick the matching sample layout. With no sample, a clean default theme is ' +
-        'used. The deck is saved (default under <workspace>/openrnd-ppt/) and opened in PowerPoint. ' +
-        'Windows + PowerPoint only.',
+        'image_path, notes). IMPORTANT: whenever the user provides or points at an existing deck ' +
+        'to match the look of, you MUST pass its path as "sample_path" (do NOT just read it for ' +
+        'reference) — that file is what carries the design. The tool opens the sample through ' +
+        'PowerPoint (so DRM-protected in-house files work) and, by default, CLONES the matching ' +
+        "sample slide and swaps its text, so the result keeps the sample's real design (shapes, " +
+        'colors, fonts, positions) — not just the theme. Per slide you can set mode="reuse" with ' +
+        'sample_slide_index to clone a specific sample slide, or mode="themed_new" for a plain ' +
+        'theme-only slide. With no sample, a clean default theme is used. The deck is saved ' +
+        '(default under <workspace>/openrnd-ppt/) and opened in PowerPoint. Windows + PowerPoint only.',
       Kind.Other,
       {
         type: 'object',
@@ -875,10 +1034,11 @@ export class CreatePptxTool extends BaseDeclarativeTool<
                   type: 'string',
                   enum: ['auto', 'reuse', 'themed_new'],
                   description:
-                    "How to realize the slide when a sample is given. 'auto' (default) adds a " +
-                    "slide using the sample's matching layout; 'reuse' clones the sample slide at " +
-                    "sample_slide_index and only replaces text; 'themed_new' composes a fresh " +
-                    'slide in the sample theme. Ignored without a sample.',
+                    "How to realize the slide when a sample is given. 'auto' (default) clones the " +
+                    "best-matching sample slide and swaps its text (keeps the sample's real " +
+                    "design); 'reuse' clones the specific sample slide at sample_slide_index; " +
+                    "'themed_new' composes a fresh slide using only the sample's theme (plainer). " +
+                    'Ignored without a sample.',
                 },
                 sample_slide_index: {
                   type: 'number',
