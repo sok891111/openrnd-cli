@@ -155,6 +155,25 @@ describe('CreatePptxTool', () => {
     });
   });
 
+  it('defaults style to consulting and forwards footer in the spec', async () => {
+    const { spec } = await run({
+      slides: [{ title: '개요', bullets: ['a', 'b'] }],
+      footer: '개발팀 · Confidential',
+    });
+    expect(spec).toMatchObject({
+      style: 'consulting',
+      footer: '개발팀 · Confidential',
+    });
+  });
+
+  it('passes style=plain through when requested', async () => {
+    const { spec } = await run({
+      slides: [{ title: 't' }],
+      style: 'plain',
+    });
+    expect(spec).toMatchObject({ style: 'plain' });
+  });
+
   it('honors an explicit output_path relative to the workspace', async () => {
     const { spawnArgs } = await run({
       slides: [{ title: 't' }],

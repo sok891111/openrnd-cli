@@ -88,6 +88,15 @@ export interface CreatePptxParams {
   sample_path?: string;
   /** Output .pptx path (absolute or workspace-relative). Defaults under openrnd-ppt/. */
   output_path?: string;
+  /**
+   * Visual style when NO sample is provided. 'consulting' (default) applies a
+   * built-in consulting-style template (navy/accent palette, title rules, styled
+   * bullets, section dividers, footer + page numbers). 'plain' uses PowerPoint's
+   * default theme. Ignored when sample_path is set (the sample's design is used).
+   */
+  style?: 'consulting' | 'plain';
+  /** Optional footer label shown on content slides (e.g. team / "Confidential"). */
+  footer?: string;
   /** Open the generated deck in PowerPoint when done. Default: true. */
   open?: boolean;
   /** Max build time in seconds (default 180, max 600). */
@@ -598,6 +607,254 @@ def fill_slide(sld, spec, logical, sw, sh, font):
         set_notes(sld, notes)
 
 
+# --- Consulting-style default template (used when NO sample is provided) -----
+# A clean, on-brand look built programmatically (no external .pptx/.thmx needed,
+# so it works on a closed corporate network): navy primary + blue accent, a
+# title rule, styled bullets, a section divider with a full color background,
+# and a footer with page number.
+
+def rgb(r, g, b):
+    # Office OLE color order is 0xBBGGRR, i.e. VBA RGB(r,g,b).
+    return r + (g << 8) + (b << 16)
+
+
+C_PRIMARY = rgb(0x1F, 0x38, 0x64)   # navy
+C_ACCENT = rgb(0x2E, 0x75, 0xB6)    # blue accent
+C_TEXT = rgb(0x40, 0x40, 0x40)      # body gray
+C_MUTED = rgb(0x80, 0x80, 0x80)     # muted gray
+C_LIGHT = rgb(0xF2, 0xF2, 0xF2)     # light fill
+C_WHITE = rgb(0xFF, 0xFF, 0xFF)
+C_SUBTLE = rgb(0xD0, 0xD8, 0xE8)    # light text on navy
+
+msoShapeRectangle = 1
+ppAlignLeft = 1
+ppAlignCenter = 2
+ppAlignRight = 3
+
+FONT_LATIN = "Calibri"
+FONT_KR = "맑은 고딕"
+
+
+def add_rect(slide, left, top, width, height, color):
+    try:
+        shp = slide.Shapes.AddShape(msoShapeRectangle, left, top, width, height)
+        shp.Fill.Solid()
+        shp.Fill.ForeColor.RGB = color
+        try:
+            shp.Line.Visible = msoFalse
+        except Exception:
+            pass
+        try:
+            shp.Shadow.Visible = msoFalse
+        except Exception:
+            pass
+        return shp
+    except Exception as exc:
+        warn("add_rect: %s" % exc)
+        return None
+
+
+def add_text(slide, left, top, width, height, text, size, color,
+             bold=False, align=ppAlignLeft):
+    try:
+        tb = slide.Shapes.AddTextbox(msoTextOrientationHorizontal, left, top, width, height)
+        tf = tb.TextFrame
+        try:
+            tf.WordWrap = msoTrue
+            tf.MarginLeft = 0
+            tf.MarginRight = 0
+            tf.MarginTop = 0
+            tf.MarginBottom = 0
+        except Exception:
+            pass
+        tr = tf.TextRange
+        tr.Text = _txt(text)
+        try:
+            tr.Font.Size = size
+            tr.Font.Bold = msoTrue if bold else msoFalse
+            tr.Font.Color.RGB = color
+            tr.Font.Name = FONT_LATIN
+            tr.Font.NameFarEast = FONT_KR
+            tr.ParagraphFormat.Alignment = align
+        except Exception as exc:
+            warn("add_text font: %s" % exc)
+        return tb
+    except Exception as exc:
+        warn("add_text: %s" % exc)
+        return None
+
+
+def add_bullets_box(slide, left, top, width, height, items, size=16):
+    try:
+        tb = slide.Shapes.AddTextbox(msoTextOrientationHorizontal, left, top, width, height)
+        tf = tb.TextFrame
+        try:
+            tf.WordWrap = msoTrue
+        except Exception:
+            pass
+        lines = []
+        levels = []
+        for it in items:
+            if isinstance(it, dict):
+                lines.append(_txt(it.get("text")))
+                levels.append(int(it.get("level", 0) or 0))
+            else:
+                lines.append(_txt(it))
+                levels.append(0)
+        tr = tf.TextRange
+        tr.Text = "\r".join(lines)
+        try:
+            tr.Font.Size = size
+            tr.Font.Color.RGB = C_TEXT
+            tr.Font.Name = FONT_LATIN
+            tr.Font.NameFarEast = FONT_KR
+            tr.ParagraphFormat.Alignment = ppAlignLeft
+        except Exception:
+            pass
+        for i, lvl in enumerate(levels, start=1):
+            try:
+                p = tr.Paragraphs(i, 1)
+                p.IndentLevel = min(lvl + 1, 5)
+                try:
+                    p.ParagraphFormat.SpaceAfter = 8
+                except Exception:
+                    pass
+                try:
+                    bullet = p.ParagraphFormat.Bullet
+                    bullet.Visible = msoTrue
+                    bullet.Character = 8226  # round bullet
+                    bullet.Font.Color.RGB = C_ACCENT
+                except Exception:
+                    pass
+            except Exception:
+                pass
+        return tb
+    except Exception as exc:
+        warn("add_bullets_box: %s" % exc)
+        return None
+
+
+def add_styled_table(slide, data, left, top, width, height):
+    try:
+        rows = len(data)
+        cols = max((len(r) for r in data), default=0)
+        if rows == 0 or cols == 0:
+            return
+        shp = slide.Shapes.AddTable(rows, cols, left, top, width, height)
+        tbl = shp.Table
+        for r in range(rows):
+            for c in range(cols):
+                val = data[r][c] if c < len(data[r]) else ""
+                try:
+                    cell = tbl.Cell(r + 1, c + 1)
+                    tr = cell.Shape.TextFrame.TextRange
+                    tr.Text = _txt(val)
+                    tr.Font.Size = 12
+                    tr.Font.Name = FONT_LATIN
+                    tr.Font.NameFarEast = FONT_KR
+                    if r == 0:
+                        cell.Shape.Fill.ForeColor.RGB = C_PRIMARY
+                        tr.Font.Bold = msoTrue
+                        tr.Font.Color.RGB = C_WHITE
+                    else:
+                        cell.Shape.Fill.ForeColor.RGB = C_WHITE if (r % 2 == 1) else C_LIGHT
+                        tr.Font.Color.RGB = C_TEXT
+                except Exception:
+                    pass
+    except Exception as exc:
+        warn("add_styled_table: %s" % exc)
+
+
+def styled_slide(pres, spec, logical, sw, sh, idx, footer):
+    """Build one consulting-styled slide from scratch on a blank layout."""
+    sld = pres.Slides.Add(pres.Slides.Count + 1, ppLayoutBlank)
+    try:
+        sld.Layout = ppLayoutBlank
+    except Exception:
+        pass
+    title = spec.get("title")
+    subtitle = spec.get("subtitle")
+    bullets = spec.get("bullets")
+    bullets_right = spec.get("bullets_right")
+    table = spec.get("table")
+    image_path = spec.get("image_path")
+    notes = spec.get("notes")
+
+    mL = sw * 0.06
+    content_w = sw - 2 * mL
+
+    if logical == "title":
+        add_rect(sld, 0, 0, sw * 0.022, sh, C_PRIMARY)
+        add_text(sld, mL, sh * 0.33, content_w, sh * 0.20, title or "", 40, C_PRIMARY, bold=True)
+        add_rect(sld, mL, sh * 0.55, sw * 0.18, sh * 0.008, C_ACCENT)
+        if subtitle:
+            add_text(sld, mL, sh * 0.58, content_w, sh * 0.12, subtitle, 18, C_MUTED)
+        if notes:
+            set_notes(sld, notes)
+        return sld
+
+    if logical == "section":
+        try:
+            sld.FollowMasterBackground = msoFalse
+            sld.Background.Fill.Solid()
+            sld.Background.Fill.ForeColor.RGB = C_PRIMARY
+        except Exception as exc:
+            warn("section background: %s" % exc)
+            add_rect(sld, 0, 0, sw, sh, C_PRIMARY)
+        add_rect(sld, mL, sh * 0.46, sw * 0.10, sh * 0.008, C_ACCENT)
+        add_text(sld, mL, sh * 0.40, content_w, sh * 0.18, title or "", 34, C_WHITE, bold=True)
+        if subtitle:
+            add_text(sld, mL, sh * 0.60, content_w, sh * 0.10, subtitle, 16, C_SUBTLE)
+        if notes:
+            set_notes(sld, notes)
+        return sld
+
+    # --- content slides: title zone + accent rule + body + footer ---
+    title_top = sh * 0.06
+    title_h = sh * 0.12
+    add_text(sld, mL, title_top, content_w, title_h, title or "", 24, C_PRIMARY, bold=True)
+    add_rect(sld, mL, title_top + title_h, content_w, sh * 0.006, C_ACCENT)
+
+    body_top = title_top + title_h + sh * 0.04
+    body_bottom = sh * 0.90
+    body_h = body_bottom - body_top
+
+    if logical == "two_col":
+        gap = sw * 0.04
+        col_w = (content_w - gap) / 2
+        if bullets:
+            add_bullets_box(sld, mL, body_top, col_w, body_h, bullets)
+        if bullets_right:
+            add_bullets_box(sld, mL + col_w + gap, body_top, col_w, body_h, bullets_right)
+    elif logical == "table" and table:
+        add_styled_table(sld, table, mL, body_top, content_w, body_h)
+    elif logical == "image" and image_path:
+        add_picture(sld, os.path.abspath(image_path), mL, body_top, content_w, body_h)
+    else:
+        cur = body_top
+        if subtitle:
+            add_text(sld, mL, cur, content_w, sh * 0.08, subtitle, 16, C_MUTED)
+            cur += sh * 0.09
+        if bullets:
+            add_bullets_box(sld, mL, cur, content_w, body_bottom - cur, bullets)
+        elif subtitle is None and not table and not image_path:
+            pass
+        if table:
+            add_styled_table(sld, table, mL, cur, content_w, body_bottom - cur)
+        if image_path:
+            add_picture(sld, os.path.abspath(image_path), mL, cur, content_w, body_bottom - cur)
+
+    # footer rule + page number
+    add_rect(sld, mL, sh * 0.925, content_w, sh * 0.003, C_LIGHT)
+    if footer:
+        add_text(sld, mL, sh * 0.93, content_w * 0.7, sh * 0.05, footer, 9, C_MUTED)
+    add_text(sld, sw - mL - sw * 0.12, sh * 0.93, sw * 0.12, sh * 0.05, str(idx), 9, C_MUTED, align=ppAlignRight)
+
+    if notes:
+        set_notes(sld, notes)
+    return sld
+
+
 def main():
     _utf8()
     if len(sys.argv) < 3:
@@ -615,7 +872,11 @@ def main():
     slides = spec.get("slides") or []
     sample = spec.get("sample_path")
     font = spec.get("default_font") or "맑은 고딕"
+    footer = spec.get("footer")
+    style = (spec.get("style") or "consulting").lower()
     use_sample = bool(sample)
+    # When no sample is given, default to the built-in consulting template.
+    consulting = (not use_sample) and style != "plain"
 
     if not ensure_pywin32():
         sys.stderr.write("WIN32COM_IMPORT_ERROR: pywin32 required.\n")
@@ -648,11 +909,15 @@ def main():
         except Exception:
             sw, sh = 960.0, 540.0
 
-        for spec_slide in slides:
+        for page_no, spec_slide in enumerate(slides, start=1):
             logical = (spec_slide.get("layout") or "bullets").lower()
             mode = (spec_slide.get("mode") or "auto").lower()
             cloned = False
             try:
+                if consulting:
+                    # Built-in consulting template (no sample): build + fill here.
+                    styled_slide(pres, spec_slide, logical, sw, sh, page_no, footer)
+                    continue
                 if use_sample and mode == "themed_new":
                     # Explicit: fresh slide using only the sample's theme/layout.
                     sld = add_slide(pres, True, logical, pres.Slides.Count + 1)
@@ -836,7 +1101,12 @@ class CreatePptxInvocation extends BaseToolInvocation<
       await fs.writeFile(tmpScript, PPTX_BUILD_SCRIPT, 'utf-8');
       await fs.writeFile(
         tmpSpec,
-        JSON.stringify({ slides, sample_path: samplePath ?? null }),
+        JSON.stringify({
+          slides,
+          sample_path: samplePath ?? null,
+          style: this.params.style ?? 'consulting',
+          footer: this.params.footer ?? null,
+        }),
         'utf-8',
       );
 
@@ -1000,8 +1270,11 @@ export class CreatePptxTool extends BaseDeclarativeTool<
         "sample slide and swaps its text, so the result keeps the sample's real design (shapes, " +
         'colors, fonts, positions) — not just the theme. Per slide you can set mode="reuse" with ' +
         'sample_slide_index to clone a specific sample slide, or mode="themed_new" for a plain ' +
-        'theme-only slide. With no sample, a clean default theme is used. The deck is saved ' +
-        '(default under <workspace>/openrnd-ppt/) and opened in PowerPoint. Windows + PowerPoint only.',
+        'theme-only slide. With NO sample, a built-in consulting-style template is applied by ' +
+        'default (navy/accent palette, title rules, styled bullets, section dividers, footer + ' +
+        'page numbers); pass style="plain" for the default PowerPoint theme, and "footer" for a ' +
+        'footer label. The deck is saved (default under <workspace>/openrnd-ppt/) and opened in ' +
+        'PowerPoint. Windows + PowerPoint only.',
       Kind.Other,
       {
         type: 'object',
@@ -1094,6 +1367,21 @@ export class CreatePptxTool extends BaseDeclarativeTool<
             description:
               'Optional .pptx output path (absolute or relative to the workspace). ' +
               'Defaults to <workspace>/openrnd-ppt/<slug>-<timestamp>.pptx.',
+          },
+          style: {
+            type: 'string',
+            enum: ['consulting', 'plain'],
+            description:
+              "Visual style used only when NO sample is provided. 'consulting' (default) " +
+              'applies a built-in consulting-style template (navy/accent colors, title rules, ' +
+              "styled bullets, section dividers, footer + page numbers); 'plain' uses the " +
+              'default PowerPoint theme. Ignored when sample_path is set.',
+          },
+          footer: {
+            type: 'string',
+            description:
+              'Optional footer label shown on content slides (e.g. team name or ' +
+              '"Confidential"). Used with the consulting style.',
           },
           open: {
             type: 'boolean',
