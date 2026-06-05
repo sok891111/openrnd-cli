@@ -1737,10 +1737,24 @@ class CreatePptxInvocation extends BaseToolInvocation<
 
       const llmSampleLine = samplePath
         ? `Sample design applied: ${sampleUsed ? `yes (cloned ${clonedCount} of ${sampleSlides} sample slides)` : 'NO — sample failed to open, default template used'} [${samplePath}]`
-        : 'Sample used: NO (no sample_path was provided). If the user wanted the deck to match an existing file, re-run create_pptx with that file path as sample_path.';
+        : 'Sample used: NO — no sample_path was provided, so this deck used the DEFAULT template, NOT any reference deck.';
+
+      // When no sample_path was given, prepend a loud, actionable warning at the
+      // TOP of llmContent. The most common bug is the user pointing at / @-mentioning
+      // a reference deck (which the model then merely *reads*) without that path being
+      // forwarded as sample_path — reading extracts text but does NOT carry the design.
+      // Make the model self-correct by re-calling with sample_path.
+      const missingSampleWarning = samplePath
+        ? ''
+        : '⚠️ ACTION REQUIRED — This deck did NOT match any reference design; it used the built-in default template.\n' +
+          'If the user pointed at, attached, or @-mentioned an existing deck to match (even one you already read for reference), ' +
+          'that was the design source and you OMITTED it. Reading a deck only extracts its text — it does NOT apply its design. ' +
+          'To actually match the reference, RE-CALL create_pptx now with `sample_path` set to that exact file path ' +
+          '(keep the same `slides`). Tell the user the first deck used the default template and you are regenerating with the reference design.\n\n';
 
       return {
         llmContent:
+          missingSampleWarning +
           `PowerPoint deck written to: ${outPath}\n` +
           `Slides: ${slides.length}\n${llmSampleLine}\n${note}` +
           (warnings.length ? `\nWarnings: ${warnings.join(' | ')}` : ''),
@@ -1797,10 +1811,14 @@ export class CreatePptxTool extends BaseDeclarativeTool<
         'layout="section" dividers between parts. Optional brand colors via "primary"/"accent" ' +
         '(hex), and a "footer" label.\n\n' +
         'WITH a sample (match an existing in-house deck): you MUST pass its path as "sample_path" ' +
-        '(do NOT just read it — the file carries the design). The tool opens the sample through ' +
-        'PowerPoint (so DRM-protected in-house files work) and CLONES the best-matching sample ' +
-        'slide, swapping its text. Per slide you can set mode="reuse" + sample_slide_index, or ' +
-        'mode="themed_new". The sample path is Windows + PowerPoint only.\n\n' +
+        '(do NOT just read it — the file carries the design). This holds EVEN IF the deck was ' +
+        'already read (e.g. via an @-mention of its path): reading only extracts text and does ' +
+        'NOT transfer the design (master/layouts/theme/shapes live in the file), so you must still ' +
+        'put that same path in "sample_path" on THIS call. Omitting it silently falls back to the ' +
+        'default template. The tool opens the sample through PowerPoint (so DRM-protected in-house ' +
+        'files work) and CLONES the best-matching sample slide, swapping its text. Per slide you ' +
+        'can set mode="reuse" + sample_slide_index, or mode="themed_new". The sample path is ' +
+        'Windows + PowerPoint only.\n\n' +
         'The deck is saved (default under <workspace>/openrnd-ppt/) and opened.',
       Kind.Other,
       {
