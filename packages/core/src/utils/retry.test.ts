@@ -130,7 +130,28 @@ describe('retryWithBackoff', () => {
       }
     });
 
-    it('does not use the fixed window when the env var is unset', async () => {
+    it('uses the fixed 60s window by default when the env var is unset', async () => {
+      const mockFn = vi
+        .fn()
+        .mockRejectedValueOnce(rateLimited())
+        .mockResolvedValue('ok');
+      const onRetry = vi.fn();
+
+      const promise = retryWithBackoff(mockFn, {
+        maxAttempts: 3,
+        initialDelayMs: 10,
+        maxDelayMs: 100,
+        onRetry,
+      });
+      await vi.runAllTimersAsync();
+
+      await expect(promise).resolves.toBe('ok');
+      // Default is ON at 60s even with no env var set.
+      expect(onRetry.mock.calls[0]?.[2]).toBe(60_000);
+    });
+
+    it('disables the fixed window (falls back to backoff) when set to 0', async () => {
+      process.env['OPENRND_RATE_LIMIT_RETRY_SECONDS'] = '0';
       const mockFn = vi
         .fn()
         .mockRejectedValueOnce(rateLimited())

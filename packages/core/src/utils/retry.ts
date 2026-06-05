@@ -301,14 +301,21 @@ export async function retryWithBackoff<T>(
 
       const errorCode = getErrorStatus(error);
 
-      // Corporate RPM (requests-per-minute) mode. When OPENRND_RATE_LIMIT_RETRY_SECONDS
-      // is set, treat any rate-limit error as "wait a full reset window, then retry"
-      // instead of the short exponential backoff (which keeps hammering a per-minute
-      // quota and looks like a hang). This takes precedence over the Google-specific
-      // terminal/quota handling so an in-house gateway's 429 keeps retrying until the
-      // window clears. Opt-in via env, so external behavior is unchanged.
+      // Corporate RPM (requests-per-minute) mode. ON by default: treat a
+      // rate-limit error (429 / "too many requests" / RESOURCE_EXHAUSTED / …) as
+      // "wait a full reset window, then retry" instead of the short exponential
+      // backoff (which keeps hammering a per-minute quota and looks like a hang).
+      // An in-house gateway's per-minute 429 classifies as a RetryableQuotaError,
+      // so it is handled here. A genuine TerminalQuotaError (daily/hard lockout)
+      // is deliberately excluded — retrying that every 60s forever is wrong, so it
+      // falls through to the terminal/fallback handling below. Tune the window
+      // with OPENRND_RATE_LIMIT_RETRY_SECONDS, or set it to 0 to disable.
       const rpmDelayMs = getRateLimitRetryDelayMs();
-      if (rpmDelayMs > 0 && isRateLimitError(error, errorCode)) {
+      if (
+        rpmDelayMs > 0 &&
+        !(classifiedError instanceof TerminalQuotaError) &&
+        isRateLimitError(error, errorCode)
+      ) {
         if (attempt >= getCurrentMaxAttempts()) {
           throw classifiedError instanceof Error ? classifiedError : error;
         }
@@ -457,17 +464,33 @@ export async function retryWithBackoff<T>(
 }
 
 /**
+ * Default fixed wait (seconds) before retrying a rate-limited request when the
+ * env var is unset. In-house LLM gateways enforce a per-minute (RPM) quota, so a
+ * 429 means "wait a full minute and try again," not "back off a few seconds."
+ */
+export const DEFAULT_RATE_LIMIT_RETRY_SECONDS = 60;
+
+/**
  * Fixed delay (ms) to wait before retrying a rate-limited request, or 0 when
- * disabled. Enabled for in-house LLM gateways that enforce a per-minute (RPM)
- * quota by setting `OPENRND_RATE_LIMIT_RETRY_SECONDS` (e.g. 60). Unlike the
- * default exponential backoff, this waits a full quota window so the next try
- * lands after the limit resets.
+ * disabled. ON by default ({@link DEFAULT_RATE_LIMIT_RETRY_SECONDS}) so a 429
+ * waits a full RPM window before retrying (instead of the short exponential
+ * backoff, which keeps hammering a per-minute quota and looks like a hang).
+ * Override the window with `OPENRND_RATE_LIMIT_RETRY_SECONDS` (e.g. 120), or set
+ * it to `0` to disable and fall back to exponential backoff. An invalid/negative
+ * value falls back to the default rather than silently disabling.
  */
 export function getRateLimitRetryDelayMs(): number {
   const raw = process.env['OPENRND_RATE_LIMIT_RETRY_SECONDS'];
-  if (!raw) return 0;
+  if (raw === undefined || raw.trim() === '') {
+    return DEFAULT_RATE_LIMIT_RETRY_SECONDS * 1000;
+  }
   const seconds = Number(raw.trim());
-  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 0;
+  // Explicit 0 disables; anything invalid/negative falls back to the default.
+  if (Number.isFinite(seconds) && seconds === 0) return 0;
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return DEFAULT_RATE_LIMIT_RETRY_SECONDS * 1000;
+  }
+  return seconds * 1000;
 }
 
 /**
