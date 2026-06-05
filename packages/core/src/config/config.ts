@@ -51,6 +51,7 @@ import { AskUserTool } from '../tools/ask-user.js';
 import { TopicState } from './topicState.js';
 import { PythonExecTool } from '../tools/python-exec.js';
 import { VisualizeAnalysisTool } from '../tools/visualize-analysis.js';
+import { CreatePptxTool } from '../tools/create-pptx.js';
 import { ManageMcpTool } from '../tools/manage-mcp.js';
 import { ManageSkillTool } from '../tools/manage-skill.js';
 import { ManageCredentialTool } from '../tools/manage-credential.js';
@@ -3978,6 +3979,9 @@ export class Config implements McpContext, AgentLoopContext {
     );
     maybeRegister(VisualizeAnalysisTool, () =>
       registry.registerTool(new VisualizeAnalysisTool(this, this.messageBus)),
+    );
+    maybeRegister(CreatePptxTool, () =>
+      registry.registerTool(new CreatePptxTool(this, this.messageBus)),
     );
     maybeRegister(ManageMcpTool, () =>
       registry.registerTool(new ManageMcpTool(this.messageBus)),
