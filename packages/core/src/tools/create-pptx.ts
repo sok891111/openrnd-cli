@@ -909,6 +909,7 @@ def main():
         except Exception:
             sw, sh = 960.0, 540.0
 
+        cloned_count = 0
         for page_no, spec_slide in enumerate(slides, start=1):
             logical = (spec_slide.get("layout") or "bullets").lower()
             mode = (spec_slide.get("mode") or "auto").lower()
@@ -942,6 +943,7 @@ def main():
                 warn("add slide failed (%s): %s" % (logical, exc))
                 continue
             if cloned:
+                cloned_count += 1
                 fill_cloned(sld, spec_slide, sw, sh)
             else:
                 fill_slide(sld, spec_slide, logical, sw, sh, None if use_sample else font)
@@ -977,7 +979,15 @@ def main():
         except Exception:
             pass
 
-    print(json.dumps({"output": out_path, "slides": len(slides), "warnings": WARN}, ensure_ascii=False))
+    print(json.dumps({
+        "output": out_path,
+        "slides": len(slides),
+        "sample_used": bool(use_sample),
+        "sample_slides": int(orig_count) if use_sample else 0,
+        "cloned": int(cloned_count),
+        "style": (style if not use_sample else "sample"),
+        "warnings": WARN,
+    }, ensure_ascii=False))
     return 0
 
 
@@ -1178,13 +1188,29 @@ class CreatePptxInvocation extends BaseToolInvocation<
 
       // Parse the one-line JSON summary the script prints on success.
       let warnings: string[] = [];
+      let sampleUsed = false;
+      let sampleSlides = 0;
+      let clonedCount = 0;
       try {
         const lastLine = stdout.trim().split('\n').pop() ?? '';
         const summary: unknown = JSON.parse(lastLine);
-        if (summary && typeof summary === 'object' && 'warnings' in summary) {
-          const w: unknown = summary.warnings;
-          if (Array.isArray(w)) {
-            warnings = w.filter((x): x is string => typeof x === 'string');
+        if (summary && typeof summary === 'object') {
+          if ('warnings' in summary) {
+            const w: unknown = summary.warnings;
+            if (Array.isArray(w)) {
+              warnings = w.filter((x): x is string => typeof x === 'string');
+            }
+          }
+          if ('sample_used' in summary) {
+            sampleUsed = summary.sample_used === true;
+          }
+          if ('sample_slides' in summary) {
+            const v: unknown = summary.sample_slides;
+            if (typeof v === 'number') sampleSlides = v;
+          }
+          if ('cloned' in summary) {
+            const v: unknown = summary.cloned;
+            if (typeof v === 'number') clonedCount = v;
           }
         }
       } catch {
@@ -1215,14 +1241,26 @@ class CreatePptxInvocation extends BaseToolInvocation<
           ? `\n경고 ${warnings.length}건:\n- ${warnings.slice(0, 10).join('\n- ')}`
           : '';
 
+      // Make the sample/design outcome explicit so a missing sample_path is
+      // immediately visible (the most common reason the design isn't applied).
+      const sampleLine = samplePath
+        ? sampleUsed
+          ? `샘플 디자인 적용: 예 (샘플 ${sampleSlides}장 중 ${clonedCount}장 복제) — \`${samplePath}\``
+          : `샘플 열기 실패 — 기본 템플릿으로 생성됨 (\`${samplePath}\`)`
+        : '샘플 미사용 — 기본 템플릿으로 생성됨 (디자인을 따라하려면 sample_path 를 넘기세요)';
+
+      const llmSampleLine = samplePath
+        ? `Sample design applied: ${sampleUsed ? `yes (cloned ${clonedCount} of ${sampleSlides} sample slides)` : 'NO — sample failed to open, default template used'} [${samplePath}]`
+        : 'Sample used: NO (no sample_path was provided). If the user wanted the deck to match an existing file, re-run create_pptx with that file path as sample_path.';
+
       return {
         llmContent:
           `PowerPoint deck written to: ${outPath}\n` +
-          `Slides: ${slides.length}${samplePath ? `\nStyle reference: ${samplePath}` : ''}\n${note}` +
+          `Slides: ${slides.length}\n${llmSampleLine}\n${note}` +
           (warnings.length ? `\nWarnings: ${warnings.join(' | ')}` : ''),
         returnDisplay:
           `📊 PPT 생성 완료 (${slides.length}장)\n\n- 파일: \`${outPath}\`` +
-          (samplePath ? `\n- 참고 샘플: \`${samplePath}\`` : '') +
+          `\n- ${sampleLine}` +
           `\n- ${note}${warnText}`,
       };
     } catch (error) {
