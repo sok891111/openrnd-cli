@@ -281,24 +281,6 @@ def content_placeholders(slide):
     return res
 
 
-def collect_text_shapes(slide):
-    """All shapes on the slide that currently hold text (placeholders or plain
-    text boxes). Hand-designed corporate slides keep their look in these shapes,
-    so to reproduce the design we replace text in EXISTING shapes rather than add
-    new (unstyled) ones."""
-    items = []
-    try:
-        for shp in slide.Shapes:
-            try:
-                if shp.HasTextFrame and shp.TextFrame.HasText:
-                    items.append(shp)
-            except Exception:
-                pass
-    except Exception:
-        pass
-    return items
-
-
 def _area(shp):
     try:
         return float(shp.Width) * float(shp.Height)
@@ -313,50 +295,57 @@ def _top(shp):
         return 0.0
 
 
-def _same(a, b):
-    if a is None or b is None:
-        return False
+def _slide_profile(slide):
+    """Lightweight structural summary of a sample slide, used to match a content
+    slide to the sample slide whose design best fits it."""
+    n_text = 0
+    has_table = False
+    has_pic = False
+    max_area = 0.0
     try:
-        return a.Id == b.Id
+        for shp in slide.Shapes:
+            try:
+                if shp.HasTable:
+                    has_table = True
+            except Exception:
+                pass
+            try:
+                if shp.Type == 13:  # msoPicture
+                    has_pic = True
+            except Exception:
+                pass
+            try:
+                if shp.HasTextFrame:
+                    n_text += 1
+                    a = _area(shp)
+                    if a > max_area:
+                        max_area = a
+            except Exception:
+                pass
     except Exception:
-        return a is b
+        pass
+    return {"n_text": n_text, "has_table": has_table, "has_pic": has_pic, "max_area": max_area}
 
 
-def pick_title_target(slide):
-    """The title placeholder if present, else the top-most text shape (the most
-    likely heading on a hand-made slide)."""
-    t = find_title(slide)
-    if t is not None:
-        return t
-    shapes = collect_text_shapes(slide)
-    if not shapes:
-        return None
-    shapes.sort(key=_top)
-    return shapes[0]
+def build_sample_index(pres, orig_count):
+    prof = {}
+    for i in range(1, orig_count + 1):
+        try:
+            prof[i] = _slide_profile(pres.Slides.Item(i))
+        except Exception:
+            prof[i] = {"n_text": 0, "has_table": False, "has_pic": False, "max_area": 0.0}
+    return prof
 
 
-def pick_body_target(slide, exclude):
-    """The body placeholder if present, else the largest text shape that is not
-    one of the excluded shapes (i.e. the main content region)."""
-    cps = content_placeholders(slide)
-    cps = [c for c in cps if not any(_same(c, e) for e in exclude)]
-    if cps:
-        return cps[0]
-    shapes = collect_text_shapes(slide)
-    cand = [s for s in shapes if not any(_same(s, e) for e in exclude)]
-    if not cand:
-        return None
-    cand.sort(key=_area, reverse=True)
-    return cand[0]
-
-
-def pick_source_slide(pres, orig_count, logical):
-    """Choose which existing sample slide to clone for a requested logical
-    layout, so the clone carries that slide's design. Matches by layout name
-    first, then falls back to position heuristics. The model can override per
-    slide via sample_slide_index."""
+def pick_source_slide(pres, orig_count, logical, prof):
+    """Choose which existing sample slide to clone for a requested content slide,
+    so the clone carries the design that best fits. Order: layout-name hint ->
+    structural match (table/image/columns/content) -> position fallback. The
+    model can always override per slide via sample_slide_index."""
     if orig_count <= 0:
         return None
+
+    # 1) layout name hint (e.g. "제목 슬라이드", "구역", "two content")
     hints = LAYOUT_NAME_HINTS.get(logical, [])
     for i in range(1, orig_count + 1):
         try:
@@ -366,17 +355,78 @@ def pick_source_slide(pres, orig_count, logical):
         for h in hints:
             if h.lower() in nm:
                 return i
+
+    prof = prof or {}
+
+    # 2) structural match by the kind of content this slide carries
+    if logical == "table":
+        for i in range(1, orig_count + 1):
+            if prof.get(i, {}).get("has_table"):
+                return i
+    if logical == "image":
+        for i in range(1, orig_count + 1):
+            if prof.get(i, {}).get("has_pic"):
+                return i
+    if logical == "two_col":
+        best = None
+        for i in range(2, orig_count + 1):
+            if prof.get(i, {}).get("n_text", 0) >= 3:
+                best = i
+                break
+        if best:
+            return best
     if logical == "title":
         return 1
-    if orig_count >= 2:
-        return 2
-    return 1
+    if logical == "section":
+        # a sparse slide (few text frames), not the cover
+        for i in range(2, orig_count + 1):
+            if 0 < prof.get(i, {}).get("n_text", 0) <= 2:
+                return i
+
+    # 3) default = a "content" slide: most body area, excluding the cover
+    best_i = None
+    best_area = -1.0
+    for i in range(2, orig_count + 1):
+        p = prof.get(i, {})
+        if p.get("n_text", 0) >= 1 and p.get("max_area", 0.0) > best_area:
+            best_area = p.get("max_area", 0.0)
+            best_i = i
+    if best_i:
+        return best_i
+    return 2 if orig_count >= 2 else 1
+
+
+def text_frames(slide):
+    """Every shape on the slide that can hold text (placeholder OR plain text
+    box), whether or not it currently has text — these are the regions we fill
+    with the new content while keeping the cloned slide's design."""
+    res = []
+    try:
+        for shp in slide.Shapes:
+            try:
+                if shp.HasTextFrame:
+                    res.append(shp)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return res
+
+
+def _shape_text_len(shp):
+    try:
+        if shp.TextFrame.HasText:
+            return len(shp.TextFrame.TextRange.Text or "")
+    except Exception:
+        pass
+    return 0
 
 
 def fill_cloned(slide, spec, sw, sh):
-    """Fill a slide that was cloned from a sample: replace text in the slide's
-    existing (already-styled) shapes so the sample design is preserved. Does NOT
-    force a font — the cloned shapes keep their own formatting."""
+    """Fill a slide cloned from a sample: keep its design but replace the text in
+    its existing shapes with the NEW content, and blank out any leftover original
+    body text so none of the sample's wording remains. Does NOT force a font — the
+    cloned shapes keep their own formatting."""
     title = spec.get("title")
     subtitle = spec.get("subtitle")
     bullets = spec.get("bullets")
@@ -385,34 +435,64 @@ def fill_cloned(slide, spec, sw, sh):
     image_path = spec.get("image_path")
     notes = spec.get("notes")
 
-    used = []
-    title_shape = None
+    frames = text_frames(slide)
+
+    # Locate the title shape (placeholder if present, else the top-most frame),
+    # and exclude exactly that one frame by index (robust to Id quirks on clones).
+    title_idx = -1
+    t = find_title(slide)
+    if t is not None:
+        try:
+            tid = t.Id
+            for i, f in enumerate(frames):
+                try:
+                    if f.Id == tid:
+                        title_idx = i
+                        break
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    if title_idx == -1 and frames:
+        order = sorted(range(len(frames)), key=lambda i: _top(frames[i]))
+        title_idx = order[0]
+
+    # Body candidates = all non-title text frames, largest area first.
+    body_frames = [f for i, f in enumerate(frames) if i != title_idx]
+    body_frames.sort(key=_area, reverse=True)
+
     if title:
-        title_shape = pick_title_target(slide)
-        if title_shape is not None:
-            set_text(title_shape, title, None)
-            used.append(title_shape)
+        if title_idx != -1:
+            set_text(frames[title_idx], title, None)
         else:
             warn("cloned slide has no title shape; title not placed")
 
+    consumed = 0
     if bullets:
-        bt = pick_body_target(slide, used)
-        if bt is not None:
-            set_bullets(bt, bullets, None)
-            used.append(bt)
+        if body_frames:
+            set_bullets(body_frames[0], bullets, None)
+            consumed = 1
         else:
             warn("cloned slide has no body shape; bullets not placed")
     elif subtitle:
-        bt = pick_body_target(slide, used)
-        if bt is not None:
-            set_text(bt, subtitle, None)
-            used.append(bt)
+        if body_frames:
+            set_text(body_frames[0], subtitle, None)
+            consumed = 1
 
-    if bullets_right:
-        rt = pick_body_target(slide, used)
-        if rt is not None:
-            set_bullets(rt, bullets_right, None)
-            used.append(rt)
+    if bullets_right and len(body_frames) > consumed:
+        set_bullets(body_frames[consumed], bullets_right, None)
+        consumed += 1
+
+    # Clear leftover ORIGINAL text in remaining sizeable content regions so the
+    # sample's wording doesn't linger. Small shapes (footers, page numbers,
+    # labels) are left alone so the design's furniture survives.
+    min_area = sw * sh * 0.04
+    for f in body_frames[consumed:]:
+        try:
+            if _area(f) >= min_area and _shape_text_len(f) > 0:
+                f.TextFrame.TextRange.Text = ""
+        except Exception:
+            pass
 
     if table:
         add_table(slide, table, sw * 0.06, sh * 0.55, sw * 0.88, sh * 0.4)
@@ -909,6 +989,9 @@ def main():
         except Exception:
             sw, sh = 960.0, 540.0
 
+        # Analyze the sample's slides once so we can clone the best-fitting one.
+        sample_prof = build_sample_index(pres, orig_count) if use_sample else {}
+
         cloned_count = 0
         for page_no, spec_slide in enumerate(slides, start=1):
             logical = (spec_slide.get("layout") or "bullets").lower()
@@ -934,7 +1017,7 @@ def main():
                             warn("sample_slide_index out of range: %s" % si)
                             si = None
                     if si is None:
-                        si = pick_source_slide(pres, orig_count, logical) or 1
+                        si = pick_source_slide(pres, orig_count, logical, sample_prof) or 1
                     sld = reuse_slide(pres, si)
                     cloned = True
                 else:
