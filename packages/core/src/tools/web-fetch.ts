@@ -39,6 +39,9 @@ import { LRUCache } from 'mnemonist';
 import type { AgentLoopContext } from '../config/agent-loop-context.js';
 import {
   tryCorporateFetch,
+  matchCorporateSystem,
+  getRememberedFallbackChoice,
+  rememberFallbackChoice,
   type CorporateFetchContext,
 } from './corporate-fetch.js';
 import { isDebugLoggingEnabled } from '../utils/debugLogging.js';
@@ -674,13 +677,6 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     };
   }
 
-  /**
-   * Once the user picks "browser" for the SSO fallback, remember it for the rest
-   * of THIS web_fetch call so we don't re-prompt on every subsequent intranet URL
-   * in the same request. Resets naturally on the next call (new invocation).
-   */
-  private browserFallbackApproved = false;
-
   /** Whether the interactive SSO fallback prompt is disabled (keep auto-browser). */
   private isBrowserPromptDisabled(): boolean {
     const raw = (
@@ -691,18 +687,44 @@ class WebFetchToolInvocation extends BaseToolInvocation<
 
   /**
    * When a direct fetch is blocked by SSO and no API key (corporate credential)
-   * produced content, ask the user how to proceed:
-   *   • confirm  → open the URL via the signed-in browser session
-   *   • decline  → stop and use an API key instead (register via manage_credential)
+   * produced content, decide how to proceed:
+   *   • true   → open the URL via the signed-in browser session
+   *   • false  → stop and use an API key instead (register via manage_credential)
    *
-   * Returns true to use the browser, false if the user chose the API-key route.
-   * Auto-returns true (legacy behavior) when prompting is disabled, there is no
-   * interactive UI listening, or the user already approved earlier this session.
+   * Two rules govern whether (and how) we ask:
+   *
+   *   1) Only prompt for URLs that an API key could actually help with — i.e.
+   *      URLs a corporate fetch handler claims (matchCorporateSystem != null).
+   *      If no handler matches, there is no API to register, so we skip the
+   *      question and go straight to the browser.
+   *
+   *   2) Once the user has chosen, remember that choice and reuse it as the
+   *      default WITHOUT re-prompting, until a credential is (re)registered via
+   *      manage_credential (which clears the remembered choice).
+   *
+   * Also auto-returns true when prompting is disabled or there is no interactive
+   * UI listening.
    */
-  private async confirmBrowserFallback(url: string): Promise<boolean> {
-    if (this.browserFallbackApproved) {
+  private async confirmBrowserFallback(
+    url: string,
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    // (1) Only URLs a corporate handler claims are "API-requiring". For anything
+    // else, registering an API key is meaningless — open the browser directly.
+    const system = await matchCorporateSystem(url, signal).catch(() => null);
+    if (!system) {
       return true;
     }
+
+    // (2) Reuse the previously chosen route without asking again.
+    const remembered = getRememberedFallbackChoice();
+    if (remembered === 'browser') {
+      return true;
+    }
+    if (remembered === 'apikey') {
+      return false;
+    }
+
     if (this.isBrowserPromptDisabled()) {
       return true;
     }
@@ -711,13 +733,17 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       return true;
     }
 
+    const systemLabel = system.name
+      ? `${system.name} (${system.id})`
+      : system.id;
     const prompt =
       `🔐 SSO 인증 벽으로 직접 가져오기가 막혔습니다:\n${url}\n\n` +
-      '등록된 API 키(자격증명)가 없어 서버에서 바로 가져올 수 없습니다. ' +
-      '어떻게 진행할까요?\n\n' +
+      `이 URL 은 사내 시스템 '${systemLabel}' 핸들러가 처리하며, 등록된 API 키` +
+      `(자격증명)가 없어 서버에서 바로 가져올 수 없습니다. 어떻게 진행할까요?\n\n` +
       '  • 예  → 로그인된 브라우저 세션으로 열어서 내용을 가져옵니다\n' +
-      '  • 아니오 → 중단합니다. API 키를 쓰려면 manage_credential 툴로 해당 ' +
-      '시스템의 키를 등록한 뒤 다시 시도하세요';
+      `  • 아니오 → 중단합니다. API 키를 쓰려면 manage_credential 툴로 '${system.id}' ` +
+      '키를 등록한 뒤 다시 시도하세요\n\n' +
+      '(선택한 답은 키를 등록하기 전까지 기억되어 다시 묻지 않습니다.)';
 
     const confirmed = await new Promise<boolean>((resolve) => {
       coreEvents.emitConsentRequest({
@@ -725,9 +751,7 @@ class WebFetchToolInvocation extends BaseToolInvocation<
         onConfirm: (c: boolean) => resolve(c),
       });
     });
-    if (confirmed) {
-      this.browserFallbackApproved = true;
-    }
+    rememberFallbackChoice(confirmed ? 'browser' : 'apikey');
     return confirmed;
   }
 
@@ -764,7 +788,7 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       }
       return corp.text;
     }
-    if (!(await this.confirmBrowserFallback(url))) {
+    if (!(await this.confirmBrowserFallback(url, signal))) {
       throw new Error(this.apiKeyGuidance(url));
     }
     return this.fetchViaBrowser(url, signal);
@@ -794,7 +818,7 @@ class WebFetchToolInvocation extends BaseToolInvocation<
         returnDisplay: `Fetched content from ${url} via corporate fetch handler (${corp.handlerName}).`,
       };
     }
-    if (!(await this.confirmBrowserFallback(url))) {
+    if (!(await this.confirmBrowserFallback(url, signal))) {
       const msg = this.apiKeyGuidance(url);
       return {
         llmContent: msg,

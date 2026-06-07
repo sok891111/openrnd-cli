@@ -304,6 +304,82 @@ export function listCorporateSystems(
 }
 
 /**
+ * stdin 의 URL 을 처리할 수 있는 사내 핸들러가 있는지 확인하고, 있으면 그
+ * 시스템 메타데이터를 반환한다(없으면 null). dispatch.py 를 `--match` 모드로
+ * 실행하며, 핸들러의 fetch 는 호출하지 않고 can_handle 만 확인하므로 가볍다.
+ *
+ * web_fetch 가 "이 URL 은 API 키(자격증명)로 우회 가능한 사내 URL 인가?" 를
+ * 판단해, API 로 우회 가능한 URL 에서만 (브라우저 vs API) 선택을 묻는 데 사용한다.
+ */
+export function matchCorporateSystem(
+  urlStr: string,
+  signal?: AbortSignal,
+): Promise<CorporateSystemInfo | null> {
+  const dispatcher = resolveDispatcherPath();
+  if (!dispatcher) {
+    return Promise.resolve(null);
+  }
+  const python = detectPythonExecutable();
+  return new Promise<CorporateSystemInfo | null>((resolve) => {
+    const child = spawn(python, [dispatcher, '--match'], {
+      env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
+    });
+    const stdoutDecoder = new StringDecoder('utf8');
+    let stdout = '';
+    child.stdout.on('data', (d: Buffer) => {
+      stdout += stdoutDecoder.write(d);
+    });
+    child.on('error', () => resolve(null));
+    child.on('close', () => {
+      stdout += stdoutDecoder.end();
+      const trimmed = stdout.trim();
+      if (!trimmed) {
+        resolve(null);
+        return;
+      }
+      try {
+        const parsed: unknown = JSON.parse(trimmed);
+        if (parsed && typeof parsed === 'object') {
+          resolve(parsed as CorporateSystemInfo);
+          return;
+        }
+      } catch {
+        // ignore malformed output
+      }
+      resolve(null);
+    });
+    if (signal) {
+      signal.addEventListener('abort', () => child.kill(), { once: true });
+    }
+    child.stdin.write(urlStr, 'utf-8');
+    child.stdin.end();
+  });
+}
+
+/**
+ * SSO 폴백 시 사용자가 고른 경로("browser" = 브라우저로 열기 / "apikey" = API
+ * 키 등록 경로)를 프로세스 동안 기억해, 같은 선택을 매번 다시 묻지 않도록 한다.
+ *
+ * - manage_credential 로 키를 등록(set)하면 {@link clearRememberedFallbackChoice}
+ *   로 초기화 → 다음 web_fetch 때 (필요하면) 다시 묻거나 등록된 키로 곧장 가져온다.
+ */
+export type WebFetchFallbackChoice = 'browser' | 'apikey';
+
+let rememberedFallbackChoice: WebFetchFallbackChoice | null = null;
+
+export function getRememberedFallbackChoice(): WebFetchFallbackChoice | null {
+  return rememberedFallbackChoice;
+}
+
+export function rememberFallbackChoice(choice: WebFetchFallbackChoice): void {
+  rememberedFallbackChoice = choice;
+}
+
+export function clearRememberedFallbackChoice(): void {
+  rememberedFallbackChoice = null;
+}
+
+/**
  * 등록된 핸들러들을 순서대로 시도한다.
  *
  * - 매칭되는 핸들러가 없으면 `null` 반환 → 브라우저 폴백.

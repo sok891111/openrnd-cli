@@ -59,6 +59,21 @@ def _load_handlers():
     return loaded
 
 
+def _system_info(name: str, mod) -> dict:
+    """핸들러 모듈 -> 시스템 메타데이터 dict (list/match 공용)."""
+    spec = getattr(mod, "SYSTEM", None)
+    if not isinstance(spec, dict):
+        spec = {}
+    sid = spec.get("id", name)
+    return {
+        "id": sid,
+        "name": spec.get("name"),
+        "description": spec.get("description"),
+        "module": name,
+        "env": credential_env_var(sid),
+    }
+
+
 def list_systems() -> None:
     """handlers/ 의 SYSTEM 메타데이터를 JSON 배열로 stdout 에 출력.
 
@@ -67,28 +82,40 @@ def list_systems() -> None:
 
         SYSTEM = {"id": "jira", "name": "사내 Jira", "description": "..."}
     """
-    out = []
-    for name, mod in _load_handlers():
-        spec = getattr(mod, "SYSTEM", None)
-        if not isinstance(spec, dict):
-            spec = {}
-        sid = spec.get("id", name)
-        out.append(
-            {
-                "id": sid,
-                "name": spec.get("name"),
-                "description": spec.get("description"),
-                "module": name,
-                "env": credential_env_var(sid),
-            }
-        )
+    out = [_system_info(name, mod) for name, mod in _load_handlers()]
     sys.stdout.write(json.dumps(out, ensure_ascii=False))
     sys.stdout.flush()
+
+
+def match_system() -> None:
+    """stdin 의 URL 을 처리하는 핸들러가 있으면 그 시스템 메타데이터를 JSON 으로
+    stdout 에 출력, 없으면 아무것도 출력하지 않는다(빈 stdout).
+
+    web_fetch 가 "이 URL 은 API(자격증명)로 우회 가능한 사내 URL 인가?" 를
+    판단하는 데 사용. fetch 는 호출하지 않고 can_handle 만 확인하므로 가볍다.
+    """
+    url = sys.stdin.read().strip()
+    if not url:
+        return
+    for name, mod in _load_handlers():
+        try:
+            if not mod.can_handle(url):
+                continue
+        except Exception:
+            _log(f"{name}.can_handle 예외\n{traceback.format_exc()}")
+            continue
+        sys.stdout.write(json.dumps(_system_info(name, mod), ensure_ascii=False))
+        sys.stdout.flush()
+        return
 
 
 def main() -> int:
     if "--list-systems" in sys.argv[1:]:
         list_systems()
+        return 0
+
+    if "--match" in sys.argv[1:]:
+        match_system()
         return 0
 
     url = sys.stdin.read().strip()
