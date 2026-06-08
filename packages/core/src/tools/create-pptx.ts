@@ -23,6 +23,7 @@ import type { Config } from '../config/config.js';
 import { ToolErrorType } from './tool-error.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { debugLogger } from '../utils/debugLogger.js';
+import { PPTX_REGION_HELPERS } from './pptx-region-helpers.js';
 
 export const CREATE_PPTX_TOOL_NAME = 'create_pptx';
 export const CREATE_PPTX_DISPLAY_NAME = 'Create PowerPoint';
@@ -98,6 +99,25 @@ export interface CreatePptxSlide {
   image_path?: string;
   /** Presenter notes for this slide. */
   notes?: string;
+  /**
+   * Region-addressed content for a cloned sample slide. Use together with a
+   * sample deck and mode 'reuse'/'auto', after calling analyze_pptx_template:
+   * each entry targets one text region by its structural-path `id` (e.g. "3",
+   * "3.2", "5.r2c1") and replaces that region's text. All original text on the
+   * cloned slide is cleared first; any region you omit is left blank while the
+   * design (shapes/colors/fonts) is preserved. Ignored without a sample.
+   */
+  regions?: CreatePptxRegion[];
+}
+
+/** A single region-addressed fill instruction for a cloned sample slide. */
+export interface CreatePptxRegion {
+  /** Structural-path id of the target text region (from analyze_pptx_template). */
+  id: string;
+  /** Plain text to place in the region. */
+  text?: string;
+  /** Bullet lines to place in the region (takes precedence over `text`). */
+  bullets?: string[];
 }
 
 /** A single step in a `process` infographic block. */
@@ -207,7 +227,8 @@ function detectPythonExecutable(): string {
  * file (argv[1]); the deck is written to argv[2]. Diagnostics go to stderr; a
  * one-line JSON summary is printed to stdout on success.
  */
-const PPTX_BUILD_SCRIPT = String.raw`# -*- coding: utf-8 -*-
+const PPTX_BUILD_SCRIPT =
+  String.raw`# -*- coding: utf-8 -*-
 import os
 import sys
 import json
@@ -259,6 +280,10 @@ msoTextOrientationHorizontal = 1
 msoFalse = 0
 msoTrue = -1
 ppSaveAsOpenXMLPresentation = 24
+
+` +
+  PPTX_REGION_HELPERS +
+  String.raw`
 
 WARN = []
 
@@ -507,6 +532,13 @@ def fill_cloned(slide, spec, sw, sh):
     image_path = spec.get("image_path")
     notes = spec.get("notes")
 
+    # Wipe EVERY text region first (incl. group children and table cells) so none
+    # of the sample's original wording lingers anywhere, then write the new
+    # content into the chosen top-level frames below. text_frames() only sees
+    # top-level shapes, which is fine for *placing* title/body, but clearing must
+    # recurse — that is why original text used to survive inside grouped shapes.
+    clear_all_text(slide)
+
     frames = text_frames(slide)
 
     # Locate the title shape (placeholder if present, else the top-most frame),
@@ -555,17 +587,73 @@ def fill_cloned(slide, spec, sw, sh):
         set_bullets(body_frames[consumed], bullets_right, None)
         consumed += 1
 
-    # Clear leftover ORIGINAL text in remaining sizeable content regions so the
-    # sample's wording doesn't linger. Small shapes (footers, page numbers,
-    # labels) are left alone so the design's furniture survives.
-    min_area = sw * sh * 0.04
-    for f in body_frames[consumed:]:
-        try:
-            if _area(f) >= min_area and _shape_text_len(f) > 0:
-                f.TextFrame.TextRange.Text = ""
-        except Exception:
-            pass
+    # (No leftover-clear loop needed: clear_all_text() above already blanked every
+    # region, including the ones we didn't refill.)
 
+    if table:
+        add_table(slide, table, sw * 0.06, sh * 0.55, sw * 0.88, sh * 0.4)
+    if image_path:
+        add_picture(slide, os.path.abspath(image_path), sw * 0.55, sh * 0.2, sw * 0.4, sh * 0.5)
+    if notes:
+        set_notes(slide, notes)
+
+
+def fill_by_regions(slide, spec, sw, sh):
+    """Region-addressed fill for a cloned sample slide: wipe ALL original text,
+    then write each requested region's new content into the shape with the
+    matching structural-path id. Ids come from the analyze tool, which used the
+    identical iter_text_regions() walk, so they line up on the clone. Any region
+    not supplied is simply left blank — the design (shapes/colors/fonts) stays."""
+    clear_all_text(slide)
+
+    # id -> shape map for this clone (ids match what analyze_pptx_template reported).
+    idmap = {}
+    for rid, shp, _kind in iter_text_regions(slide):
+        idmap[rid] = shp
+
+    provided = set()
+    for reg in (spec.get("regions") or []):
+        if not isinstance(reg, dict):
+            continue
+        rid = reg.get("id")
+        if rid is None:
+            continue
+        rid = str(rid)
+        shp = idmap.get(rid)
+        if shp is None:
+            warn("region id not found on slide: %s" % rid)
+            continue
+        provided.add(rid)
+        bullets = reg.get("bullets")
+        if bullets:
+            set_bullets(shp, bullets, None)
+        elif reg.get("text") is not None:
+            set_text(shp, reg.get("text"), None)
+
+    # Title fallback: if the model passed a top-level "title" but did not target
+    # the title region explicitly, fill it so the slide is never left title-less.
+    title = spec.get("title")
+    if title:
+        t = find_title(slide)
+        if t is not None:
+            tid = None
+            try:
+                for rid, shp, _kind in iter_text_regions(slide):
+                    try:
+                        if shp.Id == t.Id:
+                            tid = rid
+                            break
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            if tid is None or tid not in provided:
+                set_text(t, title, None)
+
+    # Extra content placed on top of the template, mirroring fill_cloned.
+    table = spec.get("table")
+    image_path = spec.get("image_path")
+    notes = spec.get("notes")
     if table:
         add_table(slide, table, sw * 0.06, sh * 0.55, sw * 0.88, sh * 0.4)
     if image_path:
@@ -1099,7 +1187,11 @@ def main():
                 continue
             if cloned:
                 cloned_count += 1
-                fill_cloned(sld, spec_slide, sw, sh)
+                if spec_slide.get("regions"):
+                    # Precise region-addressed fill (paired with analyze_pptx_template).
+                    fill_by_regions(sld, spec_slide, sw, sh)
+                else:
+                    fill_cloned(sld, spec_slide, sw, sh)
             else:
                 fill_slide(sld, spec_slide, logical, sw, sh, None if use_sample else font)
 
@@ -2026,9 +2118,19 @@ function coerceSlide(slide: unknown): unknown {
   const parsed = parseMaybeJson(slide);
   if (!isRecord(parsed)) return parsed;
   const s: Record<string, unknown> = { ...parsed };
-  coerceArrayFields(s, ['bullets', 'bullets_right', 'table']);
+  coerceArrayFields(s, ['bullets', 'bullets_right', 'table', 'regions']);
   const body = parseMaybeJson(s['body']);
   if (Array.isArray(body)) s['body'] = body.map(coerceBlock);
+  const regions = parseMaybeJson(s['regions']);
+  if (Array.isArray(regions)) {
+    s['regions'] = regions.map((r) => {
+      const rr = parseMaybeJson(r);
+      if (!isRecord(rr)) return rr;
+      const out: Record<string, unknown> = { ...rr };
+      coerceArrayFields(out, ['bullets']);
+      return out;
+    });
+  }
   return s;
 }
 
@@ -2095,9 +2197,13 @@ export class CreatePptxTool extends BaseDeclarativeTool<
         'NOT transfer the design (master/layouts/theme/shapes live in the file), so you must still ' +
         'put that same path in "sample_path" on THIS call. Omitting it silently falls back to the ' +
         'default template. The tool opens the sample through PowerPoint (so DRM-protected in-house ' +
-        'files work) and CLONES the best-matching sample slide, swapping its text. Per slide you ' +
-        'can set mode="reuse" + sample_slide_index, or mode="themed_new". The sample path is ' +
-        'Windows + PowerPoint only.\n\n' +
+        'files work) and CLONES the best-matching sample slide, then CLEARS ALL of its original ' +
+        'text (including text inside groups, tables, and SmartArt) and writes your content in. ' +
+        'Per slide you can set mode="reuse" + sample_slide_index, or mode="themed_new". For ' +
+        'PRECISE control over which shape gets which text, FIRST call analyze_pptx_template on ' +
+        "the same sample to get each slide's text regions (with structural-path ids), then on " +
+        'each slide here set "regions": [{ id, text|bullets }] mapping those ids to new content ' +
+        '(any region you omit is left blank). The sample path is Windows + PowerPoint only.\n\n' +
         'The deck is saved (default under <workspace>/openrnd-ppt/) and opened.',
       Kind.Other,
       {
@@ -2295,6 +2401,37 @@ export class CreatePptxTool extends BaseDeclarativeTool<
                 notes: {
                   type: 'string',
                   description: 'Presenter notes for this slide.',
+                },
+                regions: {
+                  type: 'array',
+                  description:
+                    'Region-addressed content for a cloned SAMPLE slide (use with sample_path + ' +
+                    'mode "reuse"/"auto", after analyze_pptx_template). Each entry fills one text ' +
+                    'region of the chosen sample slide by its structural-path id. All original text ' +
+                    'on the cloned slide is cleared first; omitted regions are left blank while the ' +
+                    'design is preserved. Ignored without a sample.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: {
+                        type: 'string',
+                        description:
+                          'Structural-path id of the target text region as returned by ' +
+                          'analyze_pptx_template (e.g. "3", "3.2", "5.r2c1").',
+                      },
+                      text: {
+                        type: 'string',
+                        description: 'Plain text to place in the region.',
+                      },
+                      bullets: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description:
+                          'Bullet lines to place in the region (takes precedence over `text`).',
+                      },
+                    },
+                    required: ['id'],
+                  },
                 },
               },
             },

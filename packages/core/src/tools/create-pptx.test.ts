@@ -374,4 +374,69 @@ describe('CreatePptxTool', () => {
     );
     expect(result.error?.message).toContain('workspace');
   });
+
+  it('exposes a region-addressed `regions` field in the slide schema', () => {
+    const tool = makeTool();
+    const schema = tool.schema.parametersJsonSchema as Record<string, unknown>;
+    const slides = (
+      schema['properties'] as Record<string, { items?: unknown }>
+    )['slides'];
+    const slideItem = (slides.items as { properties: Record<string, unknown> })
+      .properties;
+    const regions = slideItem['regions'] as {
+      type: string;
+      items: { properties: Record<string, unknown>; required: string[] };
+    };
+    expect(regions.type).toBe('array');
+    expect(Object.keys(regions.items.properties)).toEqual(
+      expect.arrayContaining(['id', 'text', 'bullets']),
+    );
+    expect(regions.items.required).toEqual(['id']);
+  });
+
+  it('forwards per-slide regions into the JSON spec with the sample', async () => {
+    const { spec } = await run({
+      slides: [
+        {
+          mode: 'reuse',
+          sample_slide_index: 3,
+          regions: [
+            { id: '1', text: '2026 1분기 사업 보고' },
+            { id: '3.2', bullets: ['매출 12%↑', '신규 5종'] },
+          ],
+        },
+      ],
+      sample_path: '/samples/inhouse.pptx',
+    });
+    expect(spec).toMatchObject({
+      sample_path: '/samples/inhouse.pptx',
+      slides: [
+        {
+          mode: 'reuse',
+          sample_slide_index: 3,
+          regions: [
+            { id: '1', text: '2026 1분기 사업 보고' },
+            { id: '3.2', bullets: ['매출 12%↑', '신규 5종'] },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('coerces a string-encoded regions array and nested region bullets', async () => {
+    const { result, spec } = await run({
+      slides: [
+        {
+          mode: 'reuse',
+          sample_slide_index: 2,
+          regions: '[{"id":"2","bullets":"[\\"a\\",\\"b\\"]"}]',
+        },
+      ],
+      sample_path: '/samples/inhouse.pptx',
+    } as unknown as CreatePptxParams);
+    expect(result.error).toBeUndefined();
+    expect(spec).toMatchObject({
+      slides: [{ regions: [{ id: '2', bullets: ['a', 'b'] }] }],
+    });
+  });
 });
