@@ -796,6 +796,69 @@ def reuse_slide(pres, sample_index):
     return dup
 
 
+def flatten_body_to_bullets(body):
+    """Turn rich consulting body blocks into (bullet lines, tables) so they can
+    be placed into the template's styled body placeholder. We intentionally render
+    into the placeholder (rather than drawing custom shapes) so the text inherits
+    the template's real fonts/bullet styling — that is what makes it look like the
+    in-house deck. Returns (lines, tables) where lines are {text, level} dicts."""
+    lines = []
+    tables = []
+    if not isinstance(body, list):
+        return lines, tables
+    for blk in body:
+        if not isinstance(blk, dict):
+            lines.append({"text": _txt(blk), "level": 0})
+            continue
+        t = (blk.get("type") or "").lower()
+        if t == "bullets":
+            for it in (blk.get("items") or []):
+                if isinstance(it, dict):
+                    lines.append({"text": _txt(it.get("text")), "level": int(it.get("level", 0) or 0)})
+                else:
+                    lines.append({"text": _txt(it), "level": 0})
+        elif t == "columns":
+            for col in (blk.get("columns") or []):
+                if not isinstance(col, dict):
+                    continue
+                if col.get("heading"):
+                    lines.append({"text": _txt(col.get("heading")), "level": 0})
+                for b in (col.get("bullets") or []):
+                    lines.append({"text": _txt(b), "level": 1})
+        elif t == "kpis":
+            for it in (blk.get("items") or []):
+                if isinstance(it, dict):
+                    v = _txt(it.get("value"))
+                    lbl = _txt(it.get("label"))
+                    lines.append({"text": (("%s — %s" % (v, lbl)).strip(" —") or v), "level": 0})
+        elif t in ("callout", "text"):
+            lines.append({"text": _txt(blk.get("text")), "level": 0})
+        elif t == "process":
+            steps = blk.get("steps") or blk.get("items") or []
+            for i, st in enumerate(steps, start=1):
+                if isinstance(st, dict):
+                    title = _txt(st.get("title"))
+                    tx = _txt(st.get("text"))
+                    lines.append({"text": ("%d. %s" % (i, title)) + ((" — %s" % tx) if tx else ""), "level": 0})
+                else:
+                    lines.append({"text": "%d. %s" % (i, _txt(st)), "level": 0})
+        elif t == "timeline":
+            for ev in (blk.get("events") or blk.get("items") or []):
+                if isinstance(ev, dict):
+                    lab = _txt(ev.get("label"))
+                    title = _txt(ev.get("title"))
+                    tx = _txt(ev.get("text"))
+                    head = ("%s: %s" % (lab, title)) if lab else title
+                    lines.append({"text": head + ((" — %s" % tx) if tx else ""), "level": 0})
+                else:
+                    lines.append({"text": _txt(ev), "level": 0})
+        elif t == "table":
+            rows = blk.get("rows") or []
+            if rows:
+                tables.append(rows)
+    return lines, tables
+
+
 def fill_slide(sld, spec, logical, sw, sh, font):
     title = spec.get("title")
     subtitle = spec.get("subtitle")
@@ -804,6 +867,15 @@ def fill_slide(sld, spec, logical, sw, sh, font):
     table = spec.get("table")
     image_path = spec.get("image_path")
     notes = spec.get("notes")
+
+    # Rich body blocks (the consulting content model): flatten into bullets +
+    # tables so nothing is lost when building on the template's layouts.
+    if not bullets:
+        body_lines, body_tables = flatten_body_to_bullets(spec.get("body"))
+        if body_lines:
+            bullets = body_lines
+        if body_tables and not table:
+            table = body_tables[0]
 
     if title:
         t = find_title(sld)
@@ -1178,14 +1250,16 @@ def main():
                     # Built-in consulting template (no sample): build + fill here.
                     styled_slide(pres, spec_slide, logical, sw, sh, page_no, footer)
                     continue
-                if use_sample and mode == "themed_new":
-                    # Explicit: fresh slide using only the sample's theme/layout.
-                    sld = add_slide(pres, True, logical, pres.Slides.Count + 1)
-                elif use_sample:
-                    # Default for a sample deck: clone a real sample slide so its
-                    # design (shapes, colors, fonts, positions) is preserved, then
-                    # just swap the text. This is what makes the output look like
-                    # the in-house deck instead of a plain themed slide.
+                want_clone = use_sample and (
+                    mode == "reuse"
+                    or spec_slide.get("regions")
+                    or spec_slide.get("sample_slide_index")
+                )
+                if want_clone:
+                    # OPT-IN exact clone: duplicate a specific/auto-matched sample
+                    # slide and replace its text. Brittle on complex templates —
+                    # only used when the model explicitly asks (mode="reuse",
+                    # sample_slide_index, or regions).
                     si = None
                     if spec_slide.get("sample_slide_index"):
                         si = int(spec_slide["sample_slide_index"])
@@ -1196,6 +1270,15 @@ def main():
                         si = pick_source_slide(pres, orig_count, logical, sample_prof) or 1
                     sld = reuse_slide(pres, si)
                     cloned = True
+                elif use_sample:
+                    # DEFAULT for a sample deck: add a FRESH slide built from the
+                    # template's OWN layout (slide master), then fill its
+                    # placeholders. This is how a template is meant to be used —
+                    # the new slide inherits the template's background, logo,
+                    # fonts and bullet styles, but starts with clean, empty
+                    # placeholders, so content lands correctly instead of fighting
+                    # a cloned content slide's existing shapes.
+                    sld = add_slide(pres, True, logical, pres.Slides.Count + 1)
                 else:
                     sld = add_slide(pres, False, logical, pres.Slides.Count + 1)
             except Exception as exc:
@@ -2229,20 +2312,21 @@ export class CreatePptxTool extends BaseDeclarativeTool<
         '"takeaway" (so-what) per slide; (4) open with a layout="title" cover and use ' +
         'layout="section" dividers between parts. Optional brand colors via "primary"/"accent" ' +
         '(hex), and a "footer" label.\n\n' +
-        'TO MATCH AN EXISTING IN-HOUSE DECK (recommended): do NOT pass sample_path here. Instead ' +
-        'FIRST call analyze_pptx_template on that deck to get its "style_guide", then call this ' +
-        'tool WITHOUT sample_path, passing style_guide.suggested.{primary,accent,font,font_kr} as ' +
-        'primary/accent/font/font_kr and slide_size.aspect as `aspect`, and author slides/body ' +
-        "blocks that fit the template's conventions. This rebuilds a fresh deck in the template's " +
-        'colors/fonts via python-pptx — robust, and the way to actually match an in-house look.\n\n' +
-        'EXACT 1:1 CLONE (only if a pixel replica is required): pass "sample_path" (the file ' +
-        'carries the design; reading it only extracts text). The tool opens it through PowerPoint ' +
-        '(DRM-protected in-house files work), CLONES the best-matching slide, CLEARS all original ' +
-        'text (incl. inside groups/tables/SmartArt) and writes yours in. Per slide set ' +
-        'mode="reuse"+sample_slide_index, or — after analyze_pptx_template — "regions": ' +
-        '[{ id, text|bullets }] to place text by region id. Cloning can break on complex ' +
-        'templates; prefer the re-author flow above. The sample path is Windows + PowerPoint only.' +
-        '\n\nThe deck is saved (default under <workspace>/openrnd-ppt/) and opened.',
+        'TO MATCH AN EXISTING IN-HOUSE DECK: pass its path as "sample_path" and provide your ' +
+        'content as slides (title + body blocks / bullets). The tool opens the template through ' +
+        'PowerPoint (DRM-protected in-house files work) and, per slide, ADDS A FRESH SLIDE BUILT ' +
+        "FROM THE TEMPLATE'S OWN LAYOUT (slide master) and fills its placeholders — the new slide " +
+        'inherits the template background, logo, fonts and bullet styles, the way a template is ' +
+        'meant to be used. It does NOT clone/text-replace the example slides by default (that was ' +
+        "brittle). Rich body blocks are flattened into the template's styled body placeholder so " +
+        'nothing is lost. (DRM blocks python-pptx from reading the file, so this path runs through ' +
+        'PowerPoint and is Windows-only.)\n\n' +
+        'ADVANCED: for an EXACT 1:1 clone of a specific example slide, set mode="reuse" + ' +
+        'sample_slide_index (optionally "regions" from analyze_pptx_template to place text by ' +
+        'region id). For a python-pptx rebuild WITHOUT the file (no PowerPoint), call ' +
+        'analyze_pptx_template for a style_guide and pass its suggested primary/accent/font/' +
+        'font_kr/aspect here with NO sample_path.\n\n' +
+        'The deck is saved (default under <workspace>/openrnd-ppt/) and opened.',
       Kind.Other,
       {
         type: 'object',
