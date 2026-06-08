@@ -248,6 +248,169 @@ def analyze_slide(slide, idx, sw, sh):
     }
 
 
+# --- style guide extraction -------------------------------------------------
+# The headline output for the "understand the template, then re-author" flow:
+# the theme palette, fonts, slide aspect, and layout names. python-pptx can then
+# rebuild a fresh deck in the template's colors/fonts (no fragile cloning).
+
+# MsoThemeColorSchemeIndex (1-based)
+THEME_COLOR_NAMES = {
+    1: "dk1", 2: "lt1", 3: "dk2", 4: "lt2",
+    5: "accent1", 6: "accent2", 7: "accent3", 8: "accent4",
+    9: "accent5", 10: "accent6", 11: "hyperlink", 12: "followed_hyperlink",
+}
+ppTitleStyle = 1
+ppBodyStyle = 2
+
+
+def _color_hex(ole_rgb):
+    # Office OLE color is 0xBBGGRR; convert to RRGGBB hex.
+    try:
+        v = int(ole_rgb)
+    except Exception:
+        return None
+    r = v & 0xFF
+    g = (v >> 8) & 0xFF
+    b = (v >> 16) & 0xFF
+    return "%02X%02X%02X" % (r, g, b)
+
+
+def _theme_palette(pres):
+    palette = {}
+    try:
+        scheme = pres.SlideMaster.Theme.ThemeColorScheme
+    except Exception as exc:
+        warn("theme color scheme unavailable: %s" % exc)
+        scheme = None
+    if scheme is not None:
+        for i, name in THEME_COLOR_NAMES.items():
+            try:
+                hexv = _color_hex(scheme.Colors(i).RGB)
+                if hexv:
+                    palette[name] = hexv
+            except Exception:
+                pass
+    if not palette:
+        # Legacy fallback: the master's color scheme.
+        try:
+            cs = pres.SlideMaster.ColorScheme
+            for i in range(1, 9):
+                hexv = _color_hex(cs.Colors(i).RGB)
+                if hexv:
+                    palette["scheme%d" % i] = hexv
+        except Exception as exc:
+            warn("legacy color scheme unavailable: %s" % exc)
+    return palette
+
+
+def _theme_fonts(pres):
+    fonts = {}
+    # Preferred: the theme font scheme (major = headings, minor = body).
+    try:
+        fs = pres.SlideMaster.Theme.ThemeFontScheme
+        for key, coll in (("major", fs.MajorFont), ("minor", fs.MinorFont)):
+            # Item indices: 1 = Latin, 2 = East Asian (script order varies by
+            # version; read defensively and keep whatever is non-empty).
+            for idx, label in ((1, "latin"), (2, "ea")):
+                try:
+                    nm = coll.Item(idx).Name
+                    if nm:
+                        fonts["%s_%s" % (key, label)] = nm
+                except Exception:
+                    pass
+    except Exception as exc:
+        warn("theme font scheme unavailable: %s" % exc)
+    # Reliable fallback / cross-check: the master's title & body text styles.
+    try:
+        for style_id, label in ((ppTitleStyle, "title"), (ppBodyStyle, "body")):
+            try:
+                font = pres.SlideMaster.TextStyles(style_id).Levels(1).Font
+                nm = font.Name
+                if nm:
+                    fonts["%s_latin" % label] = nm
+                try:
+                    ea = font.NameFarEast
+                    if ea:
+                        fonts["%s_ea" % label] = ea
+                except Exception:
+                    pass
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return fonts
+
+
+def _slide_size(pres):
+    try:
+        w = float(pres.PageSetup.SlideWidth) / 72.0
+        h = float(pres.PageSetup.SlideHeight) / 72.0
+    except Exception:
+        return {}
+    ratio = (w / h) if h else 0
+    aspect = "16:9" if abs(ratio - (16.0 / 9.0)) < 0.05 else (
+        "4:3" if abs(ratio - (4.0 / 3.0)) < 0.05 else "%.2f:1" % ratio)
+    return {"width_in": round(w, 3), "height_in": round(h, 3), "aspect": aspect}
+
+
+def _layout_names(pres):
+    names = []
+    try:
+        layouts = pres.SlideMaster.CustomLayouts
+        for i in range(1, layouts.Count + 1):
+            try:
+                names.append(layouts.Item(i).Name or "")
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return names
+
+
+def _suggest_brand(palette, fonts):
+    """Pick a sensible primary (dark brand) + accent (highlight) and body fonts
+    for the python-pptx generator. The model can override from the full palette."""
+    primary = palette.get("dk2") or palette.get("accent1") or palette.get("dk1")
+    accent = palette.get("accent1") or palette.get("accent2") or palette.get("dk2")
+    font = fonts.get("minor_latin") or fonts.get("body_latin") or fonts.get("major_latin")
+    font_kr = (fonts.get("minor_ea") or fonts.get("body_ea")
+               or fonts.get("major_ea") or fonts.get("title_ea"))
+    out = {}
+    if primary:
+        out["primary"] = primary
+    if accent:
+        out["accent"] = accent
+    if font:
+        out["font"] = font
+    if font_kr:
+        out["font_kr"] = font_kr
+    return out
+
+
+def build_style_guide(pres, slides_out):
+    palette = _theme_palette(pres)
+    fonts = _theme_fonts(pres)
+    size = _slide_size(pres)
+    suggested = _suggest_brand(palette, fonts)
+    n_table = sum(1 for s in slides_out if s.get("has_table"))
+    n_pic = sum(1 for s in slides_out if s.get("has_picture"))
+    notes = ["슬라이드 %d장" % len(slides_out)]
+    if size.get("aspect"):
+        notes.append("비율 %s" % size["aspect"])
+    if n_table:
+        notes.append("표 포함 %d장" % n_table)
+    if n_pic:
+        notes.append("이미지 포함 %d장" % n_pic)
+    return {
+        "palette": palette,
+        "fonts": fonts,
+        "slide_size": size,
+        "layouts": _layout_names(pres),
+        "suggested": suggested,
+        "design_notes": ", ".join(notes),
+    }
+
+
 def main():
     _utf8()
     if len(sys.argv) < 2:
@@ -268,6 +431,7 @@ def main():
     ppt = win32com.client.DispatchEx("PowerPoint.Application")
     pres = None
     slides_out = []
+    style_guide = {}
     try:
         pres = ppt.Presentations.Open(sample, ReadOnly=True, WithWindow=False)
         try:
@@ -282,6 +446,10 @@ def main():
             except Exception as exc:
                 warn("slide %d: %s" % (i, exc))
                 slides_out.append({"index": i, "layout_name": "", "summary": "분석 실패", "regions": []})
+        try:
+            style_guide = build_style_guide(pres, slides_out)
+        except Exception as exc:
+            warn("style_guide: %s" % exc)
         pres.Close()
     except Exception as exc:
         sys.stderr.write("PPTX_ANALYZE_ERROR: %s\n" % exc)
@@ -304,6 +472,7 @@ def main():
     print(json.dumps({
         "sample_path": sample,
         "slide_count": len(slides_out),
+        "style_guide": style_guide,
         "slides": slides_out,
         "warnings": WARN,
     }, ensure_ascii=False))
@@ -469,14 +638,19 @@ class AnalyzePptxInvocation extends BaseToolInvocation<
       }
 
       return {
-        // Hand the full structured analysis back to the model so it can pick a
-        // slide per content slide and map new content to specific region ids.
+        // Hand the full structured analysis (style_guide + per-slide regions)
+        // back to the model. Preferred flow: re-author a fresh deck in the
+        // template's colors/fonts rather than cloning.
         llmContent:
           `PowerPoint template analysis for ${samplePath}\n` +
-          'Use this to choose, per output slide, a sample slide to reuse: call create_pptx ' +
-          'with sample_path set, and for each slide set mode="reuse", sample_slide_index to the ' +
-          'chosen slide index, and "regions" mapping each region id to the new content. Any ' +
-          'region you omit is left blank; all original text is cleared automatically.\n\n' +
+          'RECOMMENDED: re-author a fresh deck in this template\'s style. Read "style_guide" ' +
+          '(palette, fonts, slide_size, layouts, and a "suggested" {primary, accent, font, ' +
+          'font_kr}). Then call create_pptx WITHOUT sample_path, passing style_guide.suggested ' +
+          'values as primary/accent/font/font_kr (+ aspect from slide_size), and author ' +
+          "slides/body blocks that match the template's conventions (e.g. columns for " +
+          'comparison-heavy decks, process/timeline for sequences). This builds with ' +
+          'python-pptx and is robust. (Only use the clone path — create_pptx WITH sample_path ' +
+          'and per-slide "regions" — when an exact 1:1 replica is required.)\n\n' +
           JSON.stringify(parsed),
         returnDisplay: `🔍 양식 분석 완료 — \`${samplePath}\` (슬라이드 ${slideCount ?? '?'}장)`,
       };
@@ -513,18 +687,20 @@ export class AnalyzePptxTool extends BaseDeclarativeTool<
     super(
       AnalyzePptxTool.Name,
       ANALYZE_PPTX_DISPLAY_NAME,
-      'Analyze an existing PowerPoint deck (.ppt/.pptx) to understand its per-slide design before ' +
-        'cloning it with create_pptx. Returns, for each slide: its layout name, a short summary, ' +
-        'shape-kind flags (table/picture/chart/SmartArt), and the list of fillable TEXT REGIONS — ' +
-        'each with a stable structural-path id (e.g. "3", "3.2", "5.r2c1"), a guessed role ' +
-        '(title/subtitle/body/footer/table_cell), a bounding box (fractions of the slide), the ' +
-        "region's current sample text, and whether it is a bullet list. Use this as STEP 1 when a " +
-        'user provides a sample deck to match: read the regions, decide which slide to reuse for ' +
-        'each output slide, then call create_pptx (STEP 2) with sample_path + per-slide ' +
-        'mode="reuse" + sample_slide_index + a "regions" map (region id → new text/bullets). ' +
-        'The build clears ALL original text (including inside groups, tables, and SmartArt) and ' +
-        'writes your content into the regions you specify. Windows + PowerPoint only (in-house ' +
-        'DRM-protected files are supported because the deck is opened through PowerPoint).',
+      'Analyze an existing PowerPoint deck (.ppt/.pptx) to understand its design, then RE-AUTHOR a ' +
+        'fresh deck in that style with create_pptx. Returns a "style_guide" (the headline output): ' +
+        'the theme "palette" (named RRGGBB colors), "fonts" (heading/body, latin + East-Asian), ' +
+        '"slide_size" (width/height + aspect), the master "layouts" names, and a "suggested" ' +
+        '{primary, accent, font, font_kr} ready to pass straight to create_pptx. Also returns, per ' +
+        'slide, its layout name, a summary, shape-kind flags, and the fillable TEXT REGIONS (each ' +
+        'with a structural-path id, role, bbox, and current text). RECOMMENDED flow when a user ' +
+        'provides a sample deck to match: STEP 1 call this; STEP 2 call create_pptx WITHOUT ' +
+        'sample_path, passing style_guide.suggested as primary/accent/font/font_kr (+ aspect from ' +
+        "slide_size) and authoring slides/body blocks that fit the template's conventions. That " +
+        'rebuilds with python-pptx and is robust. (The per-slide regions support an alternative ' +
+        'EXACT-CLONE flow — create_pptx WITH sample_path + "regions" — only when a 1:1 replica is ' +
+        'required.) Windows + PowerPoint only (in-house DRM-protected files are supported because ' +
+        'the deck is opened through PowerPoint).',
       Kind.Other,
       {
         type: 'object',

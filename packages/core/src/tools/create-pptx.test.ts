@@ -423,6 +423,38 @@ describe('CreatePptxTool', () => {
     });
   });
 
+  it('forwards template style (font/aspect) into the consulting spec', async () => {
+    setPlatform('darwin'); // no sample → python-pptx path, runs anywhere
+    const { result, spec } = await run({
+      slides: [{ layout: 'title', title: '양식 맞춤 보고서' }],
+      primary: '1A2B3C',
+      accent: 'C03020',
+      font: 'Malgun Gothic',
+      font_kr: 'HY중고딕',
+      aspect: '4:3',
+    });
+    expect(result.error).toBeUndefined();
+    expect(spec).toMatchObject({
+      primary: '1A2B3C',
+      accent: 'C03020',
+      font: 'Malgun Gothic',
+      font_kr: 'HY중고딕',
+      aspect: '4:3',
+    });
+  });
+
+  it('exposes font/font_kr/aspect in the tool schema', () => {
+    const tool = makeTool();
+    const schema = tool.schema.parametersJsonSchema as {
+      properties: Record<string, unknown>;
+    };
+    expect(Object.keys(schema.properties)).toEqual(
+      expect.arrayContaining(['font', 'font_kr', 'aspect']),
+    );
+    const aspect = schema.properties['aspect'] as { enum?: string[] };
+    expect(aspect.enum).toEqual(['16:9', '4:3']);
+  });
+
   it('coerces a string-encoded regions array and nested region bullets', async () => {
     const { result, spec } = await run({
       slides: [

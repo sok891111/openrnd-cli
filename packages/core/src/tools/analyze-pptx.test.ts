@@ -80,6 +80,19 @@ describe('AnalyzePptxTool', () => {
     spawnState.stdout = JSON.stringify({
       sample_path: '/samples/inhouse.pptx',
       slide_count: 1,
+      style_guide: {
+        palette: { dk2: '1A2B3C', accent1: 'C03020' },
+        fonts: { minor_latin: 'Malgun Gothic', minor_ea: 'HY중고딕' },
+        slide_size: { width_in: 10, height_in: 7.5, aspect: '4:3' },
+        layouts: ['제목 슬라이드', '제목 및 내용'],
+        suggested: {
+          primary: '1A2B3C',
+          accent: 'C03020',
+          font: 'Malgun Gothic',
+          font_kr: 'HY중고딕',
+        },
+        design_notes: '슬라이드 1장, 비율 4:3',
+      },
       slides: [
         {
           index: 1,
@@ -125,6 +138,9 @@ describe('AnalyzePptxTool', () => {
     expect(spawnState.calls[0].args[1]).toBe('/samples/inhouse.pptx');
     expect(String(result.llmContent)).toContain('"id":"1"');
     expect(String(result.llmContent)).toContain('create_pptx');
+    // The style_guide (the headline re-author output) is passed through verbatim.
+    expect(String(result.llmContent)).toContain('style_guide');
+    expect(String(result.llmContent)).toContain('Malgun Gothic');
   });
 
   it('only runs on Windows', async () => {

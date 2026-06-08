@@ -189,6 +189,22 @@ export interface CreatePptxParams {
   primary?: string;
   /** Optional brand accent color (hex, e.g. "2E75B6") for the consulting style. */
   accent?: string;
+  /**
+   * Latin/heading font for the consulting style (e.g. from a sample's
+   * style_guide). Defaults to "Calibri". Applies only without a sample.
+   */
+  font?: string;
+  /**
+   * East-Asian (Korean) font for the consulting style (e.g. from a sample's
+   * style_guide). Defaults to "맑은 고딕". Applies only without a sample.
+   */
+  font_kr?: string;
+  /** Slide aspect for the consulting style: "16:9" (default) or "4:3". */
+  aspect?: '16:9' | '4:3';
+  /** Explicit slide width in inches (overrides `aspect`). */
+  slide_width_in?: number;
+  /** Explicit slide height in inches (overrides `aspect`). */
+  slide_height_in?: number;
   /** Open the generated deck in PowerPoint when done. Default: true. */
   open?: boolean;
   /** Max build time in seconds (default 180, max 600). */
@@ -1332,12 +1348,29 @@ def main():
     C_WHITE = RGBColor(0xFF, 0xFF, 0xFF)
     C_SUBTLE = RGBColor(0xD0, 0xD8, 0xE8)
 
-    FONT = "Calibri"
-    FONT_KR = "맑은 고딕"
+    # Fonts: honor the template-derived fonts (from analyze_pptx_template's
+    # style_guide) when supplied, else the consulting defaults.
+    FONT = spec.get("font") or "Calibri"
+    FONT_KR = spec.get("font_kr") or "맑은 고딕"
 
     prs = Presentation()
-    prs.slide_width = Inches(13.333)
-    prs.slide_height = Inches(7.5)
+    # Slide size: honor the template's aspect/size when supplied so the rebuilt
+    # deck matches (e.g. 4:3 templates), else default to 16:9.
+    def _dim(key, default_in):
+        try:
+            v = float(spec.get(key))
+            if v > 0:
+                return Inches(v)
+        except Exception:
+            pass
+        return default_in
+    aspect = (spec.get("aspect") or "").strip()
+    if aspect == "4:3":
+        def_w, def_h = Inches(10.0), Inches(7.5)
+    else:
+        def_w, def_h = Inches(13.333), Inches(7.5)
+    prs.slide_width = _dim("slide_width_in", def_w)
+    prs.slide_height = _dim("slide_height_in", def_h)
     SW = prs.slide_width
     SH = prs.slide_height
     BLANK = prs.slide_layouts[6]
@@ -1893,6 +1926,11 @@ class CreatePptxInvocation extends BaseToolInvocation<
           footer: this.params.footer ?? null,
           accent: this.params.accent ?? null,
           primary: this.params.primary ?? null,
+          font: this.params.font ?? null,
+          font_kr: this.params.font_kr ?? null,
+          aspect: this.params.aspect ?? null,
+          slide_width_in: this.params.slide_width_in ?? null,
+          slide_height_in: this.params.slide_height_in ?? null,
         }),
         'utf-8',
       );
@@ -2191,20 +2229,20 @@ export class CreatePptxTool extends BaseDeclarativeTool<
         '"takeaway" (so-what) per slide; (4) open with a layout="title" cover and use ' +
         'layout="section" dividers between parts. Optional brand colors via "primary"/"accent" ' +
         '(hex), and a "footer" label.\n\n' +
-        'WITH a sample (match an existing in-house deck): you MUST pass its path as "sample_path" ' +
-        '(do NOT just read it — the file carries the design). This holds EVEN IF the deck was ' +
-        'already read (e.g. via an @-mention of its path): reading only extracts text and does ' +
-        'NOT transfer the design (master/layouts/theme/shapes live in the file), so you must still ' +
-        'put that same path in "sample_path" on THIS call. Omitting it silently falls back to the ' +
-        'default template. The tool opens the sample through PowerPoint (so DRM-protected in-house ' +
-        'files work) and CLONES the best-matching sample slide, then CLEARS ALL of its original ' +
-        'text (including text inside groups, tables, and SmartArt) and writes your content in. ' +
-        'Per slide you can set mode="reuse" + sample_slide_index, or mode="themed_new". For ' +
-        'PRECISE control over which shape gets which text, FIRST call analyze_pptx_template on ' +
-        "the same sample to get each slide's text regions (with structural-path ids), then on " +
-        'each slide here set "regions": [{ id, text|bullets }] mapping those ids to new content ' +
-        '(any region you omit is left blank). The sample path is Windows + PowerPoint only.\n\n' +
-        'The deck is saved (default under <workspace>/openrnd-ppt/) and opened.',
+        'TO MATCH AN EXISTING IN-HOUSE DECK (recommended): do NOT pass sample_path here. Instead ' +
+        'FIRST call analyze_pptx_template on that deck to get its "style_guide", then call this ' +
+        'tool WITHOUT sample_path, passing style_guide.suggested.{primary,accent,font,font_kr} as ' +
+        'primary/accent/font/font_kr and slide_size.aspect as `aspect`, and author slides/body ' +
+        "blocks that fit the template's conventions. This rebuilds a fresh deck in the template's " +
+        'colors/fonts via python-pptx — robust, and the way to actually match an in-house look.\n\n' +
+        'EXACT 1:1 CLONE (only if a pixel replica is required): pass "sample_path" (the file ' +
+        'carries the design; reading it only extracts text). The tool opens it through PowerPoint ' +
+        '(DRM-protected in-house files work), CLONES the best-matching slide, CLEARS all original ' +
+        'text (incl. inside groups/tables/SmartArt) and writes yours in. Per slide set ' +
+        'mode="reuse"+sample_slide_index, or — after analyze_pptx_template — "regions": ' +
+        '[{ id, text|bullets }] to place text by region id. Cloning can break on complex ' +
+        'templates; prefer the re-author flow above. The sample path is Windows + PowerPoint only.' +
+        '\n\nThe deck is saved (default under <workspace>/openrnd-ppt/) and opened.',
       Kind.Other,
       {
         type: 'object',
@@ -2475,6 +2513,34 @@ export class CreatePptxTool extends BaseDeclarativeTool<
             description:
               'Optional brand accent color as a hex string (e.g. "2E75B6") for the consulting ' +
               'style. Defaults to a blue.',
+          },
+          font: {
+            type: 'string',
+            description:
+              'Latin/heading font for the consulting style — pass style_guide.suggested.font ' +
+              'from analyze_pptx_template to match a template. Defaults to "Calibri". No sample.',
+          },
+          font_kr: {
+            type: 'string',
+            description:
+              'East-Asian (Korean) font for the consulting style — pass ' +
+              'style_guide.suggested.font_kr to match a template. Defaults to "맑은 고딕". No sample.',
+          },
+          aspect: {
+            type: 'string',
+            enum: ['16:9', '4:3'],
+            description:
+              "Slide aspect for the consulting style: '16:9' (default) or '4:3'. Pass the " +
+              "template's slide_size.aspect from analyze_pptx_template.",
+          },
+          slide_width_in: {
+            type: 'number',
+            description: 'Explicit slide width in inches (overrides `aspect`).',
+          },
+          slide_height_in: {
+            type: 'number',
+            description:
+              'Explicit slide height in inches (overrides `aspect`).',
           },
           open: {
             type: 'boolean',
