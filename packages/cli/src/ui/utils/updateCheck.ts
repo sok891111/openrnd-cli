@@ -36,6 +36,23 @@ export interface UpdateObject {
 }
 
 /**
+ * Resolves the npm registry URL to use for auto-update version checks and
+ * installs. The OPENRND_UPDATE_REGISTRY environment variable takes precedence
+ * over the `general.updateRegistry` setting. Returns undefined to use the
+ * default npm registry.
+ */
+export function getUpdateRegistry(
+  settings: LoadedSettings,
+): string | undefined {
+  const fromEnv = process.env['OPENRND_UPDATE_REGISTRY']?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+  const fromSettings = settings.merged.general?.updateRegistry?.trim();
+  return fromSettings || undefined;
+}
+
+/**
  * From a nightly and stable version, determines which is the "best" one to offer.
  * The rule is to always prefer nightly if the base versions are the same.
  */
@@ -72,11 +89,12 @@ export async function checkForUpdates(
     const { name, version: currentVersion } = packageJson;
     const currentChannel = getChannelFromVersion(currentVersion);
     const isNightly = currentVersion.includes('nightly');
+    const registryUrl = getUpdateRegistry(settings);
 
     if (isNightly) {
       const [nightlyUpdate, latestUpdate] = await Promise.all([
-        latestVersion(name, { version: 'nightly' }),
-        latestVersion(name),
+        latestVersion(name, { version: 'nightly', registryUrl }),
+        latestVersion(name, { registryUrl }),
       ]);
 
       const bestUpdate = getBestAvailableUpdate(nightlyUpdate, latestUpdate);
@@ -95,7 +113,7 @@ export async function checkForUpdates(
         };
       }
     } else {
-      const latestUpdate = await latestVersion(name);
+      const latestUpdate = await latestVersion(name, { registryUrl });
       if (!latestUpdate) {
         return null;
       }

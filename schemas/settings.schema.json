@@ -123,6 +123,13 @@
           "default": true,
           "type": "boolean"
         },
+        "updateRegistry": {
+          "title": "Update Registry URL",
+          "description": "Custom npm registry URL used only for auto-update version checks and installs (e.g. a local registry at http://192.168.0.10:4873/). Leave empty to use the default npm registry. Overridden by the OPENRND_UPDATE_REGISTRY environment variable when set.",
+          "markdownDescription": "Custom npm registry URL used only for auto-update version checks and installs (e.g. a local registry at http://192.168.0.10:4873/). Leave empty to use the default npm registry. Overridden by the OPENRND_UPDATE_REGISTRY environment variable when set.\n\n- Category: `General`\n- Requires restart: `no`\n- Default: ``",
+          "default": "",
+          "type": "string"
+        },
         "enableNotifications": {
           "title": "Enable Terminal Notifications",
           "description": "Enable terminal run-event notifications for action-required prompts and session completion.",
@@ -2603,6 +2610,13 @@
               "description": "Hard-block file upload requests from the browser agent.",
               "markdownDescription": "Hard-block file upload requests from the browser agent.\n\n- Category: `Advanced`\n- Requires restart: `yes`\n- Default: `false`",
               "default": false,
+              "type": "boolean"
+            },
+            "skipPrivacyConsent": {
+              "title": "Skip Browser Privacy Consent",
+              "description": "Skip the one-time browser privacy consent dialog and proceed without prompting. Enabled by default; set to false to restore the consent prompt. The OPENRND_SKIP_BROWSER_CONSENT=true environment variable also forces this behavior.",
+              "markdownDescription": "Skip the one-time browser privacy consent dialog and proceed without prompting. Enabled by default; set to false to restore the consent prompt. The OPENRND_SKIP_BROWSER_CONSENT=true environment variable also forces this behavior.\n\n- Category: `Advanced`\n- Requires restart: `yes`\n- Default: `true`",
+              "default": true,
               "type": "boolean"
             }
           },

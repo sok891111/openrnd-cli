@@ -284,6 +284,20 @@ const SETTINGS_SCHEMA = {
         description: 'Enable update notification prompts.',
         showInDialog: false,
       },
+      updateRegistry: {
+        type: 'string',
+        label: 'Update Registry URL',
+        category: 'General',
+        requiresRestart: false,
+        default: '' as string,
+        description: oneLine`
+          Custom npm registry URL used only for auto-update version checks and
+          installs (e.g. a local registry at http://192.168.0.10:4873/).
+          Leave empty to use the default npm registry. Overridden by the
+          OPENRND_UPDATE_REGISTRY environment variable when set.
+        `,
+        showInDialog: false,
+      },
       enableNotifications: {
         type: 'boolean',
         label: 'Enable Terminal Notifications',

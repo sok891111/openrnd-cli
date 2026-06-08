@@ -115,6 +115,52 @@ describe('checkForUpdates', () => {
     expect(result?.update.name).toEqual('test-package');
   });
 
+  it('should pass a custom registry URL from settings to latestVersion', async () => {
+    mockSettings.merged.general.updateRegistry = 'http://192.168.0.10:4873/';
+    getPackageJson.mockResolvedValue({
+      name: 'test-package',
+      version: '1.0.0',
+    });
+    latestVersion.mockResolvedValue('1.1.0');
+
+    await checkForUpdates(mockSettings);
+
+    expect(latestVersion).toHaveBeenCalledWith('test-package', {
+      registryUrl: 'http://192.168.0.10:4873/',
+    });
+  });
+
+  it('should prefer OPENRND_UPDATE_REGISTRY over the setting', async () => {
+    mockSettings.merged.general.updateRegistry = 'http://from-settings/';
+    process.env['OPENRND_UPDATE_REGISTRY'] = 'http://from-env/';
+    getPackageJson.mockResolvedValue({
+      name: 'test-package',
+      version: '1.0.0',
+    });
+    latestVersion.mockResolvedValue('1.1.0');
+
+    await checkForUpdates(mockSettings);
+
+    expect(latestVersion).toHaveBeenCalledWith('test-package', {
+      registryUrl: 'http://from-env/',
+    });
+    delete process.env['OPENRND_UPDATE_REGISTRY'];
+  });
+
+  it('should pass registryUrl undefined when no custom registry is set', async () => {
+    getPackageJson.mockResolvedValue({
+      name: 'test-package',
+      version: '1.0.0',
+    });
+    latestVersion.mockResolvedValue('1.0.0');
+
+    await checkForUpdates(mockSettings);
+
+    expect(latestVersion).toHaveBeenCalledWith('test-package', {
+      registryUrl: undefined,
+    });
+  });
+
   it('should return null if the latest version is the same as the current version', async () => {
     getPackageJson.mockResolvedValue({
       name: 'test-package',

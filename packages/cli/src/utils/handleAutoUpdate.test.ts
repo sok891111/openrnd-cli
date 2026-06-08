@@ -357,6 +357,29 @@ describe('handleAutoUpdate', () => {
     );
   });
 
+  it('should append --registry when a custom update registry is configured', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (mockSettings.merged.general as any).updateRegistry =
+      'http://192.168.0.10:4873/';
+    mockGetInstallationInfo.mockReturnValue({
+      updateCommand: 'npm install -g @openrnd/cli@latest',
+      updateMessage: 'This is an additional message.',
+      isGlobal: true,
+      packageManager: PackageManager.NPM,
+    });
+
+    handleAutoUpdate(mockUpdateInfo, mockSettings, '/root', false, mockSpawn);
+
+    expect(mockSpawn).toHaveBeenCalledWith(
+      'npm install -g @openrnd/cli@2.0.0 --registry http://192.168.0.10:4873/',
+      {
+        shell: true,
+        stdio: 'ignore',
+        detached: true,
+      },
+    );
+  });
+
   it('should NOT update if target is less stable than current (defense-in-depth)', async () => {
     mockUpdateInfo = {
       ...mockUpdateInfo,

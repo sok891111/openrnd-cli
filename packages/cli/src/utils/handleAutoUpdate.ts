@@ -4,7 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { UpdateObject } from '../ui/utils/updateCheck.js';
+import {
+  type UpdateObject,
+  getUpdateRegistry,
+} from '../ui/utils/updateCheck.js';
 import type { LoadedSettings } from '../config/settings.js';
 import { getInstallationInfo, PackageManager } from './installationInfo.js';
 import { updateEventEmitter } from './updateEventEmitter.js';
@@ -148,10 +151,17 @@ export function handleAutoUpdate(
 
   const isNightly = info.update.latest.includes('nightly');
 
-  const updateCommand = installationInfo.updateCommand.replace(
+  let updateCommand = installationInfo.updateCommand.replace(
     '@latest',
     isNightly ? '@nightly' : `@${info.update.latest}`,
   );
+
+  // Route the install through a custom registry (e.g. a local registry) when
+  // configured, so it matches the registry used for the version check.
+  const registryUrl = getUpdateRegistry(settings);
+  if (registryUrl) {
+    updateCommand += ` --registry ${registryUrl}`;
+  }
   const updateProcess = spawnFn(updateCommand, {
     stdio: 'ignore',
     shell: true,

@@ -135,6 +135,13 @@ their corresponding top-level category object in your `settings.json` file.
   - **Description:** Enable DevTools inspector on launch.
   - **Default:** `false`
 
+- **`general.debugLogging`** (boolean):
+  - **Description:** Write verbose LLM/provider debug logs to
+    ~/.openrnd/debug.log. Overridden by the OPENRND_DEBUG environment variable
+    when set (OPENRND_DEBUG=true/false).
+  - **Default:** `false`
+  - **Requires restart:** Yes
+
 - **`general.enableAutoUpdate`** (boolean):
   - **Description:** Enable automatic updates.
   - **Default:** `true`
@@ -142,6 +149,13 @@ their corresponding top-level category object in your `settings.json` file.
 - **`general.enableAutoUpdateNotification`** (boolean):
   - **Description:** Enable update notification prompts.
   - **Default:** `true`
+
+- **`general.updateRegistry`** (string):
+  - **Description:** Custom npm registry URL used only for auto-update version
+    checks and installs (e.g. a local registry at http://192.168.0.10:4873/).
+    Leave empty to use the default npm registry. Overridden by the
+    OPENRND_UPDATE_REGISTRY environment variable when set.
+  - **Default:** `""`
 
 - **`general.enableNotifications`** (boolean):
   - **Description:** Enable terminal run-event notifications for action-required
@@ -439,7 +453,7 @@ their corresponding top-level category object in your `settings.json` file.
 
 - **`privacy.usageStatisticsEnabled`** (boolean):
   - **Description:** Enable collection of usage statistics
-  - **Default:** `true`
+  - **Default:** `false`
   - **Requires restart:** Yes
 
 #### `billing`
@@ -1414,7 +1428,7 @@ their corresponding top-level category object in your `settings.json` file.
 
 - **`agents.browser.sessionMode`** (enum):
   - **Description:** Session mode: 'persistent', 'isolated', or 'existing'.
-  - **Default:** `"persistent"`
+  - **Default:** `"existing"`
   - **Values:** `"persistent"`, `"isolated"`, `"existing"`
   - **Requires restart:** Yes
 
@@ -1463,6 +1477,14 @@ their corresponding top-level category object in your `settings.json` file.
 - **`agents.browser.blockFileUploads`** (boolean):
   - **Description:** Hard-block file upload requests from the browser agent.
   - **Default:** `false`
+  - **Requires restart:** Yes
+
+- **`agents.browser.skipPrivacyConsent`** (boolean):
+  - **Description:** Skip the one-time browser privacy consent dialog and
+    proceed without prompting. Enabled by default; set to false to restore the
+    consent prompt. The OPENRND_SKIP_BROWSER_CONSENT=true environment variable
+    also forces this behavior.
+  - **Default:** `true`
   - **Requires restart:** Yes
 
 #### `context`
@@ -2154,6 +2176,26 @@ their corresponding top-level category object in your `settings.json` file.
 - **`admin.skills.enabled`** (boolean):
   - **Description:** If false, disallows agent skills from being used.
   - **Default:** `true`
+
+#### `llm`
+
+- **`llm.baseUrl`** (string):
+  - **Description:** Base URL for the OpenAI-compatible API endpoint. Example:
+    https://api.openai.com/v1 or http://localhost:11434/v1
+  - **Default:** `undefined`
+  - **Requires restart:** Yes
+
+- **`llm.model`** (string):
+  - **Description:** Model name to use. Example: gpt-4o, llama3.2,
+    claude-3-5-sonnet.
+  - **Default:** `undefined`
+  - **Requires restart:** Yes
+
+- **`llm.apiKey`** (string):
+  - **Description:** API key for the LLM service. For Ollama, use "ollama". For
+    OpenAI, use your API key.
+  - **Default:** `undefined`
+  - **Requires restart:** Yes
   <!-- SETTINGS-AUTOGEN:END -->
 
 #### `mcpServers`
