@@ -122,6 +122,9 @@ interface OpenAIChatRequest {
   tools?: OpenAITool[];
   tool_choice?: string;
   stream?: boolean;
+  // Ask the server to emit a final usage chunk while streaming. Without this,
+  // OpenAI-compatible servers omit token counts from the stream entirely.
+  stream_options?: { include_usage: boolean };
   temperature?: number;
   max_tokens?: number;
 }
@@ -162,6 +165,13 @@ interface OpenAIStreamChunk {
     };
     finish_reason: string | null;
   }>;
+  // Sent as the final stream chunk when stream_options.include_usage is set.
+  // This chunk typically has an empty `choices` array.
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -401,6 +411,12 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
       messages,
       stream,
     };
+
+    // While streaming, ask the server to include a final usage chunk so we can
+    // record token usage (otherwise streamed responses report 0 tokens).
+    if (stream) {
+      req.stream_options = { include_usage: true };
+    }
 
     if (tools && tools.length > 0) {
       req.tools = tools;
@@ -664,10 +680,26 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
               continue;
             }
 
+            // The final usage chunk (from stream_options.include_usage) carries
+            // token counts and usually has an empty `choices` array, so capture
+            // it before the no-choice skip below. Emitted as a usage-only
+            // response that downstream consumers record but render no content.
+            if (chunk.usage) {
+              yield makeGenerateContentResponse({
+                candidates: [],
+                usageMetadata: {
+                  promptTokenCount: chunk.usage.prompt_tokens,
+                  candidatesTokenCount: chunk.usage.completion_tokens,
+                  totalTokenCount: chunk.usage.total_tokens,
+                },
+                modelVersion: model,
+              });
+            }
+
             const choice = chunk.choices[0];
             if (!choice) {
               debugLog(
-                'WARN',
+                'DEBUG',
                 'generateContentStream → parsed chunk has no choices[0]',
                 { parsed: chunk },
               );
