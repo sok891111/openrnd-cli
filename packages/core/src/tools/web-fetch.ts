@@ -167,6 +167,48 @@ export function parsePrompt(text: string): {
 }
 
 /**
+ * Collects URLs from both the explicit `url` parameter and any URLs embedded in
+ * the `prompt` string.
+ *
+ * The non-direct (default) web_fetch schema only declares the `prompt`
+ * parameter, but some models emit the URL in a separate `url` field instead of
+ * embedding it in the prompt text. When that happens the prompt contains no
+ * URL and parsing it alone yields "must contain at least one valid URL", even
+ * though a perfectly valid URL was provided. Considering both sources makes the
+ * tool robust to either calling convention.
+ */
+export function collectUrlsFromParams(params: WebFetchToolParams): {
+  validUrls: string[];
+  errors: string[];
+} {
+  const validUrls: string[] = [];
+  const errors: string[] = [];
+
+  if (params.url) {
+    try {
+      const url = new URL(params.url);
+      if (['http:', 'https:'].includes(url.protocol)) {
+        validUrls.push(url.href);
+      } else {
+        errors.push(
+          `Unsupported protocol in URL: "${params.url}". Only http and https are supported.`,
+        );
+      }
+    } catch {
+      errors.push(`Malformed URL detected: "${params.url}".`);
+    }
+  }
+
+  if (params.prompt) {
+    const parsed = parsePrompt(params.prompt);
+    validUrls.push(...parsed.validUrls);
+    errors.push(...parsed.errors);
+  }
+
+  return { validUrls: [...new Set(validUrls)], errors };
+}
+
+/**
  * Safely converts a GitHub blob URL to a raw content URL.
  */
 export function convertGithubUrlToRaw(urlStr: string): string {
@@ -1118,16 +1160,10 @@ ${aggregatedContent}
   protected override async getConfirmationDetails(
     _abortSignal: AbortSignal,
   ): Promise<ToolCallConfirmationDetails | false> {
-    let urls: string[] = [];
-    let prompt = this.params.prompt || '';
-
-    if (this.params.url) {
-      urls = [this.params.url];
-      prompt = `Fetch ${this.params.url}`;
-    } else if (this.params.prompt) {
-      const { validUrls } = parsePrompt(this.params.prompt);
-      urls = validUrls;
-    }
+    const { validUrls } = collectUrlsFromParams(this.params);
+    let urls: string[] = validUrls;
+    const prompt =
+      this.params.prompt || (this.params.url ? `Fetch ${this.params.url}` : '');
 
     // Perform GitHub URL conversion here
     urls = urls.map((url) => convertGithubUrlToRaw(url));
@@ -1417,8 +1453,9 @@ Response: ${rawResponseText}`;
     if (this.context.config.getDirectWebFetch()) {
       return this.executeExperimental(signal);
     }
-    const userPrompt = this.params.prompt!;
-    const { validUrls } = parsePrompt(userPrompt);
+    const { validUrls } = collectUrlsFromParams(this.params);
+    const userPrompt =
+      this.params.prompt ?? (this.params.url ? `Fetch ${this.params.url}` : '');
 
     const { toFetch, skipped } = this.filterAndValidateUrls(validUrls);
 
@@ -1591,11 +1628,13 @@ export class WebFetchTool extends BaseDeclarativeTool<
       return null;
     }
 
-    if (!params.prompt || params.prompt.trim() === '') {
+    const hasPrompt = !!params.prompt && params.prompt.trim() !== '';
+    const hasUrl = !!params.url;
+    if (!hasPrompt && !hasUrl) {
       return "The 'prompt' parameter cannot be empty and must contain URL(s) and instructions.";
     }
 
-    const { validUrls, errors } = parsePrompt(params.prompt);
+    const { validUrls, errors } = collectUrlsFromParams(params);
 
     if (errors.length > 0) {
       return `Error(s) in prompt URLs:\n- ${errors.join('\n- ')}`;
@@ -1643,6 +1682,37 @@ export class WebFetchTool extends BaseDeclarativeTool<
         },
       };
     }
-    return schema;
+
+    // Non-direct (default) mode: the canonical contract is a single `prompt`
+    // string with the URL(s) embedded. However, some models emit the URL in a
+    // separate `url` field instead, which previously failed schema validation
+    // ("must have required property 'prompt'") or the URL parse ("must contain
+    // at least one valid URL"). Advertise `url` as an optional alternative and
+    // relax the hard `prompt` requirement; validateToolParamValues still
+    // guarantees at least one valid URL is supplied via either field.
+    const isRecord = (v: unknown): v is Record<string, unknown> =>
+      typeof v === 'object' && v !== null;
+    const baseParams = isRecord(schema.parametersJsonSchema)
+      ? schema.parametersJsonSchema
+      : {};
+    const baseProps = isRecord(baseParams['properties'])
+      ? baseParams['properties']
+      : {};
+    return {
+      ...schema,
+      parametersJsonSchema: {
+        type: 'object',
+        ...baseParams,
+        properties: {
+          ...baseProps,
+          url: {
+            type: 'string',
+            description:
+              'Optional single URL to fetch, as an alternative to embedding the URL in the prompt. Must be a valid http or https URL.',
+          },
+        },
+        required: [],
+      },
+    };
   }
 }

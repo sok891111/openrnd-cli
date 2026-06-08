@@ -359,6 +359,18 @@ describe('WebFetchTool', () => {
           tool.build({ prompt: 'fetch https://example.com' }),
         ).not.toThrow();
       });
+
+      it('should pass if URL is provided via the url param instead of prompt', () => {
+        const tool = new WebFetchTool(mockConfig, bus);
+        expect(() =>
+          tool.build({ prompt: 'summarize this', url: 'https://example.com' }),
+        ).not.toThrow();
+      });
+
+      it('should pass if only the url param is provided', () => {
+        const tool = new WebFetchTool(mockConfig, bus);
+        expect(() => tool.build({ url: 'https://example.com' })).not.toThrow();
+      });
     });
 
     describe('experimental mode', () => {
@@ -392,7 +404,10 @@ describe('WebFetchTool', () => {
       const tool = new WebFetchTool(mockConfig, bus);
       const schema = tool.getSchema();
       expect(schema.parametersJsonSchema).toHaveProperty('properties.prompt');
-      expect(schema.parametersJsonSchema).not.toHaveProperty('properties.url');
+      // `url` is advertised as an optional alternative to embedding the URL in
+      // the prompt, and `prompt` is no longer hard-required.
+      expect(schema.parametersJsonSchema).toHaveProperty('properties.url');
+      expect(schema.parametersJsonSchema).toHaveProperty('required', []);
     });
 
     it('should return experimental schema when enabled', () => {
@@ -1043,7 +1058,7 @@ describe('WebFetchTool', () => {
         type: 'info',
         title: 'Confirm Web Fetch',
         prompt: 'Fetch https://example.com',
-        urls: ['https://example.com'],
+        urls: ['https://example.com/'],
         onConfirm: expect.any(Function),
       });
     });
