@@ -6,7 +6,28 @@
 
 /* eslint-disable no-console */
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as util from 'node:util';
+import { Storage } from '../config/storage.js';
+import { isDebugLoggingEnabled } from './debugLogging.js';
+
+/**
+ * Resolves the debug log file path, or undefined if debug logging is off.
+ *
+ * Precedence:
+ *   1. GEMINI_DEBUG_LOG_FILE env var (explicit override, any path).
+ *   2. settings.general.debugLogging / OPENRND_DEBUG -> ~/.openrnd/debug.log.
+ */
+function resolveDebugLogFile(): string | undefined {
+  const explicit = process.env['GEMINI_DEBUG_LOG_FILE'];
+  if (explicit) {
+    return explicit;
+  }
+  if (isDebugLoggingEnabled()) {
+    return path.join(Storage.getGlobalGeminiDir(), 'debug.log');
+  }
+  return undefined;
+}
 
 /**
  * A simple, centralized logger for developer-facing debug messages.
@@ -22,26 +43,45 @@ import * as util from 'node:util';
  */
 class DebugLogger {
   private logStream: fs.WriteStream | undefined;
+  // The stream is opened lazily on first write rather than in the constructor.
+  // `debugLogger` is a module-level singleton and `resolveDebugLogFile()`
+  // touches `Storage`, which sits in an import cycle with this module
+  // (storage -> projectRegistry/storageMigration -> debugLogger). Deferring the
+  // access until first use sidesteps the temporal-dead-zone hazard.
+  private streamResolved = false;
 
-  constructor() {
-    this.logStream = process.env['GEMINI_DEBUG_LOG_FILE']
-      ? fs.createWriteStream(process.env['GEMINI_DEBUG_LOG_FILE'], {
-          flags: 'a',
-        })
-      : undefined;
-    // Handle potential errors with the stream
-    this.logStream?.on('error', (err) => {
-      // Log to console as a fallback, but don't crash the app
-      console.error('Error writing to debug log stream:', err);
-    });
+  private getLogStream(): fs.WriteStream | undefined {
+    if (this.streamResolved) {
+      return this.logStream;
+    }
+    this.streamResolved = true;
+    const logFile = resolveDebugLogFile();
+    if (logFile) {
+      try {
+        // The target directory (e.g. ~/.openrnd) may not exist yet on a fresh
+        // install; createWriteStream won't create it for us.
+        fs.mkdirSync(path.dirname(logFile), { recursive: true });
+        this.logStream = fs.createWriteStream(logFile, { flags: 'a' });
+        // Handle potential errors with the stream.
+        this.logStream.on('error', (err) => {
+          // Log to console as a fallback, but don't crash the app.
+          console.error('Error writing to debug log stream:', err);
+        });
+      } catch (err) {
+        // Never let a logging-setup failure crash the app.
+        console.error('Error opening debug log file:', err);
+      }
+    }
+    return this.logStream;
   }
 
   private writeToFile(level: string, args: unknown[]) {
-    if (this.logStream) {
+    const stream = this.getLogStream();
+    if (stream) {
       const message = util.format(...args);
       const timestamp = new Date().toISOString();
       const logEntry = `[${timestamp}] [${level}] ${message}\n`;
-      this.logStream.write(logEntry);
+      stream.write(logEntry);
     }
   }
 
