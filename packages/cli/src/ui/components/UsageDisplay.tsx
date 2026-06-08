@@ -71,6 +71,17 @@ export const UsageDisplay: React.FC<UsageDisplayProps> = ({ onExit }) => {
   const models = aggregates[activeTab];
   const rows = Object.entries(models).sort(([, a], [, b]) => b.total - a.total);
 
+  // Keep the dialog the same height on every tab so switching periods doesn't
+  // change the rendered frame height. A varying height makes Ink leave a stale
+  // line behind on each switch (the terminal "drifts" down one row at a time).
+  // Reserve space for the widest tab: header border (2 lines) + one line per
+  // model + totals border (2 lines).
+  const maxModelCount = Math.max(
+    1,
+    ...aggregates.map((agg) => Object.keys(agg).length),
+  );
+  const tableHeight = 2 + maxModelCount + 2;
+
   const totals = rows.reduce<PersistedModelUsage>(
     (acc, [, u]) => {
       acc.requests += u.requests;
@@ -136,11 +147,13 @@ export const UsageDisplay: React.FC<UsageDisplayProps> = ({ onExit }) => {
       <Box height={1} />
 
       {rows.length === 0 ? (
-        <Text color={theme.text.secondary}>
-          No usage recorded for this period yet.
-        </Text>
+        <Box height={tableHeight}>
+          <Text color={theme.text.secondary}>
+            No usage recorded for this period yet.
+          </Text>
+        </Box>
       ) : (
-        <Box flexDirection="column">
+        <Box flexDirection="column" height={tableHeight}>
           {/* Header */}
           <Box
             borderBottom={true}
