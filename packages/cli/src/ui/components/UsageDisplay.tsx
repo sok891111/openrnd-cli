@@ -1,0 +1,233 @@
+/**
+ * @license
+ * Copyright 2026 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import type React from 'react';
+import { useMemo, useState } from 'react';
+import { Box, Text } from 'ink';
+import { theme } from '../semantic-colors.js';
+import { useKeypress } from '../hooks/useKeypress.js';
+import { usageStatsStore, type PersistedModelUsage } from '@openrnd/core';
+
+interface UsageTab {
+  label: string;
+  periodDays?: number;
+}
+
+const TABS: UsageTab[] = [
+  { label: 'All time', periodDays: undefined },
+  { label: 'Last 7 days', periodDays: 7 },
+  { label: 'Last 30 days', periodDays: 30 },
+];
+
+/** Formats a token count compactly, e.g. 1234567 -> "1.2M". */
+function formatCompact(n: number): string {
+  if (n < 1000) {
+    return String(n);
+  }
+  if (n < 1_000_000) {
+    return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}K`;
+  }
+  if (n < 1_000_000_000) {
+    return `${(n / 1_000_000).toFixed(1)}M`;
+  }
+  return `${(n / 1_000_000_000).toFixed(1)}B`;
+}
+
+interface UsageDisplayProps {
+  onExit: () => void;
+}
+
+export const UsageDisplay: React.FC<UsageDisplayProps> = ({ onExit }) => {
+  const [activeTab, setActiveTab] = useState(0);
+
+  // Captured once on mount; usage data does not change while the dialog is open.
+  const earliestDay = useMemo(() => usageStatsStore.getEarliestDay(), []);
+  const aggregates = useMemo(
+    () => TABS.map((tab) => usageStatsStore.getAggregated(tab.periodDays)),
+    [],
+  );
+
+  useKeypress(
+    (key) => {
+      if (key.name === 'escape' || key.name === 'q') {
+        onExit();
+        return;
+      }
+      if (key.name === 'left') {
+        setActiveTab((t) => (t - 1 + TABS.length) % TABS.length);
+        return;
+      }
+      if (key.name === 'right' || key.name === 'tab') {
+        setActiveTab((t) => (t + 1) % TABS.length);
+        return;
+      }
+    },
+    { isActive: true },
+  );
+
+  const models = aggregates[activeTab];
+  const rows = Object.entries(models).sort(([, a], [, b]) => b.total - a.total);
+
+  const totals = rows.reduce<PersistedModelUsage>(
+    (acc, [, u]) => {
+      acc.requests += u.requests;
+      acc.input += u.input;
+      acc.output += u.output;
+      acc.cached += u.cached;
+      acc.total += u.total;
+      return acc;
+    },
+    {
+      requests: 0,
+      input: 0,
+      output: 0,
+      cached: 0,
+      thoughts: 0,
+      tool: 0,
+      total: 0,
+    },
+  );
+
+  const nameWidth = 30;
+  const numWidth = 11;
+
+  const NumCell: React.FC<{ children: React.ReactNode; bold?: boolean }> = ({
+    children,
+    bold,
+  }) => (
+    <Box width={numWidth} justifyContent="flex-end">
+      <Text color={theme.text.primary} bold={bold}>
+        {children}
+      </Text>
+    </Box>
+  );
+
+  return (
+    <Box
+      borderStyle="round"
+      borderColor={theme.border.default}
+      flexDirection="column"
+      paddingTop={1}
+      paddingX={2}
+    >
+      <Text bold color={theme.text.accent}>
+        Token Usage by Model
+      </Text>
+
+      {/* Tabs */}
+      <Box marginTop={1}>
+        {TABS.map((tab, idx) => (
+          <Box key={tab.label} marginRight={2}>
+            <Text
+              bold={idx === activeTab}
+              color={
+                idx === activeTab ? theme.text.accent : theme.text.secondary
+              }
+            >
+              {idx === activeTab ? `[ ${tab.label} ]` : `  ${tab.label}  `}
+            </Text>
+          </Box>
+        ))}
+      </Box>
+
+      <Box height={1} />
+
+      {rows.length === 0 ? (
+        <Text color={theme.text.secondary}>
+          No usage recorded for this period yet.
+        </Text>
+      ) : (
+        <Box flexDirection="column">
+          {/* Header */}
+          <Box
+            borderBottom={true}
+            borderStyle="single"
+            borderColor={theme.border.default}
+            borderTop={false}
+            borderLeft={false}
+            borderRight={false}
+          >
+            <Box width={nameWidth}>
+              <Text bold color={theme.text.secondary}>
+                Model
+              </Text>
+            </Box>
+            <Box width={numWidth} justifyContent="flex-end">
+              <Text bold color={theme.text.secondary}>
+                Reqs
+              </Text>
+            </Box>
+            <Box width={numWidth} justifyContent="flex-end">
+              <Text bold color={theme.text.secondary}>
+                Input
+              </Text>
+            </Box>
+            <Box width={numWidth} justifyContent="flex-end">
+              <Text bold color={theme.text.secondary}>
+                Output
+              </Text>
+            </Box>
+            <Box width={numWidth} justifyContent="flex-end">
+              <Text bold color={theme.text.secondary}>
+                Cached
+              </Text>
+            </Box>
+            <Box width={numWidth} justifyContent="flex-end">
+              <Text bold color={theme.text.secondary}>
+                Total
+              </Text>
+            </Box>
+          </Box>
+
+          {/* Rows */}
+          {rows.map(([model, u]) => (
+            <Box key={model}>
+              <Box width={nameWidth}>
+                <Text color={theme.text.primary} wrap="truncate-end">
+                  {model}
+                </Text>
+              </Box>
+              <NumCell>{u.requests.toLocaleString()}</NumCell>
+              <NumCell>{formatCompact(u.input)}</NumCell>
+              <NumCell>{formatCompact(u.output)}</NumCell>
+              <NumCell>{formatCompact(u.cached)}</NumCell>
+              <NumCell>{formatCompact(u.total)}</NumCell>
+            </Box>
+          ))}
+
+          {/* Totals */}
+          {rows.length > 1 && (
+            <Box
+              borderTop={true}
+              borderStyle="single"
+              borderColor={theme.border.default}
+              borderBottom={false}
+              borderLeft={false}
+              borderRight={false}
+            >
+              <Box width={nameWidth}>
+                <Text bold color={theme.text.primary}>
+                  Total
+                </Text>
+              </Box>
+              <NumCell bold>{totals.requests.toLocaleString()}</NumCell>
+              <NumCell bold>{formatCompact(totals.input)}</NumCell>
+              <NumCell bold>{formatCompact(totals.output)}</NumCell>
+              <NumCell bold>{formatCompact(totals.cached)}</NumCell>
+              <NumCell bold>{formatCompact(totals.total)}</NumCell>
+            </Box>
+          )}
+        </Box>
+      )}
+
+      <Box height={1} />
+      <Text color={theme.text.secondary}>
+        {earliestDay ? `Tracking since ${earliestDay}.  ` : ''}
+        ←/→ or Tab to switch period · Esc to close
+      </Text>
+    </Box>
+  );
+};

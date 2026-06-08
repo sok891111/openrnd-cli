@@ -80,7 +80,6 @@ async function defaultSessionView(context: CommandContext) {
 
 export const statsCommand: SlashCommand = {
   name: 'stats',
-  altNames: ['usage'],
   description: 'Check session stats. Usage: /stats [session|model|tools]',
   kind: CommandKind.BUILT_IN,
   autoExecute: false,

@@ -90,6 +90,7 @@ import {
 } from './metrics.js';
 import { bufferTelemetryEvent } from './sdk.js';
 import { uiTelemetryService, type UiEvent } from './uiTelemetry.js';
+import { recordPersistentUsage } from './usagePersistence.js';
 import { ClearcutLogger } from './clearcut-logger/clearcut-logger.js';
 import { debugLogger } from '../utils/debugLogger.js';
 import type { BillingTelemetryEvent } from './billingEvents.js';
@@ -313,6 +314,14 @@ export function logApiResponse(config: Config, event: ApiResponseEvent): void {
     'event.timestamp': new Date().toISOString(),
   } as UiEvent;
   uiTelemetryService.addEvent(uiEvent);
+  recordPersistentUsage(event.model, {
+    input: event.usage.input_token_count,
+    output: event.usage.output_token_count,
+    cached: event.usage.cached_content_token_count,
+    thoughts: event.usage.thoughts_token_count,
+    tool: event.usage.tool_token_count,
+    total: event.usage.total_token_count,
+  });
   ClearcutLogger.getInstance(config)?.logApiResponseEvent(event);
   bufferTelemetryEvent(() => {
     const logger = logs.getLogger(SERVICE_NAME);
