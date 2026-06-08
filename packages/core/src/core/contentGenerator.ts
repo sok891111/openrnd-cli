@@ -383,10 +383,17 @@ export async function createContentGenerator(
       return new LoggingContentGenerator(googleGenAI.models, gcConfig);
     }
     if (config.authType === AuthType.USE_LOCAL_LLM) {
-      return new OpenAICompatibleContentGenerator(
-        config.baseUrl,
-        config.apiKey,
-        gcConfig.getModel(),
+      // Wrap in LoggingContentGenerator like every other auth path so token
+      // usage flows through logApiResponse -> recordPersistentUsage (powers
+      // /usage and usage_stats.json). Without this wrapper the local-llm path
+      // never records usage.
+      return new LoggingContentGenerator(
+        new OpenAICompatibleContentGenerator(
+          config.baseUrl,
+          config.apiKey,
+          gcConfig.getModel(),
+        ),
+        gcConfig,
       );
     }
     throw new Error(
