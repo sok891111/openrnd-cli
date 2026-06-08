@@ -243,6 +243,126 @@ describe('CreatePptxTool', () => {
     expect(spawnArgs?.[2]).toMatch(/\.pptx$/);
   });
 
+  it('exposes process/timeline infographic blocks in the schema', () => {
+    const tool = makeTool();
+    const schema = tool.schema.parametersJsonSchema as Record<string, unknown>;
+    // Drill into slides[].body[].type enum.
+    const slides = (
+      schema['properties'] as Record<string, { items?: unknown }>
+    )['slides'];
+    const slideItem = (slides.items as { properties: Record<string, unknown> })
+      .properties;
+    const body = slideItem['body'] as {
+      items: { properties: Record<string, unknown> };
+    };
+    const blockProps = body.items.properties as {
+      type: { enum: string[] };
+      steps?: unknown;
+      events?: unknown;
+    };
+    expect(blockProps.type.enum).toEqual(
+      expect.arrayContaining(['process', 'timeline']),
+    );
+    expect(blockProps.steps).toBeDefined();
+    expect(blockProps.events).toBeDefined();
+  });
+
+  it('forwards process and timeline blocks (with icons) into the JSON spec', async () => {
+    const { spec } = await run({
+      slides: [
+        {
+          layout: 'content',
+          title: '전환은 4단계로 추진한다',
+          body: [
+            {
+              type: 'process',
+              steps: [
+                { title: '진단', text: '현황 분석', icon: 'search' },
+                { title: '실행', icon: 'launch' },
+              ],
+            },
+            {
+              type: 'timeline',
+              events: [
+                { label: '1분기', title: '착수', icon: 'flag' },
+                { label: '2분기', title: '확산' },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(spec).toMatchObject({
+      slides: [
+        {
+          body: [
+            {
+              type: 'process',
+              steps: [
+                { title: '진단', text: '현황 분석', icon: 'search' },
+                { title: '실행', icon: 'launch' },
+              ],
+            },
+            {
+              type: 'timeline',
+              events: [
+                { label: '1분기', title: '착수', icon: 'flag' },
+                { label: '2분기', title: '확산' },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('coerces a JSON-stringified slides argument into a real array', async () => {
+    // Some in-house models serialize structured tool args as strings, which
+    // otherwise fails schema validation with "params/slides must be array".
+    const { result, spec } = await run({
+      slides: JSON.stringify([
+        { layout: 'bullets', title: '성과', bullets: ['매출 12%↑'] },
+      ]),
+    } as unknown as CreatePptxParams);
+    expect(result.error).toBeUndefined();
+    expect(spec).toMatchObject({
+      slides: [{ title: '성과', bullets: ['매출 12%↑'] }],
+    });
+  });
+
+  it('coerces string-encoded nested body/bullets/table fields', async () => {
+    const { result, spec } = await run({
+      slides: [
+        {
+          layout: 'content',
+          title: '개요',
+          bullets: '["a","b"]',
+          body: '[{"type":"kpis","items":[{"value":"+12%","label":"성장"}]}]',
+        },
+      ],
+    } as unknown as CreatePptxParams);
+    expect(result.error).toBeUndefined();
+    expect(spec).toMatchObject({
+      slides: [
+        {
+          title: '개요',
+          bullets: ['a', 'b'],
+          body: [{ type: 'kpis', items: [{ value: '+12%', label: '성장' }] }],
+        },
+      ],
+    });
+  });
+
+  it('wraps a single slide object passed instead of an array', async () => {
+    const { result, spec } = await run({
+      slides: { layout: 'title', title: '단일 슬라이드' },
+    } as unknown as CreatePptxParams);
+    expect(result.error).toBeUndefined();
+    expect(spec).toMatchObject({
+      slides: [{ title: '단일 슬라이드' }],
+    });
+  });
+
   it('returns a workspace error when the output path is outside the workspace', async () => {
     const badConfig = {
       getTargetDir: () => '/ws',

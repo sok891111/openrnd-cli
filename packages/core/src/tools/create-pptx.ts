@@ -79,6 +79,11 @@ export interface CreatePptxSlide {
    *   { type: 'callout',  text: string }                                 // highlighted insight
    *   { type: 'table',    rows: string[][] }                             // first row = header
    *   { type: 'text',     text: string }
+   *   // shape/icon infographics (no charts) — these read like a consultant's deck:
+   *   { type: 'process',  steps:  [{ title, text?, icon? }] }   // chevron/arrow step flow
+   *   { type: 'timeline', events: [{ label, title, text?, icon? }] } // horizontal roadmap
+   * `icon` is a semantic name (e.g. "people", "search", "globe", "warning",
+   * "check", "settings", "star", "document") drawn in an accent circle.
    */
   body?: CreatePptxBlock[];
   /** One-line "so-what" shown in a highlighted bar at the bottom of the slide. */
@@ -95,9 +100,35 @@ export interface CreatePptxSlide {
   notes?: string;
 }
 
+/** A single step in a `process` infographic block. */
+export interface CreatePptxStep {
+  title: string;
+  text?: string;
+  /** Semantic icon name drawn in an accent circle (e.g. "search", "people"). */
+  icon?: string;
+}
+
+/** A single milestone in a `timeline` infographic block. */
+export interface CreatePptxEvent {
+  /** Short label shown above the marker (e.g. a date or phase: "1분기"). */
+  label: string;
+  title: string;
+  text?: string;
+  /** Semantic icon name drawn in the marker (e.g. "flag", "check"). */
+  icon?: string;
+}
+
 /** A content block in a consulting-style slide body. */
 export interface CreatePptxBlock {
-  type: 'bullets' | 'columns' | 'kpis' | 'callout' | 'table' | 'text';
+  type:
+    | 'bullets'
+    | 'columns'
+    | 'kpis'
+    | 'callout'
+    | 'table'
+    | 'text'
+    | 'process'
+    | 'timeline';
   items?:
     | Array<string | { text: string; level?: number }>
     | Array<{
@@ -107,6 +138,10 @@ export interface CreatePptxBlock {
   columns?: Array<{ heading?: string; bullets: string[] }>;
   rows?: string[][];
   text?: string;
+  /** For `process`: ordered steps drawn as a chevron/arrow flow. */
+  steps?: CreatePptxStep[];
+  /** For `timeline`: ordered milestones drawn on a horizontal roadmap. */
+  events?: CreatePptxEvent[];
 }
 
 export interface CreatePptxParams {
@@ -1278,6 +1313,91 @@ def main():
             set_font(run, size, C_TEXT)
         return tb
 
+    # --- icon system (glyph + geometric shape, no charts) -------------------
+    # Professional monoline icons via the Windows-bundled "Segoe MDL2 Assets"
+    # font: each name maps to a Private-Use-Area glyph codepoint. The glyph is
+    # drawn centered inside an accent-colored circle, so even if the font is
+    # absent on the machine that *opens* the deck, the colored circle (and the
+    # numeric/letter fallback) keeps the slide looking intentional. Only a
+    # high-confidence MDL2 set is used; unknown names fall back to text.
+    ICON_FONT = "Segoe MDL2 Assets"
+    ICONS = {
+        "check": "", "done": "", "success": "", "complete": "",
+        "x": "", "cancel": "", "fail": "", "stop": "",
+        "add": "", "plus": "", "new": "", "launch": "",
+        "settings": "", "gear": "", "process": "", "ops": "",
+        "people": "", "team": "", "customer": "", "hr": "",
+        "person": "", "user": "", "lead": "",
+        "mail": "", "email": "", "contact": "",
+        "search": "", "find": "", "research": "", "analysis": "",
+        "lock": "", "security": "", "compliance": "",
+        "globe": "", "global": "", "world": "", "market": "",
+        "warning": "", "risk": "", "alert": "", "issue": "",
+        "info": "", "note": "",
+        "star": "", "quality": "", "priority": "", "favorite": "",
+        "doc": "", "document": "", "report": "", "file": "",
+        "download": "", "import": "",
+        "upload": "", "export": "", "share": "",
+        "home": "", "company": "", "office": "",
+        "flag": "\uE7C1", "goal": "\uE7C1", "target": "\uE7C1",
+        "milestone": "\uE7C1", "objective": "\uE7C1",
+        "calendar": "\uE787", "schedule": "\uE787", "date": "\uE787",
+        "time": "\uE787", "clock": "\uE787", "plan": "\uE787",
+        "phone": "\uE717", "call": "\uE717",
+        "location": "\uE707", "place": "\uE707", "map": "\uE707",
+        "region": "\uE707",
+    }
+
+    def _set_icon_typeface(run, face):
+        try:
+            rPr = run._r.get_or_add_rPr()
+            for tag in ("a:latin", "a:cs", "a:ea"):
+                el = rPr.find(qn(tag))
+                if el is None:
+                    el = rPr.makeelement(qn(tag), {})
+                    rPr.append(el)
+                el.set("typeface", face)
+        except Exception:
+            pass
+
+    def add_icon_circle(slide, left, top, diameter, icon_name, fallback,
+                        circle_color=None, glyph_color=None):
+        """A filled circle holding either an MDL2 glyph (when icon_name is known)
+        or the fallback text (e.g. a step number). Returns the circle shape."""
+        circle_color = C_ACCENT if circle_color is None else circle_color
+        glyph_color = C_WHITE if glyph_color is None else glyph_color
+        shp = slide.shapes.add_shape(MSO_SHAPE.OVAL, left, top, diameter, diameter)
+        shp.fill.solid()
+        shp.fill.fore_color.rgb = circle_color
+        shp.line.fill.background()
+        shp.shadow.inherit = False
+        tf = shp.text_frame
+        tf.word_wrap = False
+        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        for m in ("margin_left", "margin_right", "margin_top", "margin_bottom"):
+            try:
+                setattr(tf, m, 0)
+            except Exception:
+                pass
+        p = tf.paragraphs[0]
+        p.alignment = PP_ALIGN.CENTER
+        run = p.add_run()
+        glyph = ICONS.get((icon_name or "").strip().lower()) if icon_name else None
+        d_in = diameter / 914400.0  # EMU -> inches
+        if glyph:
+            run.text = glyph
+            run.font.size = Pt(max(8, int(d_in * 72 * 0.5)))
+            run.font.color.rgb = glyph_color
+            run.font.name = ICON_FONT
+            _set_icon_typeface(run, ICON_FONT)
+        else:
+            run.text = _txt(fallback)
+            run.font.size = Pt(max(9, int(d_in * 72 * 0.42)))
+            run.font.bold = True
+            run.font.color.rgb = glyph_color
+            run.font.name = FONT
+        return shp
+
     def render_title_slide(slide, s):
         add_rect(slide, 0, 0, Inches(0.22), SH, C_PRIMARY)
         add_text(slide, MARGIN, Inches(2.4), CONTENT_W, Inches(1.6),
@@ -1367,6 +1487,83 @@ def main():
                     cell.fill.solid()
                     cell.fill.fore_color.rgb = C_WHITE if r % 2 else C_LIGHT
 
+    def render_process_block(slide, blk, left, top, width, height):
+        """Horizontal step flow: an icon/number circle per step, the step title
+        and optional detail beneath it, and an accent arrow between steps."""
+        steps = blk.get("steps") or blk.get("items") or []
+        n = len(steps)
+        if n == 0:
+            return
+        gap = Inches(0.35)
+        cell_w = int((width - gap * (n - 1)) / n)
+        d = min(Inches(0.95), int(cell_w * 0.55), int(height * 0.45))
+        circle_top = top
+        for i, st in enumerate(steps):
+            if not isinstance(st, dict):
+                st = {"title": _txt(st)}
+            cell_x = left + i * (cell_w + gap)
+            # icon / number circle, centered in the cell
+            cx = cell_x + int((cell_w - d) / 2)
+            add_icon_circle(slide, cx, circle_top, d, st.get("icon"), str(i + 1))
+            # title + detail under the circle
+            ty = circle_top + d + Inches(0.12)
+            add_text(slide, cell_x, ty, cell_w, Inches(0.5),
+                     st.get("title"), 13, C_PRIMARY, bold=True,
+                     align=PP_ALIGN.CENTER)
+            if st.get("text"):
+                add_text(slide, cell_x, ty + Inches(0.5), cell_w,
+                         top + height - (ty + Inches(0.5)),
+                         st.get("text"), 10, C_MUTED, align=PP_ALIGN.CENTER)
+            # arrow to the next step, vertically centered on the circle band
+            if i < n - 1:
+                ax = cell_x + cell_w
+                add_text(slide, ax, circle_top, gap, d, "→", 22, C_ACCENT,
+                         bold=True, align=PP_ALIGN.CENTER,
+                         anchor=MSO_ANCHOR.MIDDLE)
+
+    def render_timeline_block(slide, blk, left, top, width, height):
+        """Horizontal roadmap: a baseline with a marker per event, the date/phase
+        label above the marker and the milestone title/detail below it."""
+        events = blk.get("events") or blk.get("items") or []
+        n = len(events)
+        if n == 0:
+            return
+        line_y = top + int(height * 0.42)
+        add_rect(slide, left, line_y, width, Pt(3), C_ACCENT)
+        seg = int(width / n)
+        d = min(Inches(0.5), int(seg * 0.4))
+        for i, ev in enumerate(events):
+            if not isinstance(ev, dict):
+                ev = {"title": _txt(ev)}
+            cx = left + int((i + 0.5) * seg)
+            # label above the marker (date / phase)
+            if ev.get("label"):
+                add_text(slide, cx - int(seg / 2), top, seg,
+                         line_y - top - Inches(0.05), ev.get("label"), 12,
+                         C_PRIMARY, bold=True, align=PP_ALIGN.CENTER,
+                         anchor=MSO_ANCHOR.BOTTOM)
+            # marker (icon circle, or a plain accent dot)
+            mx = cx - int(d / 2)
+            my = line_y + int(Pt(3) / 2) - int(d / 2)
+            if ev.get("icon"):
+                add_icon_circle(slide, mx, my, d, ev.get("icon"), "")
+            else:
+                dot = slide.shapes.add_shape(MSO_SHAPE.OVAL, mx, my, d, d)
+                dot.fill.solid()
+                dot.fill.fore_color.rgb = C_PRIMARY
+                dot.line.color.rgb = C_WHITE
+                dot.line.width = Pt(2)
+                dot.shadow.inherit = False
+            # title + detail below the marker
+            ty = my + d + Inches(0.08)
+            add_text(slide, cx - int(seg / 2), ty, seg, Inches(0.5),
+                     ev.get("title"), 12, C_TEXT, bold=True,
+                     align=PP_ALIGN.CENTER)
+            if ev.get("text"):
+                add_text(slide, cx - int(seg / 2), ty + Inches(0.45), seg,
+                         top + height - (ty + Inches(0.45)), ev.get("text"),
+                         10, C_MUTED, align=PP_ALIGN.CENTER)
+
     BLOCK_RENDERERS = {
         "bullets": render_bullets_block,
         "columns": render_columns_block,
@@ -1374,6 +1571,8 @@ def main():
         "callout": render_callout_block,
         "text": render_text_block,
         "table": render_table_block,
+        "process": render_process_block,
+        "timeline": render_timeline_block,
     }
 
     def normalize_blocks(s):
@@ -1408,7 +1607,7 @@ def main():
             weights = []
             for b in blocks:
                 t = (b.get("type") or "").lower()
-                weights.append(2.5 if t in ("bullets", "columns", "table", "text") else 1.0)
+                weights.append(2.5 if t in ("bullets", "columns", "table", "text", "process", "timeline") else 1.0)
             total = sum(weights) or 1
             gap = Inches(0.25)
             cur = body_top
@@ -1778,6 +1977,82 @@ class CreatePptxInvocation extends BaseToolInvocation<
 }
 
 /**
+ * Parse a value that is expected to be an array/object but may have arrived as
+ * a JSON *string*. Some in-house / non-OpenAI tool-calling models serialize
+ * structured arguments as strings (e.g. `slides: "[{...}]"`), which trips JSON
+ * schema validation ("params/slides must be array") and the call never runs.
+ * Returns the parsed value when the string looks like JSON and parses cleanly;
+ * otherwise returns the value unchanged so the validator reports the real issue.
+ */
+function parseMaybeJson(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!(trimmed.startsWith('[') || trimmed.startsWith('{'))) return value;
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return value;
+  }
+}
+
+/** True for plain objects (not null, not arrays). */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Parse the listed keys in-place when they arrived as JSON-string arrays. */
+function coerceArrayFields(
+  obj: Record<string, unknown>,
+  keys: readonly string[],
+): void {
+  for (const key of keys) {
+    if (!(key in obj)) continue;
+    const parsed = parseMaybeJson(obj[key]);
+    if (Array.isArray(parsed)) obj[key] = parsed;
+  }
+}
+
+/** Normalize one body block, parsing any string-encoded array fields. */
+function coerceBlock(block: unknown): unknown {
+  const parsed = parseMaybeJson(block);
+  if (!isRecord(parsed)) return parsed;
+  const b: Record<string, unknown> = { ...parsed };
+  coerceArrayFields(b, ['items', 'columns', 'rows', 'steps', 'events']);
+  return b;
+}
+
+/** Normalize one slide, parsing string-encoded body/bullets/table fields. */
+function coerceSlide(slide: unknown): unknown {
+  const parsed = parseMaybeJson(slide);
+  if (!isRecord(parsed)) return parsed;
+  const s: Record<string, unknown> = { ...parsed };
+  coerceArrayFields(s, ['bullets', 'bullets_right', 'table']);
+  const body = parseMaybeJson(s['body']);
+  if (Array.isArray(body)) s['body'] = body.map(coerceBlock);
+  return s;
+}
+
+/**
+ * Best-effort repair of tool-call params from models that JSON-stringify
+ * structured arguments. Turns a stringified `slides` array (or a single slide
+ * object) back into a real array of slides so the call validates and runs. See
+ * {@link parseMaybeJson}. Anything already well-formed passes through untouched.
+ */
+function coerceCreatePptxParams(params: CreatePptxParams): CreatePptxParams {
+  if (!isRecord(params)) return params;
+  const next: Record<string, unknown> = { ...params };
+  const slides = parseMaybeJson(next['slides']);
+  if (Array.isArray(slides)) {
+    next['slides'] = slides.map(coerceSlide);
+  } else if (isRecord(slides)) {
+    // A lone slide object instead of an array — wrap it.
+    next['slides'] = [coerceSlide(slides)];
+  }
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+  return next as unknown as CreatePptxParams;
+}
+
+/**
  * Built-in tool that generates a PowerPoint (.pptx) deck by driving the
  * installed PowerPoint application via win32com. An optional sample deck is used
  * as a style reference (theme, fonts, colors, layouts, slides) so the result
@@ -1806,7 +2081,11 @@ export class CreatePptxTool extends BaseDeclarativeTool<
         'like a strategy consultant: (1) every content slide\'s "title" is an ACTION TITLE — a ' +
         'full-sentence takeaway, not a topic label; (2) build the slide from "body" blocks ' +
         '(kpis = big stat cards, columns = labeled comparison columns, callout = highlighted ' +
-        'insight, bullets, table, text) instead of one long bullet list; (3) add a one-line ' +
+        'insight, bullets, table, text, and SHAPE/ICON INFOGRAPHICS: process = icon/numbered ' +
+        'step flow with arrows via `steps`, timeline = horizontal roadmap via `events`) instead ' +
+        'of one long bullet list; prefer process/timeline over bullets when showing a sequence, ' +
+        'workflow, phases, or roadmap, and set an `icon` (e.g. "search", "people", "globe", ' +
+        '"check") on each step/event for a designed look; (3) add a one-line ' +
         '"takeaway" (so-what) per slide; (4) open with a layout="title" cover and use ' +
         'layout="section" dividers between parts. Optional brand colors via "primary"/"accent" ' +
         '(hex), and a "footer" label.\n\n' +
@@ -1893,17 +2172,66 @@ export class CreatePptxTool extends BaseDeclarativeTool<
                           'callout',
                           'table',
                           'text',
+                          'process',
+                          'timeline',
                         ],
                         description:
                           "'bullets' (bullet list), 'columns' (2-3 labeled columns), 'kpis' " +
                           "(big stat cards: value + label), 'callout' (highlighted insight), " +
-                          "'table' (rows; first row = header), 'text' (paragraph).",
+                          "'table' (rows; first row = header), 'text' (paragraph), 'process' " +
+                          "(icon/numbered step flow with arrows — use `steps`), 'timeline' " +
+                          '(horizontal roadmap of milestones — use `events`). process/timeline ' +
+                          'are shape-and-icon infographics (no charts) that make the deck look ' +
+                          'professionally designed.',
                       },
                       items: {
                         type: 'array',
                         description:
                           "For 'bullets': string lines. For 'kpis': objects { value, label }.",
                         items: {},
+                      },
+                      steps: {
+                        type: 'array',
+                        description:
+                          "For 'process': ordered steps drawn as a chevron/arrow flow. Each: " +
+                          '{ title, text?, icon? }. Best with 2-6 steps.',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            title: { type: 'string' },
+                            text: { type: 'string' },
+                            icon: {
+                              type: 'string',
+                              description:
+                                'Semantic icon name shown in an accent circle, e.g. "search", ' +
+                                '"people", "settings", "globe", "check", "star", "document", ' +
+                                '"warning", "lock", "mail". Unknown names fall back to the step number.',
+                            },
+                          },
+                          required: ['title'],
+                        },
+                      },
+                      events: {
+                        type: 'array',
+                        description:
+                          "For 'timeline': ordered milestones on a horizontal roadmap. Each: " +
+                          '{ label, title, text?, icon? } where `label` is the date/phase shown ' +
+                          'above the marker (e.g. "1분기").',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            label: { type: 'string' },
+                            title: { type: 'string' },
+                            text: { type: 'string' },
+                            icon: {
+                              type: 'string',
+                              description:
+                                'Semantic icon name shown in the marker (e.g. "flag", "check", ' +
+                                '"launch"). Omit for a plain dot marker.',
+                            },
+                          },
+                          required: ['title'],
+                        },
                       },
                       columns: {
                         type: 'array',
@@ -2027,6 +2355,17 @@ export class CreatePptxTool extends BaseDeclarativeTool<
       true, // isOutputMarkdown
       false, // canUpdateOutput
     );
+  }
+
+  /**
+   * Repair string-encoded arguments (notably a JSON-stringified `slides`) before
+   * the normal validate-then-build path, so models that serialize structured
+   * tool args as strings don't fail with "params/slides must be array".
+   */
+  override build(
+    params: CreatePptxParams,
+  ): ToolInvocation<CreatePptxParams, ToolResult> {
+    return super.build(coerceCreatePptxParams(params));
   }
 
   protected createInvocation(
