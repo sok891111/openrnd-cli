@@ -4,12 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { waitFor } from '../../test-utils/async.js';
 import { renderWithProviders } from '../../test-utils/render.js';
 import { UsageDisplay } from './UsageDisplay.js';
 import { usageStatsStore, type PersistedModelUsage } from '@openrnd/core';
+import stripAnsi from 'strip-ansi';
+import stringWidth from 'string-width';
 
 vi.mock('@openrnd/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@openrnd/core')>();
@@ -36,7 +38,12 @@ const mockUsage = (total: number) => ({
 });
 
 describe('UsageDisplay', () => {
+  // The dialog sizes its columns to the terminal width (via useTerminalSize).
+  // Pin a wide-enough width so model names aren't truncated in assertions.
+  const originalColumns = process.stdout.columns;
+
   beforeEach(() => {
+    process.stdout.columns = 120;
     vi.mocked(usageStatsStore.getEarliestDay).mockReturnValue('2026-06-01');
     vi.mocked(usageStatsStore.getAggregated).mockImplementation(
       (periodDays?: number): Record<string, PersistedModelUsage> => {
@@ -51,6 +58,10 @@ describe('UsageDisplay', () => {
     );
   });
 
+  afterEach(() => {
+    process.stdout.columns = originalColumns;
+  });
+
   it('renders the all-time tab with model rows by default', async () => {
     const { lastFrame } = await renderWithProviders(
       <UsageDisplay onExit={vi.fn()} />,
@@ -62,6 +73,24 @@ describe('UsageDisplay', () => {
     expect(frame).toContain('1.6M');
     expect(frame).toContain('Tracking since 2026-06-01');
   });
+
+  // Regression: if any rendered line is wider than the terminal, the terminal
+  // wraps it without Ink's knowledge, so switching tabs leaves stale rows and
+  // the output drifts downward (seen on Windows terminals). Every line must fit
+  // within the terminal width at any size.
+  it.each([60, 80, 100])(
+    'never renders a line wider than the terminal (%i cols)',
+    async (cols) => {
+      process.stdout.columns = cols;
+      const { lastFrame } = await renderWithProviders(
+        <UsageDisplay onExit={vi.fn()} />,
+      );
+      const lines = (lastFrame() ?? '').split('\n');
+      for (const line of lines) {
+        expect(stringWidth(stripAnsi(line))).toBeLessThanOrEqual(cols);
+      }
+    },
+  );
 
   it('switches period when pressing the right arrow', async () => {
     const { stdin, lastFrame } = await renderWithProviders(

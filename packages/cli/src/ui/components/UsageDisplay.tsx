@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
 import { useKeypress } from '../hooks/useKeypress.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { usageStatsStore, type PersistedModelUsage } from '@openrnd/core';
 
 interface UsageTab {
@@ -40,8 +41,16 @@ interface UsageDisplayProps {
   onExit: () => void;
 }
 
+// Number of right-aligned numeric columns (Reqs / Input / Output / Cached / Total).
+const NUM_COLS = 5;
+// Overhead added by the outer frame: round border (2) + paddingX*2 (4).
+const FRAME_OVERHEAD = 6;
+// Widest frame we ever want, regardless of how wide the terminal is.
+const MAX_FRAME_WIDTH = 91; // 30 (name) + 5*11 (numbers) + FRAME_OVERHEAD.
+
 export const UsageDisplay: React.FC<UsageDisplayProps> = ({ onExit }) => {
   const [activeTab, setActiveTab] = useState(0);
+  const { columns: terminalWidth } = useTerminalSize();
 
   // Captured once on mount; usage data does not change while the dialog is open.
   const earliestDay = useMemo(() => usageStatsStore.getEarliestDay(), []);
@@ -102,8 +111,20 @@ export const UsageDisplay: React.FC<UsageDisplayProps> = ({ onExit }) => {
     },
   );
 
-  const nameWidth = 30;
-  const numWidth = 11;
+  // Make the dialog fit within the terminal so Ink/Yoga performs all wrapping
+  // itself. If the rendered frame is wider than the terminal, the *terminal*
+  // wraps lines that Ink can't see, so on each tab switch Ink under-clears the
+  // previous frame and the output drifts down a row at a time (notably on
+  // Windows terminals). Constraining the width keeps every line within bounds.
+  const frameWidth = Math.max(44, Math.min(terminalWidth, MAX_FRAME_WIDTH));
+  const innerWidth = frameWidth - FRAME_OVERHEAD;
+  // Numbers prefer 11 columns each but shrink (down to 7) on narrow terminals;
+  // the model name takes whatever remains, capped at 30 and floored at 6.
+  const numWidth = Math.max(
+    7,
+    Math.min(11, Math.floor((innerWidth - 6) / NUM_COLS)),
+  );
+  const nameWidth = Math.max(6, Math.min(30, innerWidth - numWidth * NUM_COLS));
 
   const NumCell: React.FC<{ children: React.ReactNode; bold?: boolean }> = ({
     children,
@@ -118,6 +139,7 @@ export const UsageDisplay: React.FC<UsageDisplayProps> = ({ onExit }) => {
 
   return (
     <Box
+      width={frameWidth}
       borderStyle="round"
       borderColor={theme.border.default}
       flexDirection="column"
