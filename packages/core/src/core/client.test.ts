@@ -786,6 +786,74 @@ describe('Gemini Client (client.ts)', () => {
       });
     });
 
+    it('auto-compresses and retries when rate-limit (429) errors persist', async () => {
+      // Arrange: two consecutive 429s, then a successful turn.
+      const rateLimitEvent = {
+        type: GeminiEventType.Error,
+        value: { error: { message: 'rate limit exceeded', status: 429 } },
+      };
+      mockTurnRunFn
+        .mockReturnValueOnce(
+          (async function* () {
+            yield rateLimitEvent;
+          })(),
+        )
+        .mockReturnValueOnce(
+          (async function* () {
+            yield rateLimitEvent;
+          })(),
+        )
+        .mockReturnValueOnce(
+          (async function* () {
+            yield { type: 'content', value: 'Recovered' };
+          })(),
+        );
+
+      const compressionInfo: ChatCompressionInfo = {
+        compressionStatus: CompressionStatus.COMPRESSED,
+        originalTokenCount: 1000,
+        newTokenCount: 200,
+      };
+      // force=true => forced compression (our auto-compress); force=false =>
+      // the pre-emptive per-turn check, which we keep as a no-op here.
+      const compressSpy = vi
+        .spyOn(client, 'tryCompressChat')
+        .mockImplementation(async (_promptId: string, force?: boolean) =>
+          force
+            ? compressionInfo
+            : {
+                compressionStatus: CompressionStatus.NOOP,
+                originalTokenCount: 0,
+                newTokenCount: 0,
+              },
+        );
+
+      // Act
+      const stream = client.sendMessageStream(
+        [{ text: 'Hi' }],
+        new AbortController().signal,
+        'prompt-id-rl',
+      );
+      const events = await fromAsync(stream);
+
+      // Assert: forced compression fired once (after the 2nd 429) and the work
+      // continued to completion.
+      expect(compressSpy).toHaveBeenCalledWith(
+        'prompt-id-rl',
+        true,
+        expect.anything(),
+      );
+      expect(
+        compressSpy.mock.calls.filter(([, force]) => force === true),
+      ).toHaveLength(1);
+      expect(events).toContainEqual({
+        type: GeminiEventType.ChatCompressed,
+        value: compressionInfo,
+      });
+      expect(events).toContainEqual({ type: 'content', value: 'Recovered' });
+      expect(mockTurnRunFn).toHaveBeenCalledTimes(3);
+    });
+
     it('does not emit ModelInfo event if signal is aborted', async () => {
       // Arrange
       mockTurnRunFn.mockReturnValue(

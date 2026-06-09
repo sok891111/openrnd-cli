@@ -32,10 +32,12 @@ import { reportError } from '../utils/errorReporting.js';
 import { GeminiChat } from './geminiChat.js';
 import {
   retryWithBackoff,
+  isRateLimitError,
   type RetryAvailabilityContext,
 } from '../utils/retry.js';
 import type { ValidationRequiredError } from '../utils/googleQuotaErrors.js';
 import { getErrorMessage, isAbortError } from '../utils/errors.js';
+import { getErrorStatus } from '../utils/httpErrors.js';
 import { tokenLimit } from './tokenLimits.js';
 import type {
   ChatRecordingService,
@@ -78,6 +80,21 @@ import { initializeContextManager } from '../context/initializer.js';
 
 const MAX_TURNS = 100;
 
+/**
+ * Number of consecutive rate-limit (429) errors a request must hit before we
+ * compress the context. The first 429 is treated as transient (auto-retried as
+ * is); from the second onward we compress first, since a persistent 429 usually
+ * means the prompt is too large to fit under the token/RPM quota and retrying
+ * the same oversized context never recovers.
+ */
+const RATE_LIMIT_COMPRESS_THRESHOLD = 2;
+
+/**
+ * Hard cap on automatic rate-limit retries within a single user request, so we
+ * never loop forever when compression cannot shrink the context any further.
+ */
+const MAX_RATE_LIMIT_AUTO_RETRIES = 5;
+
 type BeforeAgentHookReturn =
   | {
       type: GeminiEventType.AgentExecutionStopped;
@@ -103,6 +120,20 @@ export class GeminiClient {
   private currentSequenceModel: string | null = null;
   private lastSentIdeContext: IdeContext | undefined;
   private forceFullIdeContext = true;
+
+  /**
+   * Consecutive rate-limit (429) errors seen while serving the current request.
+   * Used to decide when to compress the context (see
+   * {@link RATE_LIMIT_COMPRESS_THRESHOLD}). Reset on a new prompt or a
+   * successful turn.
+   */
+  private rateLimitCompressionCount = 0;
+
+  /**
+   * Total automatic rate-limit retries already performed for the current
+   * request, bounded by {@link MAX_RATE_LIMIT_AUTO_RETRIES}.
+   */
+  private rateLimitAutoRetryCount = 0;
 
   /**
    * At any point in this conversation, was compression triggered without
@@ -620,6 +651,11 @@ export class GeminiClient {
     // Re-initialize turn (it was empty before if in loop, or new instance)
     let turn = new Turn(this.getChat(), prompt_id);
 
+    // Capture the request as received, before any context-management rewrite
+    // below, so a rate-limit auto-retry re-sends the original request.
+    const retryRequest = request;
+    const retryDisplayContent = displayContent;
+
     this.sessionTurnCount++;
     if (
       this.config.getMaxSessionTurns() > 0 &&
@@ -805,6 +841,7 @@ export class GeminiClient {
       apiHistoryOverride,
     });
     let isError = false;
+    let rateLimitErrorOccurred = false;
 
     let loopDetectedAbort = false;
     let loopRecoverResult: { detail?: string } | undefined;
@@ -837,6 +874,15 @@ export class GeminiClient {
       this.updateTelemetryTokenCount();
       if (event.type === GeminiEventType.Error) {
         isError = true;
+        const errorValue = event.value.error;
+        if (
+          isRateLimitError(
+            getErrorMessage(errorValue),
+            getErrorStatus(errorValue),
+          )
+        ) {
+          rateLimitErrorOccurred = true;
+        }
       }
     }
 
@@ -854,8 +900,48 @@ export class GeminiClient {
       );
     }
     if (isError) {
+      // On a rate-limit (429) error, automatically continue the work instead of
+      // giving up: retry the same request, and once 429s become persistent
+      // (>= RATE_LIMIT_COMPRESS_THRESHOLD) compress the context first so the
+      // retried request fits under the token/RPM quota. Bounded by both
+      // MAX_RATE_LIMIT_AUTO_RETRIES and boundedTurns to avoid infinite loops.
+      if (
+        rateLimitErrorOccurred &&
+        boundedTurns > 1 &&
+        signal &&
+        !signal.aborted &&
+        this.rateLimitAutoRetryCount < MAX_RATE_LIMIT_AUTO_RETRIES
+      ) {
+        this.rateLimitAutoRetryCount++;
+        this.rateLimitCompressionCount++;
+
+        if (this.rateLimitCompressionCount >= RATE_LIMIT_COMPRESS_THRESHOLD) {
+          const compressed = await this.tryCompressChat(
+            prompt_id,
+            true,
+            signal,
+          );
+          if (compressed.compressionStatus === CompressionStatus.COMPRESSED) {
+            yield { type: GeminiEventType.ChatCompressed, value: compressed };
+          }
+          this.rateLimitCompressionCount = 0;
+        }
+
+        return yield* this.sendMessageStream(
+          retryRequest,
+          signal,
+          prompt_id,
+          boundedTurns - 1,
+          retryDisplayContent,
+        );
+      }
       return turn;
     }
+
+    // Turn completed without a rate-limit error: clear the rate-limit state so a
+    // later isolated 429 starts counting from scratch.
+    this.rateLimitCompressionCount = 0;
+    this.rateLimitAutoRetryCount = 0;
 
     // Update cumulative response in hook state
     // We do this immediately after the stream finishes for THIS turn.
@@ -924,6 +1010,9 @@ export class GeminiClient {
       this.hookStateMap.delete(this.lastPromptId);
       this.lastPromptId = prompt_id;
       this.currentSequenceModel = null;
+      // Fresh user prompt: forget any rate-limit history from a previous one.
+      this.rateLimitCompressionCount = 0;
+      this.rateLimitAutoRetryCount = 0;
     }
 
     if (hooksEnabled && messageBus) {
