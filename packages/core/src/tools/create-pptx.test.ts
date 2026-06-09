@@ -5,47 +5,74 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EventEmitter } from 'node:events';
 
 const openMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.mock('open', () => ({ default: openMock }));
 
-// Capture spawn calls and drive a fake child process.
-const spawnState = vi.hoisted(() => ({
-  calls: [] as Array<{ cmd: string; args: string[] }>,
-  exitCode: 0 as number | null,
-  stdout: '',
-  stderr: '',
-  emitError: undefined as Error | undefined,
+// Headless Chrome (puppeteer-core) — a controllable fake page/browser.
+const puppeteerState = vi.hoisted(() => ({
+  slideCount: 3,
+  screenshots: 0,
+  launched: 0,
+  closed: 0,
+}));
+const pageMock = vi.hoisted(() => ({
+  setDefaultTimeout: vi.fn(),
+  setViewport: vi.fn().mockResolvedValue(undefined),
+  goto: vi.fn().mockResolvedValue(undefined),
+  addStyleTag: vi.fn().mockResolvedValue(undefined),
+  evaluate: vi.fn().mockResolvedValue(undefined),
+  $$eval: vi.fn(),
+  screenshot: vi.fn(),
+}));
+const browserMock = vi.hoisted(() => ({
+  newPage: vi.fn(),
+  close: vi.fn(),
+}));
+const launchMock = vi.hoisted(() => vi.fn());
+vi.mock('puppeteer-core', () => ({
+  launch: launchMock,
+  default: { launch: launchMock },
 }));
 
-const spawnMock = vi.hoisted(() =>
-  vi.fn((cmd: string, args: string[]) => {
-    spawnState.calls.push({ cmd, args });
-    const child = new EventEmitter() as EventEmitter & {
-      stdout: EventEmitter;
-      stderr: EventEmitter;
-      kill: () => void;
-    };
-    child.stdout = new EventEmitter();
-    child.stderr = new EventEmitter();
-    child.kill = vi.fn();
-    // Drive the process asynchronously so listeners are attached first.
-    setImmediate(() => {
-      if (spawnState.emitError) {
-        child.emit('error', spawnState.emitError);
-        return;
+// pptxgenjs — capture slides/images and the written file name.
+const pptxState = vi.hoisted(() => ({
+  layouts: [] as Array<{ name: string; width: number; height: number }>,
+  images: [] as unknown[],
+  writtenFileName: '' as string,
+  slidesAdded: 0,
+}));
+const PptxMock = vi.hoisted(
+  () =>
+    class {
+      layout = '';
+      defineLayout(def: { name: string; width: number; height: number }) {
+        pptxState.layouts.push(def);
       }
-      if (spawnState.stdout)
-        child.stdout.emit('data', Buffer.from(spawnState.stdout));
-      if (spawnState.stderr)
-        child.stderr.emit('data', Buffer.from(spawnState.stderr));
-      child.emit('close', spawnState.exitCode);
-    });
-    return child;
-  }),
+      addSlide() {
+        pptxState.slidesAdded++;
+        return {
+          addImage: (img: unknown) => {
+            pptxState.images.push(img);
+          },
+        };
+      }
+      writeFile({ fileName }: { fileName: string }) {
+        pptxState.writtenFileName = fileName;
+        return Promise.resolve(fileName);
+      }
+    },
 );
-vi.mock('node:child_process', () => ({ spawn: spawnMock }));
+vi.mock('pptxgenjs', () => ({ default: PptxMock }));
+
+// Chrome resolution — controllable.
+const resolveChromeMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue('/fake/chrome'),
+);
+vi.mock('../utils/chromeFinder.js', () => ({
+  resolveChromeExecutablePath: resolveChromeMock,
+  ChromeNotFoundError: class ChromeNotFoundError extends Error {},
+}));
 
 vi.mock('node:fs/promises', () => {
   const api = {
@@ -59,6 +86,7 @@ vi.mock('node:fs/promises', () => {
 
 import * as fsPromises from 'node:fs/promises';
 import { CreatePptxTool, type CreatePptxParams } from './create-pptx.js';
+import { ToolErrorType } from './tool-error.js';
 import type { Config } from '../config/config.js';
 import type { MessageBus } from '../confirmation-bus/message-bus.js';
 
@@ -74,36 +102,23 @@ function makeTool(cfg: Config = config) {
 
 async function run(params: CreatePptxParams, cfg: Config = config) {
   const invocation = makeTool(cfg).build(params);
-  const result = await invocation.execute({
-    abortSignal: new AbortController().signal,
-  });
-  // The JSON spec is the second writeFile (after the python script).
-  const writeCalls = vi.mocked(fsPromises.writeFile).mock.calls;
-  const specCall = writeCalls.find((c) => String(c[0]).endsWith('.json'));
-  return {
-    result,
-    spec: specCall ? (JSON.parse(specCall[1] as string) as unknown) : undefined,
-    spawnArgs: spawnState.calls.at(-1)?.args,
-  };
+  return invocation.execute({ abortSignal: new AbortController().signal });
 }
 
-const ORIGINAL_PLATFORM = process.platform;
-function setPlatform(p: NodeJS.Platform) {
-  Object.defineProperty(process, 'platform', { value: p, configurable: true });
-}
-
-describe('CreatePptxTool', () => {
+describe('CreatePptxTool (HTML → PPTX)', () => {
   beforeEach(() => {
-    setPlatform('win32'); // tool is Windows-only
-    spawnState.calls.length = 0;
-    spawnState.exitCode = 0;
-    spawnState.stdout = JSON.stringify({
-      output: 'out.pptx',
-      slides: 1,
-      warnings: [],
-    });
-    spawnState.stderr = '';
-    spawnState.emitError = undefined;
+    puppeteerState.slideCount = 3;
+    pageMock.$$eval.mockResolvedValue(3);
+    pageMock.addStyleTag.mockResolvedValue(undefined);
+    pageMock.screenshot.mockResolvedValue(Buffer.from(''));
+    browserMock.newPage.mockResolvedValue(pageMock);
+    browserMock.close.mockResolvedValue(undefined);
+    launchMock.mockResolvedValue(browserMock);
+    resolveChromeMock.mockResolvedValue('/fake/chrome');
+    pptxState.layouts.length = 0;
+    pptxState.images.length = 0;
+    pptxState.slidesAdded = 0;
+    pptxState.writtenFileName = '';
     vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
     vi.mocked(fsPromises.mkdir).mockResolvedValue(undefined as never);
     vi.mocked(fsPromises.access).mockResolvedValue(undefined as never);
@@ -111,441 +126,115 @@ describe('CreatePptxTool', () => {
   });
 
   afterEach(() => {
-    setPlatform(ORIGINAL_PLATFORM);
     vi.clearAllMocks();
   });
 
-  it('exposes the create_pptx name and requires slides', () => {
-    const tool = makeTool();
-    expect(tool.name).toBe('create_pptx');
-    const schema = tool.schema.parametersJsonSchema as {
-      required: string[];
-      properties: Record<string, unknown>;
-    };
-    expect(schema.required).toEqual(['slides']);
-    expect(Object.keys(schema.properties)).toEqual(
-      expect.arrayContaining(['slides', 'sample_path', 'output_path', 'open']),
-    );
+  it('exposes the create_pptx name', () => {
+    expect(makeTool().name).toBe('create_pptx');
   });
 
-  it('writes a default .pptx path under openrnd-ppt and passes it to python', async () => {
-    const { result, spawnArgs } = await run({
-      slides: [{ layout: 'title', title: '2026 1분기 보고' }],
+  it('errors when neither html nor html_path is provided', async () => {
+    const result = await run({});
+    expect(result.error?.type).toBe(ToolErrorType.INVALID_TOOL_PARAMS);
+  });
+
+  it('renders each .slide element and packs one image per slide', async () => {
+    const result = await run({
+      html: '<section class="slide">A</section><section class="slide">B</section><section class="slide">C</section>',
     });
+
     expect(result.error).toBeUndefined();
-    const outArg = spawnArgs?.[2] ?? '';
-    expect(outArg).toMatch(/openrnd-ppt[/\\].*\.pptx$/);
-    expect(openMock).toHaveBeenCalledTimes(1);
+    // Three slides matched ⇒ three screenshots ⇒ three images packed.
+    expect(pageMock.screenshot).toHaveBeenCalledTimes(3);
+    expect(pptxState.slidesAdded).toBe(3);
+    expect(pptxState.images).toHaveLength(3);
+    expect(pptxState.writtenFileName.toLowerCase().endsWith('.pptx')).toBe(
+      true,
+    );
+    expect(result.returnDisplay).toContain('3장');
   });
 
-  it('forwards slides and sample_path into the JSON spec', async () => {
-    const { spec } = await run({
-      slides: [
-        {
-          layout: 'bullets',
-          title: '성과',
-          bullets: ['매출 12%↑', '신규 5종'],
-        },
-      ],
-      sample_path: '/samples/inhouse.pptx',
-    });
-    expect(spec).toMatchObject({
-      sample_path: '/samples/inhouse.pptx',
-      slides: [{ title: '성과', bullets: ['매출 12%↑', '신규 5종'] }],
-    });
+  it('defaults to a 16:9 layout', async () => {
+    await run({ html: '<section class="slide">A</section>' });
+    expect(pptxState.layouts[0]).toMatchObject({ width: 13.333, height: 7.5 });
   });
 
-  it('defaults style to consulting and forwards footer in the spec', async () => {
-    const { spec } = await run({
-      slides: [{ title: '개요', bullets: ['a', 'b'] }],
-      footer: '개발팀 · Confidential',
-    });
-    expect(spec).toMatchObject({
-      style: 'consulting',
-      footer: '개발팀 · Confidential',
-    });
+  it('uses a 4:3 layout when requested', async () => {
+    await run({ html: '<section class="slide">A</section>', aspect: '4:3' });
+    expect(pptxState.layouts[0]).toMatchObject({ width: 10, height: 7.5 });
   });
 
-  it('passes style=plain through when requested', async () => {
-    const { spec } = await run({
-      slides: [{ title: 't' }],
-      style: 'plain',
-    });
-    expect(spec).toMatchObject({ style: 'plain' });
+  it('falls back to a single full-page slide when nothing matches', async () => {
+    pageMock.$$eval.mockResolvedValue(0);
+    const result = await run({ html: '<div>no slides here</div>' });
+    expect(result.error).toBeUndefined();
+    expect(pageMock.screenshot).toHaveBeenCalledTimes(1);
+    expect(pptxState.slidesAdded).toBe(1);
+    expect(result.returnDisplay).toContain('1장');
   });
 
-  it('honors an explicit output_path relative to the workspace', async () => {
-    const { spawnArgs } = await run({
-      slides: [{ title: 't' }],
+  it('errors when html_path does not exist', async () => {
+    vi.mocked(fsPromises.access).mockRejectedValueOnce(new Error('nope'));
+    const result = await run({ html_path: 'missing.html' });
+    expect(result.error?.type).toBe(ToolErrorType.INVALID_TOOL_PARAMS);
+    expect(launchMock).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a clear error when no Chrome is found', async () => {
+    resolveChromeMock.mockRejectedValueOnce(
+      new Error('Chrome 실행 파일을 찾지 못했습니다.'),
+    );
+    const result = await run({ html: '<section class="slide">A</section>' });
+    expect(result.error?.type).toBe(ToolErrorType.EXECUTION_FAILED);
+    expect(result.returnDisplay).toContain('Chrome');
+    expect(launchMock).not.toHaveBeenCalled();
+  });
+
+  it('saves the inline HTML next to the .pptx and reports both paths', async () => {
+    const result = await run({
+      html: '<section class="slide">한국어</section>',
+      output_path: 'decks/q1',
+    });
+
+    expect(result.error).toBeUndefined();
+    // The HTML is written with the same basename as the deck, alongside it.
+    const writes = vi.mocked(fsPromises.writeFile).mock.calls;
+    const htmlWrite = writes.find((c) => String(c[0]).endsWith('.html'));
+    expect(htmlWrite).toBeDefined();
+    expect(String(htmlWrite?.[0])).toContain('q1.html');
+    expect(result.returnDisplay).toContain('원본 HTML');
+    expect(result.returnDisplay).toContain('q1.html');
+  });
+
+  it('reports the user-provided html_path as the source (no copy)', async () => {
+    const result = await run({ html_path: 'deck.html' });
+    expect(result.error).toBeUndefined();
+    // html_path mode must not write a new HTML file.
+    const wroteHtml = vi
+      .mocked(fsPromises.writeFile)
+      .mock.calls.some((c) => String(c[0]).endsWith('.html'));
+    expect(wroteHtml).toBe(false);
+    expect(result.llmContent).toContain('deck.html');
+  });
+
+  it('injects a Korean word-break (keep-all) base style before rendering', async () => {
+    await run({ html: '<section class="slide">한국어 줄바꿈</section>' });
+    expect(pageMock.addStyleTag).toHaveBeenCalledTimes(1);
+    const arg = pageMock.addStyleTag.mock.calls[0][0] as { content: string };
+    expect(arg.content).toContain('keep-all');
+  });
+
+  it('respects open=false', async () => {
+    await run({ html: '<section class="slide">A</section>', open: false });
+    expect(openMock).not.toHaveBeenCalled();
+  });
+
+  it('writes to a custom output_path', async () => {
+    await run({
+      html: '<section class="slide">A</section>',
       output_path: 'reports/q1',
     });
-    expect(spawnArgs?.[2]).toBe('/ws/reports/q1.pptx');
-  });
-
-  it('skips opening when open=false', async () => {
-    const { result } = await run({
-      slides: [{ title: 't' }],
-      open: false,
-    });
-    expect(openMock).not.toHaveBeenCalled();
-    expect(String(result.llmContent)).toContain('open=false');
-  });
-
-  it('errors when slides is empty', async () => {
-    const { result } = await run({ slides: [] });
-    expect(result.error?.type).toBeDefined();
-    expect(String(result.llmContent)).toContain('at least one slide');
-  });
-
-  it('errors when the sample deck does not exist', async () => {
-    vi.mocked(fsPromises.access).mockRejectedValueOnce(new Error('ENOENT'));
-    const { result } = await run({
-      slides: [{ title: 't' }],
-      sample_path: '/missing.pptx',
-    });
-    expect(String(result.llmContent)).toContain('Sample deck not found');
-  });
-
-  it('surfaces a non-zero python exit as an error with stderr', async () => {
-    spawnState.exitCode = 5;
-    spawnState.stdout = '';
-    spawnState.stderr = 'PPTX_BUILD_ERROR: boom';
-    const { result } = await run({ slides: [{ title: 't' }] });
-    expect(result.error).toBeDefined();
-    expect(String(result.llmContent)).toContain('boom');
-  });
-
-  it('requires Windows only for the sample-clone path', async () => {
-    setPlatform('darwin');
-    const { result } = await run({
-      slides: [{ title: 't' }],
-      sample_path: '/samples/inhouse.pptx',
-    });
-    expect(result.error).toBeDefined();
-    expect(String(result.llmContent)).toContain('Windows');
-    expect(spawnState.calls.length).toBe(0);
-  });
-
-  it('renders the consulting deck via python-pptx on non-Windows (no sample)', async () => {
-    setPlatform('darwin');
-    const { result, spawnArgs } = await run({
-      slides: [
-        {
-          layout: 'content',
-          title: '매출은 12% 성장했다',
-          body: [{ type: 'kpis', items: [{ value: '+12%', label: '성장' }] }],
-          takeaway: '성장 모멘텀 유지',
-        },
-      ],
-    });
-    expect(result.error).toBeUndefined();
-    expect(spawnState.calls.length).toBe(1);
-    expect(spawnArgs?.[2]).toMatch(/\.pptx$/);
-  });
-
-  it('exposes process/timeline infographic blocks in the schema', () => {
-    const tool = makeTool();
-    const schema = tool.schema.parametersJsonSchema as Record<string, unknown>;
-    // Drill into slides[].body[].type enum.
-    const slides = (
-      schema['properties'] as Record<string, { items?: unknown }>
-    )['slides'];
-    const slideItem = (slides.items as { properties: Record<string, unknown> })
-      .properties;
-    const body = slideItem['body'] as {
-      items: { properties: Record<string, unknown> };
-    };
-    const blockProps = body.items.properties as {
-      type: { enum: string[] };
-      steps?: unknown;
-      events?: unknown;
-    };
-    expect(blockProps.type.enum).toEqual(
-      expect.arrayContaining(['process', 'timeline']),
-    );
-    expect(blockProps.steps).toBeDefined();
-    expect(blockProps.events).toBeDefined();
-  });
-
-  it('forwards process and timeline blocks (with icons) into the JSON spec', async () => {
-    const { spec } = await run({
-      slides: [
-        {
-          layout: 'content',
-          title: '전환은 4단계로 추진한다',
-          body: [
-            {
-              type: 'process',
-              steps: [
-                { title: '진단', text: '현황 분석', icon: 'search' },
-                { title: '실행', icon: 'launch' },
-              ],
-            },
-            {
-              type: 'timeline',
-              events: [
-                { label: '1분기', title: '착수', icon: 'flag' },
-                { label: '2분기', title: '확산' },
-              ],
-            },
-          ],
-        },
-      ],
-    });
-    expect(spec).toMatchObject({
-      slides: [
-        {
-          body: [
-            {
-              type: 'process',
-              steps: [
-                { title: '진단', text: '현황 분석', icon: 'search' },
-                { title: '실행', icon: 'launch' },
-              ],
-            },
-            {
-              type: 'timeline',
-              events: [
-                { label: '1분기', title: '착수', icon: 'flag' },
-                { label: '2분기', title: '확산' },
-              ],
-            },
-          ],
-        },
-      ],
-    });
-  });
-
-  it('coerces a JSON-stringified slides argument into a real array', async () => {
-    // Some in-house models serialize structured tool args as strings, which
-    // otherwise fails schema validation with "params/slides must be array".
-    const { result, spec } = await run({
-      slides: JSON.stringify([
-        { layout: 'bullets', title: '성과', bullets: ['매출 12%↑'] },
-      ]),
-    } as unknown as CreatePptxParams);
-    expect(result.error).toBeUndefined();
-    expect(spec).toMatchObject({
-      slides: [{ title: '성과', bullets: ['매출 12%↑'] }],
-    });
-  });
-
-  it('coerces string-encoded nested body/bullets/table fields', async () => {
-    const { result, spec } = await run({
-      slides: [
-        {
-          layout: 'content',
-          title: '개요',
-          bullets: '["a","b"]',
-          body: '[{"type":"kpis","items":[{"value":"+12%","label":"성장"}]}]',
-        },
-      ],
-    } as unknown as CreatePptxParams);
-    expect(result.error).toBeUndefined();
-    expect(spec).toMatchObject({
-      slides: [
-        {
-          title: '개요',
-          bullets: ['a', 'b'],
-          body: [{ type: 'kpis', items: [{ value: '+12%', label: '성장' }] }],
-        },
-      ],
-    });
-  });
-
-  it('wraps a single slide object passed instead of an array', async () => {
-    const { result, spec } = await run({
-      slides: { layout: 'title', title: '단일 슬라이드' },
-    } as unknown as CreatePptxParams);
-    expect(result.error).toBeUndefined();
-    expect(spec).toMatchObject({
-      slides: [{ title: '단일 슬라이드' }],
-    });
-  });
-
-  it('returns a workspace error when the output path is outside the workspace', async () => {
-    const badConfig = {
-      getTargetDir: () => '/ws',
-      validatePathAccess: () => 'Path not in workspace',
-    } as unknown as Config;
-    const { result } = await run(
-      { slides: [{ title: 't' }], output_path: '/etc/evil.pptx' },
-      badConfig,
-    );
-    expect(result.error?.message).toContain('workspace');
-  });
-
-  it('exposes a region-addressed `regions` field in the slide schema', () => {
-    const tool = makeTool();
-    const schema = tool.schema.parametersJsonSchema as Record<string, unknown>;
-    const slides = (
-      schema['properties'] as Record<string, { items?: unknown }>
-    )['slides'];
-    const slideItem = (slides.items as { properties: Record<string, unknown> })
-      .properties;
-    const regions = slideItem['regions'] as {
-      type: string;
-      items: { properties: Record<string, unknown>; required: string[] };
-    };
-    expect(regions.type).toBe('array');
-    expect(Object.keys(regions.items.properties)).toEqual(
-      expect.arrayContaining(['id', 'text', 'bullets']),
-    );
-    expect(regions.items.required).toEqual(['id']);
-  });
-
-  it('forwards per-slide regions into the JSON spec with the sample', async () => {
-    const { spec } = await run({
-      slides: [
-        {
-          mode: 'reuse',
-          sample_slide_index: 3,
-          regions: [
-            { id: '1', text: '2026 1분기 사업 보고' },
-            { id: '3.2', bullets: ['매출 12%↑', '신규 5종'] },
-          ],
-        },
-      ],
-      sample_path: '/samples/inhouse.pptx',
-    });
-    expect(spec).toMatchObject({
-      sample_path: '/samples/inhouse.pptx',
-      slides: [
-        {
-          mode: 'reuse',
-          sample_slide_index: 3,
-          regions: [
-            { id: '1', text: '2026 1분기 사업 보고' },
-            { id: '3.2', bullets: ['매출 12%↑', '신규 5종'] },
-          ],
-        },
-      ],
-    });
-  });
-
-  it('forwards per-slide layout_name + placeholders (by idx) with the sample', async () => {
-    const { spec } = await run({
-      slides: [
-        {
-          layout_name: '제목 및 내용',
-          layout_index: 2,
-          title: '2026 1분기 실적',
-          placeholders: [
-            { idx: 1, text: '2026 1분기 실적' },
-            { idx: 2, bullets: ['매출 12%↑', '영업이익 8%↑'] },
-          ],
-        },
-      ],
-      sample_path: '/samples/inhouse.pptx',
-    });
-    expect(spec).toMatchObject({
-      sample_path: '/samples/inhouse.pptx',
-      slides: [
-        {
-          layout_name: '제목 및 내용',
-          layout_index: 2,
-          placeholders: [
-            { idx: 1, text: '2026 1분기 실적' },
-            { idx: 2, bullets: ['매출 12%↑', '영업이익 8%↑'] },
-          ],
-        },
-      ],
-    });
-  });
-
-  it('exposes layout_name/layout_index/placeholders in the slide schema', () => {
-    const tool = makeTool();
-    const schema = tool.schema.parametersJsonSchema as {
-      properties: {
-        slides: { items: { properties: Record<string, unknown> } };
-      };
-    };
-    const slideProps = schema.properties.slides.items.properties;
-    expect(Object.keys(slideProps)).toEqual(
-      expect.arrayContaining(['layout_name', 'layout_index', 'placeholders']),
-    );
-    const ph = slideProps['placeholders'] as {
-      items: { properties: Record<string, unknown>; required: string[] };
-    };
-    expect(Object.keys(ph.items.properties)).toEqual(
-      expect.arrayContaining(['idx', 'text', 'bullets']),
-    );
-    expect(ph.items.required).toEqual(['idx']);
-  });
-
-  it('coerces string-encoded placeholders and nested bullets', async () => {
-    const { spec } = await run({
-      slides: [
-        {
-          layout_name: '제목 및 내용',
-          // Some models stringify nested arrays — both the outer array and the
-          // inner bullets arrive as JSON strings and must be repaired.
-          placeholders: JSON.stringify([
-            { idx: 1, text: '제목' },
-            { idx: 2, bullets: JSON.stringify(['항목 A', '항목 B']) },
-          ]),
-        },
-      ],
-      sample_path: '/samples/inhouse.pptx',
-    } as unknown as Parameters<typeof run>[0]);
-    expect(spec).toMatchObject({
-      slides: [
-        {
-          placeholders: [
-            { idx: 1, text: '제목' },
-            { idx: 2, bullets: ['항목 A', '항목 B'] },
-          ],
-        },
-      ],
-    });
-  });
-
-  it('forwards template style (font/aspect) into the consulting spec', async () => {
-    setPlatform('darwin'); // no sample → python-pptx path, runs anywhere
-    const { result, spec } = await run({
-      slides: [{ layout: 'title', title: '양식 맞춤 보고서' }],
-      primary: '1A2B3C',
-      accent: 'C03020',
-      font: 'Malgun Gothic',
-      font_kr: 'HY중고딕',
-      aspect: '4:3',
-    });
-    expect(result.error).toBeUndefined();
-    expect(spec).toMatchObject({
-      primary: '1A2B3C',
-      accent: 'C03020',
-      font: 'Malgun Gothic',
-      font_kr: 'HY중고딕',
-      aspect: '4:3',
-    });
-  });
-
-  it('exposes font/font_kr/aspect in the tool schema', () => {
-    const tool = makeTool();
-    const schema = tool.schema.parametersJsonSchema as {
-      properties: Record<string, unknown>;
-    };
-    expect(Object.keys(schema.properties)).toEqual(
-      expect.arrayContaining(['font', 'font_kr', 'aspect']),
-    );
-    const aspect = schema.properties['aspect'] as { enum?: string[] };
-    expect(aspect.enum).toEqual(['16:9', '4:3']);
-  });
-
-  it('coerces a string-encoded regions array and nested region bullets', async () => {
-    const { result, spec } = await run({
-      slides: [
-        {
-          mode: 'reuse',
-          sample_slide_index: 2,
-          regions: '[{"id":"2","bullets":"[\\"a\\",\\"b\\"]"}]',
-        },
-      ],
-      sample_path: '/samples/inhouse.pptx',
-    } as unknown as CreatePptxParams);
-    expect(result.error).toBeUndefined();
-    expect(spec).toMatchObject({
-      slides: [{ regions: [{ id: '2', bullets: ['a', 'b'] }] }],
-    });
+    expect(pptxState.writtenFileName).toContain('reports');
+    expect(pptxState.writtenFileName.endsWith('.pptx')).toBe(true);
   });
 });
