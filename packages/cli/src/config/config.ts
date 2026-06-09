@@ -858,6 +858,26 @@ export async function loadCliConfig(
     process.env['OPENRND_MODEL'] = llmModelFromSettings;
   }
 
+  // openrnd: Vision model settings. The primary text model may be unable to
+  // analyze images, so a separate vision model (configured here) is used to
+  // describe images, and the description is forwarded to the primary model.
+  // Env vars override settings.json, mirroring the primary LLM behavior above.
+  const visionBaseUrl =
+    process.env['OPENRND_VISION_BASE_URL'] || settings.llm?.vision?.baseUrl;
+  const visionModel =
+    process.env['OPENRND_VISION_MODEL'] || settings.llm?.vision?.model;
+  const visionApiKey =
+    process.env['OPENRND_VISION_API_KEY'] || settings.llm?.vision?.apiKey;
+  if (visionBaseUrl) {
+    process.env['OPENRND_VISION_BASE_URL'] = visionBaseUrl;
+  }
+  if (visionModel) {
+    process.env['OPENRND_VISION_MODEL'] = visionModel;
+  }
+  if (visionApiKey) {
+    process.env['OPENRND_VISION_API_KEY'] = visionApiKey;
+  }
+
   const defaultModel = llmModelFromSettings || GEMINI_MODEL_ALIAS_AUTO;
   const rawModel =
     argv.model ||

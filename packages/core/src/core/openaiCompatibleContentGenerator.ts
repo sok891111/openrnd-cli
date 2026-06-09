@@ -28,6 +28,11 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { coreEvents } from '../utils/events.js';
 import { isDebugLoggingEnabled } from '../utils/debugLogging.js';
+import {
+  contentsHaveImages,
+  describeImagesInContents,
+  getVisionConfigFromEnv,
+} from './visionDescriber.js';
 
 // ---------------------------------------------------------------------------
 // Debug logger
@@ -387,6 +392,49 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
     });
   }
 
+  /**
+   * The primary text model cannot read images. When a vision model is
+   * configured (settings.json `llm.vision.*` -> OPENRND_VISION_* env vars) and
+   * the request contains image parts, send the images to the vision model and
+   * rewrite them into text descriptions before forwarding to the text model.
+   *
+   * Returns the original request untouched when there are no images or no
+   * vision model is configured (in which case images are dropped downstream,
+   * the previous behavior).
+   */
+  private async preprocessVision(
+    request: GenerateContentParameters,
+  ): Promise<GenerateContentParameters> {
+    const contents = (request.contents ?? []) as Content[];
+    if (!Array.isArray(contents) || !contentsHaveImages(contents)) {
+      return request;
+    }
+
+    const visionConfig = getVisionConfigFromEnv();
+    if (!visionConfig) {
+      debugLog(
+        'WARN',
+        'Request contains images but no vision model is configured ' +
+          '(set llm.vision in settings.json or OPENRND_VISION_* env vars). ' +
+          'Images will be dropped before sending to the text model.',
+      );
+      coreEvents.emitFeedback(
+        'warning',
+        '[Vision] Images detected but no vision model is configured ' +
+          '(llm.vision in settings.json). They will be ignored by the text model.',
+      );
+      return request;
+    }
+
+    debugLog('INFO', 'preprocessVision → describing images via vision model', {
+      visionBaseUrl: visionConfig.baseUrl,
+      visionModel: visionConfig.model,
+    });
+
+    const transformed = await describeImagesInContents(contents, visionConfig);
+    return { ...request, contents: transformed };
+  }
+
   private buildRequest(
     request: GenerateContentParameters,
     stream: boolean,
@@ -437,7 +485,8 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
     _userPromptId: string,
     _role: LlmRole,
   ): Promise<GenerateContentResponse> {
-    const body = this.buildRequest(request, false);
+    const prepared = await this.preprocessVision(request);
+    const body = this.buildRequest(prepared, false);
     const url = `${this.baseUrl}/chat/completions`;
 
     debugLog('DEBUG', 'generateContent → request', {
@@ -519,7 +568,8 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
     _userPromptId: string,
     _role: LlmRole,
   ): Promise<AsyncGenerator<GenerateContentResponse>> {
-    const body = this.buildRequest(request, true);
+    const prepared = await this.preprocessVision(request);
+    const body = this.buildRequest(prepared, true);
     const url = `${this.baseUrl}/chat/completions`;
 
     debugLog('DEBUG', 'generateContentStream → request', {

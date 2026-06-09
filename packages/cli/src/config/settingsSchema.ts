@@ -3101,6 +3101,50 @@ const SETTINGS_SCHEMA = {
           'API key for the LLM service. For Ollama, use "ollama". For OpenAI, use your API key.',
         showInDialog: false,
       },
+      vision: {
+        type: 'object',
+        label: 'Vision Model',
+        category: 'LLM',
+        requiresRestart: true,
+        default: {},
+        description:
+          'Separate vision-capable model used to analyze images when the primary (text-only) model cannot. ' +
+          'When images are present in a request, they are sent to this model and replaced with its text description ' +
+          'before the prompt is forwarded to the primary model. Leave unset to disable.',
+        showInDialog: false,
+        properties: {
+          baseUrl: {
+            type: 'string',
+            label: 'Vision Base URL',
+            category: 'LLM',
+            requiresRestart: true,
+            default: undefined as string | undefined,
+            description:
+              'Base URL for the OpenAI-compatible vision API endpoint. Example: http://localhost:11434/v1',
+            showInDialog: false,
+          },
+          model: {
+            type: 'string',
+            label: 'Vision Model',
+            category: 'LLM',
+            requiresRestart: true,
+            default: undefined as string | undefined,
+            description:
+              'Vision-capable model name. Example: llava, qwen2-vl, gpt-4o.',
+            showInDialog: false,
+          },
+          apiKey: {
+            type: 'string',
+            label: 'Vision API Key',
+            category: 'LLM',
+            requiresRestart: true,
+            default: undefined as string | undefined,
+            description:
+              'API key for the vision service. Falls back to the primary LLM API key when unset.',
+            showInDialog: false,
+          },
+        },
+      },
     },
   },
 } as const satisfies SettingsSchema;

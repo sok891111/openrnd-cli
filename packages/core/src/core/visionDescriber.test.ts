@@ -1,0 +1,218 @@
+/**
+ * @license
+ * Copyright 2026 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { Content } from '@google/genai';
+import { fetch } from 'undici';
+import {
+  clearVisionDescriptionCache,
+  contentsHaveImages,
+  describeImagesInContents,
+  getVisionConfigFromEnv,
+  type VisionConfig,
+} from './visionDescriber.js';
+
+vi.mock('undici', () => ({
+  fetch: vi.fn(),
+}));
+
+const mockedFetch = vi.mocked(fetch);
+
+function jsonResponse(body: unknown, ok = true, status = 200) {
+  return {
+    ok,
+    status,
+    text: async () => JSON.stringify(body),
+    json: async () => body,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
+}
+
+const IMAGE_PART = {
+  inlineData: { mimeType: 'image/png', data: 'AAAA' },
+};
+
+describe('getVisionConfigFromEnv', () => {
+  const original = { ...process.env };
+  afterEach(() => {
+    process.env = { ...original };
+  });
+
+  it('returns undefined when baseUrl or model is missing', () => {
+    delete process.env['OPENRND_VISION_BASE_URL'];
+    delete process.env['OPENRND_VISION_MODEL'];
+    expect(getVisionConfigFromEnv()).toBeUndefined();
+
+    process.env['OPENRND_VISION_BASE_URL'] = 'http://v/v1';
+    expect(getVisionConfigFromEnv()).toBeUndefined();
+  });
+
+  it('reads config and falls back to the primary key', () => {
+    process.env['OPENRND_VISION_BASE_URL'] = 'http://v/v1';
+    process.env['OPENRND_VISION_MODEL'] = 'llava';
+    delete process.env['OPENRND_VISION_API_KEY'];
+    process.env['OPENRND_API_KEY'] = 'primary-key';
+
+    expect(getVisionConfigFromEnv()).toEqual({
+      baseUrl: 'http://v/v1',
+      model: 'llava',
+      apiKey: 'primary-key',
+    });
+  });
+});
+
+describe('contentsHaveImages', () => {
+  it('detects image inlineData parts only', () => {
+    expect(
+      contentsHaveImages([{ role: 'user', parts: [{ text: 'hi' }] }]),
+    ).toBe(false);
+    expect(contentsHaveImages([{ role: 'user', parts: [IMAGE_PART] }])).toBe(
+      true,
+    );
+    // non-image inlineData (e.g. audio) is ignored
+    expect(
+      contentsHaveImages([
+        {
+          role: 'user',
+          parts: [{ inlineData: { mimeType: 'audio/mp3', data: 'x' } }],
+        },
+      ]),
+    ).toBe(false);
+  });
+});
+
+describe('describeImagesInContents', () => {
+  const config: VisionConfig = {
+    baseUrl: 'http://vision/v1',
+    apiKey: 'k',
+    model: 'llava',
+  };
+
+  beforeEach(() => {
+    mockedFetch.mockReset();
+    clearVisionDescriptionCache();
+  });
+
+  it('replaces image parts with the vision model description', async () => {
+    mockedFetch.mockResolvedValue(
+      jsonResponse({
+        choices: [{ message: { content: 'A red square chart.' } }],
+      }),
+    );
+
+    const contents: Content[] = [
+      { role: 'user', parts: [{ text: 'analyze this' }, IMAGE_PART] },
+    ];
+    const out = await describeImagesInContents(contents, config);
+
+    // The image is gone; the original text and the description text remain.
+    const parts = out[0].parts ?? [];
+    expect(parts.some((p) => p.inlineData)).toBe(false);
+    const text = parts.map((p) => p.text ?? '').join('');
+    expect(text).toContain('analyze this');
+    expect(text).toContain('A red square chart.');
+
+    // Vision endpoint was called with OpenAI image_url content.
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = mockedFetch.mock.calls[0];
+    expect(url).toBe('http://vision/v1/chat/completions');
+    const body = JSON.parse((init as { body: string }).body);
+    expect(body.model).toBe('llava');
+    const userContent = body.messages[0].content;
+    expect(
+      userContent.some((c: { type: string }) => c.type === 'image_url'),
+    ).toBe(true);
+  });
+
+  it('leaves image-free contents untouched and makes no call', async () => {
+    const contents: Content[] = [
+      { role: 'user', parts: [{ text: 'plain text' }] },
+    ];
+    const out = await describeImagesInContents(contents, config);
+    expect(out).toEqual(contents);
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  it('caches the description and does not re-call for the same image', async () => {
+    mockedFetch.mockResolvedValue(
+      jsonResponse({
+        choices: [{ message: { content: 'cached desc' } }],
+      }),
+    );
+
+    const contents: Content[] = [
+      { role: 'user', parts: [{ text: 'analyze' }, IMAGE_PART] },
+    ];
+
+    const first = await describeImagesInContents(contents, config);
+    const second = await describeImagesInContents(contents, config);
+
+    // Only one network call despite two passes over the same image+context.
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    const firstText = (first[0].parts ?? []).map((p) => p.text ?? '').join('');
+    const secondText = (second[0].parts ?? [])
+      .map((p) => p.text ?? '')
+      .join('');
+    expect(firstText).toContain('cached desc');
+    expect(secondText).toContain('cached desc');
+  });
+
+  it('re-calls when the image bytes change', async () => {
+    mockedFetch.mockResolvedValue(
+      jsonResponse({ choices: [{ message: { content: 'desc' } }] }),
+    );
+
+    await describeImagesInContents(
+      [
+        {
+          role: 'user',
+          parts: [{ inlineData: { mimeType: 'image/png', data: 'AAAA' } }],
+        },
+      ],
+      config,
+    );
+    await describeImagesInContents(
+      [
+        {
+          role: 'user',
+          parts: [{ inlineData: { mimeType: 'image/png', data: 'BBBB' } }],
+        },
+      ],
+      config,
+    );
+
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not cache failures (retries next turn)', async () => {
+    mockedFetch.mockResolvedValueOnce(jsonResponse('boom', false, 500));
+    mockedFetch.mockResolvedValueOnce(
+      jsonResponse({ choices: [{ message: { content: 'recovered' } }] }),
+    );
+
+    const contents: Content[] = [{ role: 'user', parts: [IMAGE_PART] }];
+    const first = await describeImagesInContents(contents, config);
+    const second = await describeImagesInContents(contents, config);
+
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
+    expect((first[0].parts ?? []).map((p) => p.text ?? '').join('')).toContain(
+      'Image analysis unavailable',
+    );
+    expect((second[0].parts ?? []).map((p) => p.text ?? '').join('')).toContain(
+      'recovered',
+    );
+  });
+
+  it('inserts a placeholder note when the vision model fails', async () => {
+    mockedFetch.mockResolvedValue(jsonResponse('boom', false, 500));
+
+    const contents: Content[] = [{ role: 'user', parts: [IMAGE_PART] }];
+    const out = await describeImagesInContents(contents, config);
+    const text = (out[0].parts ?? []).map((p) => p.text ?? '').join('');
+    expect(text).toContain('Image analysis unavailable');
+    expect((out[0].parts ?? []).some((p) => p.inlineData)).toBe(false);
+  });
+});
