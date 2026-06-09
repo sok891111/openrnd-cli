@@ -127,6 +127,40 @@ describe('describeImagesInContents', () => {
     ).toBe(true);
   });
 
+  it('sends one request per image and never batches multiple images', async () => {
+    // The vision gateway rejects more than one image per request, so each image
+    // in a single Content block must be sent in its own call.
+    mockedFetch.mockResolvedValue(
+      jsonResponse({ choices: [{ message: { content: 'desc' } }] }),
+    );
+
+    const contents: Content[] = [
+      {
+        role: 'user',
+        parts: [
+          { text: 'two images' },
+          { inlineData: { mimeType: 'image/png', data: 'AAAA' } },
+          { inlineData: { mimeType: 'image/png', data: 'BBBB' } },
+        ],
+      },
+    ];
+    const out = await describeImagesInContents(contents, config);
+
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
+    for (const call of mockedFetch.mock.calls) {
+      const body = JSON.parse((call[1] as { body: string }).body);
+      const imageParts = body.messages[0].content.filter(
+        (c: { type: string }) => c.type === 'image_url',
+      );
+      expect(imageParts).toHaveLength(1);
+    }
+
+    // Both descriptions are folded into the single text part, labeled per image.
+    const text = (out[0].parts ?? []).map((p) => p.text ?? '').join('');
+    expect(text).toContain('Image 1/2:');
+    expect(text).toContain('Image 2/2:');
+  });
+
   it('leaves image-free contents untouched and makes no call', async () => {
     const contents: Content[] = [
       { role: 'user', parts: [{ text: 'plain text' }] },

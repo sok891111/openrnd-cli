@@ -155,12 +155,17 @@ interface VisionChatResponse {
 }
 
 /**
- * Call the vision model once with all images from a single Content block plus
- * the surrounding text (as context) and return its textual description.
+ * Call the vision model once with a single image plus the surrounding text (as
+ * context) and return its textual description.
+ *
+ * IMPORTANT: one image per request. Some vision gateways reject requests that
+ * carry more than one image ("At most 1 image(s) may be provided in one
+ * request"), so callers with multiple images must loop via `describeImages`
+ * rather than batching them into a single call.
  */
-async function describeImages(
+async function describeOneImage(
   config: VisionConfig,
-  imageParts: Part[],
+  imagePart: Part,
   contextText: string,
 ): Promise<string> {
   const userContent: OpenAIVisionContent[] = [
@@ -172,14 +177,12 @@ async function describeImages(
     },
   ];
 
-  for (const part of imageParts) {
-    const mime = part.inlineData?.mimeType ?? 'image/png';
-    const data = part.inlineData?.data ?? '';
-    userContent.push({
-      type: 'image_url',
-      image_url: { url: `data:${mime};base64,${data}` },
-    });
-  }
+  const mime = imagePart.inlineData?.mimeType ?? 'image/png';
+  const imageData = imagePart.inlineData?.data ?? '';
+  userContent.push({
+    type: 'image_url',
+    image_url: { url: `data:${mime};base64,${imageData}` },
+  });
 
   const url = `${config.baseUrl.replace(/\/$/, '')}/chat/completions`;
   let response;
@@ -222,6 +225,33 @@ async function describeImages(
     throw new Error('Vision model returned an empty description.');
   }
   return description;
+}
+
+/**
+ * Describe one or more images, sending exactly one image per request (see
+ * `describeOneImage`) and concatenating the results. A single image returns its
+ * description verbatim; multiple images are labeled "Image N/total:" so the
+ * downstream text model can tell them apart.
+ */
+async function describeImages(
+  config: VisionConfig,
+  imageParts: Part[],
+  contextText: string,
+): Promise<string> {
+  if (imageParts.length === 1) {
+    return describeOneImage(config, imageParts[0], contextText);
+  }
+
+  const descriptions: string[] = [];
+  for (let i = 0; i < imageParts.length; i++) {
+    const description = await describeOneImage(
+      config,
+      imageParts[i],
+      contextText,
+    );
+    descriptions.push(`Image ${i + 1}/${imageParts.length}:\n${description}`);
+  }
+  return descriptions.join('\n\n');
 }
 
 /**
