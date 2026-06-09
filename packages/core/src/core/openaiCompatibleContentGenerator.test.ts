@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { GenerateContentResponse } from '@google/genai';
 import { fetch } from 'undici';
 import { OpenAICompatibleContentGenerator } from './openaiCompatibleContentGenerator.js';
@@ -35,6 +35,21 @@ function sseResponse(lines: string[]) {
   } as unknown as Awaited<ReturnType<typeof fetch>>;
 }
 
+function hangingSseResponse() {
+  const stream = new ReadableStream<Uint8Array>({
+    start() {
+      // Intentionally leave the stream open without producing chunks.
+    },
+  });
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    headers: new Headers(),
+    body: stream,
+  } as unknown as Awaited<ReturnType<typeof fetch>>;
+}
+
 async function collect(
   gen: AsyncGenerator<GenerateContentResponse>,
 ): Promise<GenerateContentResponse[]> {
@@ -48,6 +63,10 @@ async function collect(
 describe('OpenAICompatibleContentGenerator streaming usage', () => {
   beforeEach(() => {
     mockedFetch.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('requests usage in the stream and surfaces token counts', async () => {
@@ -87,5 +106,60 @@ describe('OpenAICompatibleContentGenerator streaming usage', () => {
     expect(withUsage).toBeDefined();
     expect(withUsage!.usageMetadata?.promptTokenCount).toBe(12);
     expect(withUsage!.usageMetadata?.candidatesTokenCount).toBe(4);
+  });
+
+  it('times out when the stream stays open without chunks', async () => {
+    vi.stubEnv('OPENRND_STREAM_IDLE_TIMEOUT_MS', '1');
+    mockedFetch.mockResolvedValue(hangingSseResponse());
+
+    const gen = new OpenAICompatibleContentGenerator(
+      'http://localhost/v1',
+      'key',
+      'in-house-model',
+    );
+
+    await expect(
+      collect(
+        await gen.generateContentStream(
+          { model: 'in-house-model', contents: [] },
+          'prompt-1',
+          'model' as never,
+        ),
+      ),
+    ).rejects.toMatchObject({
+      name: 'FetchError',
+      code: 'ETIMEDOUT',
+    });
+  });
+
+  it('passes the request abort signal to streaming fetch', async () => {
+    mockedFetch.mockResolvedValue(
+      sseResponse([
+        'data: {"choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}\n',
+        'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n',
+        'data: [DONE]\n',
+      ]),
+    );
+
+    const abortController = new AbortController();
+    const gen = new OpenAICompatibleContentGenerator(
+      'http://localhost/v1',
+      'key',
+      'in-house-model',
+    );
+
+    await collect(
+      await gen.generateContentStream(
+        {
+          model: 'in-house-model',
+          contents: [],
+          config: { abortSignal: abortController.signal },
+        },
+        'prompt-1',
+        'model' as never,
+      ),
+    );
+
+    expect(mockedFetch.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
   });
 });

@@ -216,6 +216,9 @@ describe('CreatePptxTool (HTML → PPTX)', () => {
     const htmlWrite = writes.find((c) => String(c[0]).endsWith('.html'));
     expect(String(htmlWrite?.[1])).toContain('openrnd-slide-viewer-style');
     expect(String(htmlWrite?.[1])).toContain('openrnd-slide-controls');
+    expect(String(htmlWrite?.[1])).toContain('openrnd-slide-stage');
+    expect(String(htmlWrite?.[1])).toContain('openrnd-slide-visible');
+    expect(String(htmlWrite?.[1])).not.toContain('scroll-snap-type');
   });
 
   it('reports the user-provided html_path as the source (no copy)', async () => {

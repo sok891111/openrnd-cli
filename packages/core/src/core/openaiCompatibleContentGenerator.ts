@@ -51,6 +51,16 @@ function getLogPath(): string {
 // Single source of truth for the debug-logging toggle lives in
 // ../utils/debugLogging.ts so the corporate-fetch path and others share it.
 const isDebugEnabled = isDebugLoggingEnabled;
+const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 120_000;
+
+class OpenAICompatibleStreamTimeoutError extends Error {
+  readonly code = 'ETIMEDOUT';
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'FetchError';
+  }
+}
 
 // Surface an informational diagnostic in the terminal/chat window, but ONLY
 // when debug logging is enabled. Errors/warnings still emit unconditionally so
@@ -179,6 +189,12 @@ interface OpenAIStreamChunk {
   };
 }
 
+type StreamReadResult = { done: boolean; value?: Uint8Array };
+type StreamReaderLike = {
+  read: () => Promise<StreamReadResult>;
+  cancel: () => Promise<unknown>;
+};
+
 // ---------------------------------------------------------------------------
 // Conversion helpers: Gemini <-> OpenAI
 // ---------------------------------------------------------------------------
@@ -222,6 +238,101 @@ function makeGenerateContentResponse(
   const response = new GenerateContentResponse();
   Object.assign(response, shape);
   return response;
+}
+
+function getStreamIdleTimeoutMs(): number {
+  const raw = process.env['OPENRND_STREAM_IDLE_TIMEOUT_MS'];
+  if (raw === undefined || raw.trim() === '') {
+    return DEFAULT_STREAM_IDLE_TIMEOUT_MS;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return DEFAULT_STREAM_IDLE_TIMEOUT_MS;
+  }
+  return parsed;
+}
+
+function getRequestAbortSignal(
+  request: GenerateContentParameters,
+): AbortSignal | undefined {
+  const config = request.config as { abortSignal?: AbortSignal } | undefined;
+  return config?.abortSignal;
+}
+
+function createLinkedAbortController(signal: AbortSignal | undefined): {
+  controller: AbortController;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+  let cleanup = () => {};
+
+  if (!signal) {
+    return { controller, cleanup };
+  }
+
+  if (signal.aborted) {
+    controller.abort(signal.reason);
+    return { controller, cleanup };
+  }
+
+  const onAbort = () => controller.abort(signal.reason);
+  signal.addEventListener('abort', onAbort, { once: true });
+  cleanup = () => signal.removeEventListener('abort', onAbort);
+
+  return { controller, cleanup };
+}
+
+async function readStreamChunkWithTimeout(
+  reader: StreamReaderLike,
+  timeoutMs: number,
+  abortSignal: AbortSignal | undefined,
+  chunksReceived: number,
+): Promise<StreamReadResult> {
+  if (abortSignal?.aborted) {
+    throw abortSignal.reason ?? new Error('Stream read aborted.');
+  }
+
+  if (timeoutMs === 0) {
+    return reader.read();
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let abortListener: (() => void) | undefined;
+
+  try {
+    return await new Promise<StreamReadResult>((resolve, reject) => {
+      const failWithTimeout = () => {
+        void reader.cancel().catch(() => {});
+        const phase =
+          chunksReceived === 0 ? 'first stream chunk' : 'next stream chunk';
+        reject(
+          new OpenAICompatibleStreamTimeoutError(
+            `OpenAI-compatible stream timed out after ${timeoutMs}ms waiting for ${phase}.`,
+          ),
+        );
+      };
+
+      timeoutId = setTimeout(failWithTimeout, timeoutMs);
+
+      if (abortSignal) {
+        abortListener = () => {
+          void reader.cancel().catch(() => {});
+          reject(abortSignal.reason ?? new Error('Stream read aborted.'));
+        };
+        abortSignal.addEventListener('abort', abortListener, { once: true });
+      }
+
+      reader.read().then(resolve, reject);
+    });
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    if (abortSignal && abortListener) {
+      abortSignal.removeEventListener('abort', abortListener);
+    }
+  }
 }
 
 function partsToText(parts: Part[]): string {
@@ -502,6 +613,8 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
     debugFeedback(`[LLM] Connecting → ${url} (model: ${body.model})`);
 
     let response: Awaited<ReturnType<typeof fetch>>;
+    const requestSignal = getRequestAbortSignal(prepared);
+    const { controller, cleanup } = createLinkedAbortController(requestSignal);
     try {
       response = await fetch(url, {
         method: 'POST',
@@ -510,6 +623,7 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
           Authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
     } catch (err) {
       debugLog(
@@ -526,6 +640,8 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
         `[LLM] Connection failed → ${url}: ${String(err)}`,
       );
       throw err;
+    } finally {
+      cleanup();
     }
 
     debugLog('DEBUG', 'generateContent → response received', {
@@ -585,6 +701,9 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
     debugFeedback(`[LLM] Connecting → ${url} (model: ${body.model}, stream)`);
 
     let response: Awaited<ReturnType<typeof fetch>>;
+    const requestSignal = getRequestAbortSignal(prepared);
+    const streamIdleTimeoutMs = getStreamIdleTimeoutMs();
+    const { controller, cleanup } = createLinkedAbortController(requestSignal);
     try {
       response = await fetch(url, {
         method: 'POST',
@@ -593,6 +712,7 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
           Authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
     } catch (err) {
       debugLog(
@@ -609,6 +729,8 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
         `[LLM] Connection failed → ${url}: ${String(err)}`,
       );
       throw err;
+    } finally {
+      cleanup();
     }
 
     debugLog('DEBUG', 'generateContentStream → response received', {
@@ -662,7 +784,12 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
 
       try {
         while (true) {
-          const { done, value } = await reader.read();
+          const { done, value } = await readStreamChunkWithTimeout(
+            reader,
+            streamIdleTimeoutMs,
+            requestSignal,
+            rawChunkCount,
+          );
           if (done) {
             debugLog('DEBUG', 'generateContentStream → stream done', {
               totalChunks: chunkCount,

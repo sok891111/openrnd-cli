@@ -94,32 +94,55 @@ interface SlideDimensions {
 function buildSlideViewerInjection(dims: SlideDimensions): string {
   return `<style id="openrnd-slide-viewer-style">
 @media screen {
-  html { margin: 0; background: #111318; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+  }
+  html { background: #111318; }
   body.openrnd-slide-viewer {
     margin: 0;
     background: #111318;
-    overflow-y: auto;
-    scroll-snap-type: y mandatory;
+    overflow: hidden;
   }
   body.openrnd-slide-viewer .slide {
     width: ${dims.widthPx}px;
     height: ${dims.heightPx}px;
     box-sizing: border-box;
     overflow: hidden;
-    margin: 0 auto;
-    scroll-snap-align: start;
-    scroll-snap-stop: always;
+    margin: 0;
+  }
+  .openrnd-slide-stage {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px 88px;
+    background:
+      radial-gradient(circle at top left, rgba(96, 151, 255, 0.14), transparent 32%),
+      radial-gradient(circle at bottom right, rgba(26, 203, 135, 0.12), transparent 28%),
+      linear-gradient(180deg, #171a22 0%, #0f1117 100%);
+  }
+  .openrnd-slide-stage .slide {
+    display: none;
+    box-shadow:
+      0 28px 72px rgba(0, 0, 0, 0.42),
+      0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+  .openrnd-slide-stage .slide.openrnd-slide-visible {
+    display: block;
   }
   .openrnd-slide-controls {
     position: fixed;
-    right: 16px;
-    bottom: 16px;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
     z-index: 2147483647;
     display: flex;
     gap: 8px;
     align-items: center;
-    padding: 8px;
-    border-radius: 8px;
+    padding: 10px 12px;
+    border-radius: 999px;
     background: rgba(17, 19, 24, 0.82);
     color: #fff;
     font: 13px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -144,6 +167,20 @@ function buildSlideViewerInjection(dims: SlideDimensions): string {
     text-align: center;
     font-variant-numeric: tabular-nums;
   }
+  .openrnd-slide-hint {
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2147483647;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(17, 19, 24, 0.72);
+    color: rgba(255, 255, 255, 0.82);
+    font: 12px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: 0.02em;
+    backdrop-filter: blur(8px);
+  }
 }
 </style>
 <script id="openrnd-slide-viewer-script">
@@ -152,30 +189,44 @@ function buildSlideViewerInjection(dims: SlideDimensions): string {
     const slides = Array.from(document.querySelectorAll('.slide'));
     if (slides.length === 0 || document.querySelector('.openrnd-slide-controls')) return;
     document.body.classList.add('openrnd-slide-viewer');
+    const stage = document.createElement('div');
+    stage.className = 'openrnd-slide-stage';
+    slides.forEach((slide) => stage.appendChild(slide));
+    document.body.appendChild(stage);
     const controls = document.createElement('div');
     controls.className = 'openrnd-slide-controls';
     controls.innerHTML = '<button type="button" data-openrnd-prev aria-label="Previous slide">&lt;</button><span class="openrnd-slide-counter"></span><button type="button" data-openrnd-next aria-label="Next slide">&gt;</button>';
     document.body.appendChild(controls);
+    const hint = document.createElement('div');
+    hint.className = 'openrnd-slide-hint';
+    hint.textContent = 'Arrow keys or buttons';
+    document.body.appendChild(hint);
     const counter = controls.querySelector('.openrnd-slide-counter');
     let index = 0;
     const show = (next) => {
       index = Math.max(0, Math.min(slides.length - 1, next));
-      slides[index].scrollIntoView({ block: 'start' });
+      slides.forEach((slide, slideIndex) => {
+        slide.classList.toggle('openrnd-slide-visible', slideIndex === index);
+      });
       counter.textContent = String(index + 1) + ' / ' + String(slides.length);
     };
     controls.querySelector('[data-openrnd-prev]').addEventListener('click', () => show(index - 1));
     controls.querySelector('[data-openrnd-next]').addEventListener('click', () => show(index + 1));
     window.addEventListener('keydown', (event) => {
-      if (event.key === 'ArrowDown' || event.key === 'ArrowRight' || event.key === 'PageDown') show(index + 1);
+      if (event.key === 'ArrowDown' || event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') show(index + 1);
       if (event.key === 'ArrowUp' || event.key === 'ArrowLeft' || event.key === 'PageUp') show(index - 1);
+      if (event.key === 'Home') show(0);
+      if (event.key === 'End') show(slides.length - 1);
     });
-    const observer = new IntersectionObserver((entries) => {
-      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-      if (!visible) return;
-      index = slides.indexOf(visible.target);
-      counter.textContent = String(index + 1) + ' / ' + String(slides.length);
-    }, { threshold: [0.5, 0.75, 1] });
-    slides.forEach((slide) => observer.observe(slide));
+    let wheelLock = false;
+    window.addEventListener('wheel', (event) => {
+      if (wheelLock) return;
+      const delta = Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+      if (Math.abs(delta) < 12) return;
+      wheelLock = true;
+      show(index + (delta > 0 ? 1 : -1));
+      window.setTimeout(() => { wheelLock = false; }, 180);
+    }, { passive: true });
     show(0);
   };
   if (document.readyState === 'loading') {
@@ -617,8 +668,8 @@ export class CreatePptxTool extends BaseDeclarativeTool<
         'selector). Design it like a ' +
         'real deck — strong typography, infographics, KPI/stat cards, charts, icons, color — ' +
         'using inline CSS (and inline <svg> or a CDN chart lib if helpful). Size each slide as ' +
-        'an exact slide canvas (16:9 ⇒ 1280×720 px). The saved HTML is enhanced with a simple ' +
-        'slide viewer so the user can page through it in the browser. Then call this tool with that HTML as "html" ' +
+        'an exact slide canvas (16:9 ⇒ 1280×720 px). The saved HTML is enhanced with a presentation-style ' +
+        'viewer so the user can page through it in the browser one slide at a time. Then call this tool with that HTML as "html" ' +
         '(or a saved file via "html_path"). The tool renders every ".slide" element to a ' +
         'high-resolution image with headless Chrome and packs them, one full-bleed image per ' +
         'slide, into a .pptx. This preserves your visual design exactly (the slides are images, ' +
@@ -629,8 +680,15 @@ export class CreatePptxTool extends BaseDeclarativeTool<
         'Do not let one slide flow into another: use a clear slide boundary, fixed dimensions, ' +
         'box-sizing:border-box, overflow:hidden, and keep all content inside that one canvas. ' +
         'Avoid content taller than one slide because the PPT image intentionally captures exactly ' +
-        'one viewport. Write action-title takeaways, one idea per slide. For Korean/CJK text use ' +
+        'one viewport. Do NOT write slides like a report page with content stacked only in the top area and empty space below. ' +
+        'Instead, deliberately compose the whole slide canvas: use 2-column or 3-zone layouts, cards, sidebars, visual anchors, ' +
+        'and bottom-aligned supporting blocks so the main content typically occupies roughly 70-90% of the slide height. ' +
+        'Write action-title takeaways, one idea per slide. For Korean/CJK text use ' +
         'word-break: keep-all so lines wrap at word boundaries (the tool also applies this by default).\n\n' +
+        'TEMPLATE MATCHING: if the user provides a sample PPT/PPTX file such as @sample_file, first read and analyze that file as a template reference. ' +
+        'Extract the slide system before authoring HTML: title placement, recurring header/footer, palette, font tone, grid, card shapes, chart/table styling, ' +
+        'icon treatment, page number treatment, whitespace rhythm, and how dense each slide feels. Then reproduce those patterns in the HTML instead of using a generic deck style. ' +
+        'If the sample deck has a strong master-slide structure, keep that structure consistent across the generated slides.\n\n' +
         'The .pptx is saved (default under <workspace>/openrnd-ppt/) and opened, and the original ' +
         'HTML is saved next to it (same name, .html) — both paths are reported so the user can ' +
         're-edit the HTML and regenerate.',
@@ -643,7 +701,8 @@ export class CreatePptxTool extends BaseDeclarativeTool<
             description:
               'The full HTML of the deck. Author each slide as one element matching ' +
               'slide_selector (default class "slide"), sized to the render viewport (16:9 ⇒ ' +
-              '1280×720 px). Use inline CSS/SVG for infographics, KPI cards, charts, icons. ' +
+              '1280×720 px). Use inline CSS/SVG for infographics, KPI cards, charts, icons, and ' +
+              'fill the full slide canvas rather than stacking content only at the top. ' +
               'Provide this OR html_path.',
           },
           html_path: {
