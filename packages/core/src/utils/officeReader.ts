@@ -375,10 +375,21 @@ async function describeOfficeImages(
   );
 
   // Build replacements first, then splice them in, so indices stay stable.
+  // Describe images sequentially so the vision endpoint isn't flooded with
+  // (potentially large) concurrent requests; emit per-image progress so a slow
+  // run doesn't look frozen.
   const replacements = new Map<string, string>();
+  let describedCount = 0;
+  const uniqueCount = new Set(markers.map((m) => m[1])).size;
   for (const match of markers) {
     const fileName = match[1];
     if (replacements.has(fileName)) continue;
+
+    describedCount += 1;
+    coreEvents.emitFeedback(
+      'info',
+      `[Vision] (${describedCount}/${uniqueCount}) Describing "${fileName}"...`,
+    );
 
     // Slide context: text from the start of this slide up to the marker.
     const slideStart = text.lastIndexOf('# Slide', match.index);
@@ -404,6 +415,10 @@ async function describeOfficeImages(
         `[Image "${fileName}" described by vision model "${config.model}"]\n${description}`,
       );
     } catch (err) {
+      coreEvents.emitFeedback(
+        'error',
+        `[Vision] Could not describe "${fileName}": ${String(err)}`,
+      );
       replacements.set(
         fileName,
         `[Image "${fileName}" could not be described: ${String(err)}]`,

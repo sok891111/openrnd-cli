@@ -37,6 +37,15 @@ export interface VisionConfig {
   model: string;
 }
 
+/**
+ * Per-request timeout for a single vision call. Without this, a hung or
+ * unresponsive vision endpoint makes the caller wait forever — and the Office
+ * reader describes images sequentially, so one stuck image freezes the whole
+ * read with no further output. On timeout the request aborts and the caller's
+ * per-image catch leaves a placeholder note so the read still completes.
+ */
+const VISION_REQUEST_TIMEOUT_MS = 60_000;
+
 // ---------------------------------------------------------------------------
 // Description cache
 // ---------------------------------------------------------------------------
@@ -173,18 +182,31 @@ async function describeImages(
   }
 
   const url = `${config.baseUrl.replace(/\/$/, '')}/chat/completions`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: config.model,
-      messages: [{ role: 'user', content: userContent }],
-      stream: false,
-    }),
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: config.model,
+        messages: [{ role: 'user', content: userContent }],
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(VISION_REQUEST_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'TimeoutError') {
+      throw new Error(
+        `Vision model at ${url} did not respond within ${
+          VISION_REQUEST_TIMEOUT_MS / 1000
+        }s.`,
+      );
+    }
+    throw new Error(`Vision model request to ${url} failed: ${String(err)}`);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
