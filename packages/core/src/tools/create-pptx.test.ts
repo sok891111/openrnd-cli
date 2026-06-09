@@ -206,6 +206,18 @@ describe('CreatePptxTool (HTML → PPTX)', () => {
     expect(result.returnDisplay).toContain('q1.html');
   });
 
+  it('enhances saved inline HTML with slide viewer controls', async () => {
+    await run({
+      html: '<html><body><section class="slide">A</section></body></html>',
+      output_path: 'decks/viewer',
+    });
+
+    const writes = vi.mocked(fsPromises.writeFile).mock.calls;
+    const htmlWrite = writes.find((c) => String(c[0]).endsWith('.html'));
+    expect(String(htmlWrite?.[1])).toContain('openrnd-slide-viewer-style');
+    expect(String(htmlWrite?.[1])).toContain('openrnd-slide-controls');
+  });
+
   it('reports the user-provided html_path as the source (no copy)', async () => {
     const result = await run({ html_path: 'deck.html' });
     expect(result.error).toBeUndefined();
@@ -222,6 +234,14 @@ describe('CreatePptxTool (HTML → PPTX)', () => {
     expect(pageMock.addStyleTag).toHaveBeenCalledTimes(1);
     const arg = pageMock.addStyleTag.mock.calls[0][0] as { content: string };
     expect(arg.content).toContain('keep-all');
+  });
+
+  it('injects capture CSS that forces each slide to the viewport', async () => {
+    await run({ html: '<section class="slide">A</section>' });
+    const arg = pageMock.addStyleTag.mock.calls[0][0] as { content: string };
+    expect(arg.content).toContain('openrnd-pptx-capture');
+    expect(arg.content).toContain('width:1280px');
+    expect(arg.content).toContain('height:720px');
   });
 
   it('respects open=false', async () => {

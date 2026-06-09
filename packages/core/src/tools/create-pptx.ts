@@ -91,6 +91,125 @@ interface SlideDimensions {
   heightIn: number;
 }
 
+function buildSlideViewerInjection(dims: SlideDimensions): string {
+  return `<style id="openrnd-slide-viewer-style">
+@media screen {
+  html { margin: 0; background: #111318; }
+  body.openrnd-slide-viewer {
+    margin: 0;
+    background: #111318;
+    overflow-y: auto;
+    scroll-snap-type: y mandatory;
+  }
+  body.openrnd-slide-viewer .slide {
+    width: ${dims.widthPx}px;
+    height: ${dims.heightPx}px;
+    box-sizing: border-box;
+    overflow: hidden;
+    margin: 0 auto;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+  .openrnd-slide-controls {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 2147483647;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(17, 19, 24, 0.82);
+    color: #fff;
+    font: 13px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(8px);
+  }
+  .openrnd-slide-controls button {
+    width: 32px;
+    height: 28px;
+    border: 0;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+  }
+  .openrnd-slide-controls button:hover {
+    background: rgba(255, 255, 255, 0.24);
+  }
+  .openrnd-slide-counter {
+    min-width: 54px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+}
+</style>
+<script id="openrnd-slide-viewer-script">
+(() => {
+  const init = () => {
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    if (slides.length === 0 || document.querySelector('.openrnd-slide-controls')) return;
+    document.body.classList.add('openrnd-slide-viewer');
+    const controls = document.createElement('div');
+    controls.className = 'openrnd-slide-controls';
+    controls.innerHTML = '<button type="button" data-openrnd-prev aria-label="Previous slide">&lt;</button><span class="openrnd-slide-counter"></span><button type="button" data-openrnd-next aria-label="Next slide">&gt;</button>';
+    document.body.appendChild(controls);
+    const counter = controls.querySelector('.openrnd-slide-counter');
+    let index = 0;
+    const show = (next) => {
+      index = Math.max(0, Math.min(slides.length - 1, next));
+      slides[index].scrollIntoView({ block: 'start' });
+      counter.textContent = String(index + 1) + ' / ' + String(slides.length);
+    };
+    controls.querySelector('[data-openrnd-prev]').addEventListener('click', () => show(index - 1));
+    controls.querySelector('[data-openrnd-next]').addEventListener('click', () => show(index + 1));
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowRight' || event.key === 'PageDown') show(index + 1);
+      if (event.key === 'ArrowUp' || event.key === 'ArrowLeft' || event.key === 'PageUp') show(index - 1);
+    });
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (!visible) return;
+      index = slides.indexOf(visible.target);
+      counter.textContent = String(index + 1) + ' / ' + String(slides.length);
+    }, { threshold: [0.5, 0.75, 1] });
+    slides.forEach((slide) => observer.observe(slide));
+    show(0);
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+})();
+</script>`;
+}
+
+function injectBeforeClosingTag(
+  html: string,
+  tag: 'head' | 'body',
+  value: string,
+): string {
+  const re = new RegExp(`</${tag}>`, 'i');
+  if (re.test(html)) {
+    return html.replace(re, `${value}</${tag}>`);
+  }
+  return `${html}\n${value}`;
+}
+
+function enhanceInlineHtmlForSlideViewing(
+  html: string,
+  dims: SlideDimensions,
+): string {
+  if (html.includes('id="openrnd-slide-viewer-style"')) {
+    return html;
+  }
+  const injection = buildSlideViewerInjection(dims);
+  return injectBeforeClosingTag(html, 'body', injection);
+}
+
 /** Maps params to concrete render + PPTX dimensions. */
 function resolveDimensions(params: CreatePptxParams): SlideDimensions {
   if (
@@ -215,6 +334,8 @@ class CreatePptxInvocation extends BaseToolInvocation<
       };
     }
 
+    const dims = resolveDimensions(this.params);
+
     // Resolve the HTML source into a file:// URL the browser can load. Inline
     // HTML is saved permanently next to the .pptx (same basename) so the user
     // gets the editable source alongside the deck.
@@ -242,7 +363,11 @@ class CreatePptxInvocation extends BaseToolInvocation<
           };
         }
         await fs.mkdir(path.dirname(htmlSavePath), { recursive: true });
-        await fs.writeFile(htmlSavePath, inlineHtml, 'utf-8');
+        await fs.writeFile(
+          htmlSavePath,
+          enhanceInlineHtmlForSlideViewing(inlineHtml, dims),
+          'utf-8',
+        );
         htmlFileUrl = pathToFileUrl(htmlSavePath);
         reportedHtmlPath = htmlSavePath;
       } else {
@@ -289,7 +414,6 @@ class CreatePptxInvocation extends BaseToolInvocation<
       (this.params.timeout_seconds ?? DEFAULT_TIMEOUT_MS / 1000) * 1000,
       MAX_TIMEOUT_MS,
     );
-    const dims = resolveDimensions(this.params);
     const selector =
       this.params.slide_selector?.trim() || DEFAULT_SLIDE_SELECTOR;
     const tmpDir = path.join(os.tmpdir(), `openrnd_pptx_${randomUUID()}`);
@@ -323,7 +447,12 @@ class CreatePptxInvocation extends BaseToolInvocation<
       await page
         .addStyleTag({
           content:
-            'html{word-break:keep-all;overflow-wrap:break-word;line-break:strict;}',
+            'html{word-break:keep-all;overflow-wrap:break-word;line-break:strict;}' +
+            `html.openrnd-pptx-capture,html.openrnd-pptx-capture body{margin:0!important;padding:0!important;width:${dims.widthPx}px!important;height:${dims.heightPx}px!important;overflow:hidden!important;}` +
+            `html.openrnd-pptx-capture .openrnd-pptx-slide{box-sizing:border-box!important;width:${dims.widthPx}px!important;height:${dims.heightPx}px!important;max-width:none!important;max-height:none!important;margin:0!important;overflow:hidden!important;}` +
+            'html.openrnd-pptx-capture .openrnd-pptx-active{display:block!important;visibility:visible!important;position:fixed!important;inset:0 auto auto 0!important;transform:none!important;opacity:1!important;z-index:1!important;}' +
+            'html.openrnd-pptx-capture .openrnd-pptx-hidden{display:none!important;visibility:hidden!important;}' +
+            'html.openrnd-pptx-capture .openrnd-slide-controls{display:none!important;}',
         })
         .catch(() => {});
       // Make sure web fonts are ready before snapshotting.
@@ -351,6 +480,15 @@ class CreatePptxInvocation extends BaseToolInvocation<
         await shoot(png);
         pngPaths.push(png);
       } else {
+        await page.evaluate((sel) => {
+          document.documentElement.classList.add('openrnd-pptx-capture');
+          document.body?.classList.remove('openrnd-slide-viewer');
+          const els = Array.from(document.querySelectorAll<HTMLElement>(sel));
+          els.forEach((e) => {
+            e.classList.add('openrnd-pptx-slide');
+          });
+        }, selector);
+
         for (let i = 0; i < slideCount; i++) {
           if (abortSignal?.aborted) throw new Error('Aborted');
           // Isolate slide i: show only it, full-viewport, at the top.
@@ -360,11 +498,8 @@ class CreatePptxInvocation extends BaseToolInvocation<
                 document.querySelectorAll<HTMLElement>(sel),
               );
               els.forEach((e, j) => {
-                if (e.dataset['openrndOrigDisplay'] === undefined) {
-                  e.dataset['openrndOrigDisplay'] = e.style.display;
-                }
-                e.style.display =
-                  j === idx ? e.dataset['openrndOrigDisplay'] || '' : 'none';
+                e.classList.toggle('openrnd-pptx-active', j === idx);
+                e.classList.toggle('openrnd-pptx-hidden', j !== idx);
               });
               window.scrollTo(0, 0);
             },
@@ -477,21 +612,25 @@ export class CreatePptxTool extends BaseDeclarativeTool<
       'Create a PowerPoint (.pptx) deck from an HTML slide deck and open it. Use this ' +
         'whenever the user asks to make slides or a deck — Korean triggers include PPT/피피티/' +
         '슬라이드/장표 만들어줘, 보고서 슬라이드로, 발표자료 만들어줘.\n\n' +
-        'HOW IT WORKS: you FIRST author a single self-contained HTML document where each slide ' +
-        'is one top-level element with class "slide" (the default selector). Design it like a ' +
+        'HOW IT WORKS: you FIRST author a single self-contained HTML slide deck, not a long ' +
+        'scrolling report. Each slide is one top-level element with class "slide" (the default ' +
+        'selector). Design it like a ' +
         'real deck — strong typography, infographics, KPI/stat cards, charts, icons, color — ' +
-        'using inline CSS (and inline <svg> or a CDN chart lib if helpful). Size each slide to ' +
-        'the deck aspect (16:9 ⇒ 1280×720 px). Then call this tool with that HTML as "html" ' +
+        'using inline CSS (and inline <svg> or a CDN chart lib if helpful). Size each slide as ' +
+        'an exact slide canvas (16:9 ⇒ 1280×720 px). The saved HTML is enhanced with a simple ' +
+        'slide viewer so the user can page through it in the browser. Then call this tool with that HTML as "html" ' +
         '(or a saved file via "html_path"). The tool renders every ".slide" element to a ' +
         'high-resolution image with headless Chrome and packs them, one full-bleed image per ' +
         'slide, into a .pptx. This preserves your visual design exactly (the slides are images, ' +
         'so they are NOT text-editable in PowerPoint). No PowerPoint install is needed; it works ' +
         'on macOS, Windows and Linux.\n\n' +
         'HTML CONTRACT: each slide = <section class="slide">…</section>; every .slide should be ' +
-        'the same fixed size as the render viewport so it fills the PPTX slide edge-to-edge; ' +
-        'avoid content taller than one slide (it gets clipped). Write action-title takeaways, ' +
-        'one idea per slide. For Korean/CJK text use word-break: keep-all so lines wrap at word ' +
-        'boundaries (the tool also applies this by default).\n\n' +
+        'the same fixed size as the render viewport so it fills the PPTX slide edge-to-edge. ' +
+        'Do not let one slide flow into another: use a clear slide boundary, fixed dimensions, ' +
+        'box-sizing:border-box, overflow:hidden, and keep all content inside that one canvas. ' +
+        'Avoid content taller than one slide because the PPT image intentionally captures exactly ' +
+        'one viewport. Write action-title takeaways, one idea per slide. For Korean/CJK text use ' +
+        'word-break: keep-all so lines wrap at word boundaries (the tool also applies this by default).\n\n' +
         'The .pptx is saved (default under <workspace>/openrnd-ppt/) and opened, and the original ' +
         'HTML is saved next to it (same name, .html) — both paths are reported so the user can ' +
         're-edit the HTML and regenerate.',
