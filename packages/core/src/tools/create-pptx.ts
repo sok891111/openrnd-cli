@@ -108,6 +108,35 @@ export interface CreatePptxSlide {
    * design (shapes/colors/fonts) is preserved. Ignored without a sample.
    */
   regions?: CreatePptxRegion[];
+  /**
+   * Name of the template CustomLayout to ADD for this slide — copy a `name` from
+   * analyze_pptx_template's `style_guide.available_layouts`. This picks the slide
+   * TYPE; vary it across slides so the deck uses the right layouts instead of one
+   * repeated layout. With a sample deck only; falls back to `layout`/heuristic if
+   * the name isn't found.
+   */
+  layout_name?: string;
+  /** 1-based index of the template CustomLayout to add (fallback for layout_name). */
+  layout_index?: number;
+  /**
+   * Fill the added template slide's placeholders BY idx. Use after
+   * analyze_pptx_template: each entry targets one placeholder of the chosen
+   * layout by its `idx` (from available_layouts[].placeholders) and writes
+   * text/bullets there. This is how you place the title, heading, and body into
+   * their correct regions instead of dumping everything into one box. With a
+   * sample deck only.
+   */
+  placeholders?: CreatePptxPlaceholder[];
+}
+
+/** A single placeholder-addressed fill instruction for an added template slide. */
+export interface CreatePptxPlaceholder {
+  /** PlaceholderFormat idx of the target placeholder (from available_layouts). */
+  idx: number;
+  /** Plain text to place in the placeholder. */
+  text?: string;
+  /** Bullet lines to place in the placeholder (takes precedence over `text`). */
+  bullets?: string[];
 }
 
 /** A single region-addressed fill instruction for a cloned sample slide. */
@@ -404,6 +433,13 @@ def _area(shp):
 def _top(shp):
     try:
         return float(shp.Top)
+    except Exception:
+        return 0.0
+
+
+def _left(shp):
+    try:
+        return float(shp.Left)
     except Exception:
         return 0.0
 
@@ -775,12 +811,113 @@ def pick_custom_layout(pres, logical):
             return None
 
 
-def add_slide(pres, use_sample, logical, at_index):
+def find_custom_layout(pres, layout_name, layout_index, logical):
+    """Pick the template CustomLayout the model explicitly asked for: by exact then
+    substring NAME (a name copied from analyze_pptx_template's available_layouts),
+    then by 1-based INDEX, then fall back to the logical-name heuristic. This is
+    what lets the model add DIFFERENT slide types instead of always landing on the
+    same one."""
+    try:
+        layouts = pres.SlideMaster.CustomLayouts
+        n = layouts.Count
+    except Exception:
+        return pick_custom_layout(pres, logical)
+    if layout_name:
+        want = str(layout_name).strip().lower()
+        if want:
+            for i in range(1, n + 1):
+                try:
+                    if (layouts.Item(i).Name or "").strip().lower() == want:
+                        return layouts.Item(i)
+                except Exception:
+                    pass
+            for i in range(1, n + 1):
+                try:
+                    nm = (layouts.Item(i).Name or "").strip().lower()
+                    if nm and (want in nm or nm in want):
+                        return layouts.Item(i)
+                except Exception:
+                    pass
+            warn("layout_name not found, falling back: %s" % layout_name)
+    if layout_index:
+        try:
+            idx = int(layout_index)
+            if 1 <= idx <= n:
+                return layouts.Item(idx)
+            warn("layout_index out of range: %s" % layout_index)
+        except Exception:
+            pass
+    return pick_custom_layout(pres, logical)
+
+
+def add_slide(pres, use_sample, logical, at_index, layout_name=None, layout_index=None):
     if use_sample:
-        layout = pick_custom_layout(pres, logical)
+        layout = find_custom_layout(pres, layout_name, layout_index, logical)
         if layout is not None:
             return pres.Slides.AddSlide(at_index, layout)
     return pres.Slides.Add(at_index, LOGICAL_TO_PPLAYOUT.get(logical, ppLayoutText))
+
+
+def fill_by_placeholders(slide, spec, sw, sh):
+    """Fill a freshly-added template slide by PLACEHOLDER idx. The model picked a
+    layout (layout_name) and says which placeholder — by the idx reported in
+    analyze_pptx_template's available_layouts — gets which text/bullets. A slide
+    added from a layout inherits each placeholder with the SAME idx, so idx is the
+    reliable join key: content lands in the intended region (title vs heading vs
+    body) instead of everything piling into one shape."""
+    idmap = {}
+    try:
+        for ph in slide.Shapes.Placeholders:
+            try:
+                idmap[int(ph.PlaceholderFormat.idx)] = ph
+            except Exception:
+                pass
+    except Exception as exc:
+        warn("placeholders unavailable: %s" % exc)
+
+    provided = set()
+    for item in (spec.get("placeholders") or []):
+        if not isinstance(item, dict):
+            continue
+        try:
+            idx = int(item.get("idx"))
+        except Exception:
+            warn("placeholder entry missing numeric idx: %s" % item)
+            continue
+        ph = idmap.get(idx)
+        if ph is None:
+            warn("placeholder idx not on slide: %s" % idx)
+            continue
+        provided.add(idx)
+        bullets = item.get("bullets")
+        if bullets:
+            set_bullets(ph, bullets, None)
+        elif item.get("text") is not None:
+            set_text(ph, item.get("text"), None)
+
+    # Title fallback: honor a top-level "title" if the title placeholder wasn't
+    # targeted explicitly, so the slide is never left title-less.
+    title = spec.get("title")
+    if title:
+        t = find_title(slide)
+        if t is not None:
+            try:
+                tidx = int(t.PlaceholderFormat.idx)
+            except Exception:
+                tidx = None
+            if tidx is None or tidx not in provided:
+                set_text(t, title, None)
+
+    # Extra content drawn on top of the template, mirroring fill_cloned.
+    table = spec.get("table")
+    image_path = spec.get("image_path")
+    notes = spec.get("notes")
+    if table:
+        add_table(slide, table, sw * 0.06, sh * 0.55, sw * 0.88, sh * 0.4)
+    if image_path:
+        add_picture(slide, os.path.abspath(image_path), sw * 0.55, sh * 0.2, sw * 0.4, sh * 0.5)
+    if notes:
+        set_notes(slide, notes)
 
 
 def reuse_slide(pres, sample_index):
@@ -891,6 +1028,13 @@ def fill_slide(sld, spec, logical, sw, sh, font):
                 warn("title textbox: %s" % exc)
 
     contents = content_placeholders(sld)
+    # Order matters: for two_col keep left->right; otherwise put the LARGEST body
+    # placeholder first so bullets land in the real body, not a small heading box
+    # (this is what caused all text to pile into the "heading").
+    if logical == "two_col":
+        contents.sort(key=_left)
+    else:
+        contents.sort(key=_area, reverse=True)
 
     if logical == "two_col" and (bullets or bullets_right):
         if len(contents) >= 2:
@@ -1277,8 +1421,14 @@ def main():
                     # the new slide inherits the template's background, logo,
                     # fonts and bullet styles, but starts with clean, empty
                     # placeholders, so content lands correctly instead of fighting
-                    # a cloned content slide's existing shapes.
-                    sld = add_slide(pres, True, logical, pres.Slides.Count + 1)
+                    # a cloned content slide's existing shapes. The model picks the
+                    # slide TYPE via layout_name/layout_index (from
+                    # analyze_pptx_template's available_layouts); without one we
+                    # fall back to the logical-name heuristic.
+                    sld = add_slide(
+                        pres, True, logical, pres.Slides.Count + 1,
+                        spec_slide.get("layout_name"), spec_slide.get("layout_index"),
+                    )
                 else:
                     sld = add_slide(pres, False, logical, pres.Slides.Count + 1)
             except Exception as exc:
@@ -1292,7 +1442,11 @@ def main():
                 else:
                     fill_cloned(sld, spec_slide, sw, sh)
             else:
-                fill_slide(sld, spec_slide, logical, sw, sh, None if use_sample else font)
+                if use_sample and spec_slide.get("placeholders"):
+                    # Precise placeholder-addressed fill on a fresh template slide.
+                    fill_by_placeholders(sld, spec_slide, sw, sh)
+                else:
+                    fill_slide(sld, spec_slide, logical, sw, sh, None if use_sample else font)
 
         if use_sample and orig_count > 0:
             for i in range(orig_count, 0, -1):
@@ -2239,7 +2393,13 @@ function coerceSlide(slide: unknown): unknown {
   const parsed = parseMaybeJson(slide);
   if (!isRecord(parsed)) return parsed;
   const s: Record<string, unknown> = { ...parsed };
-  coerceArrayFields(s, ['bullets', 'bullets_right', 'table', 'regions']);
+  coerceArrayFields(s, [
+    'bullets',
+    'bullets_right',
+    'table',
+    'regions',
+    'placeholders',
+  ]);
   const body = parseMaybeJson(s['body']);
   if (Array.isArray(body)) s['body'] = body.map(coerceBlock);
   const regions = parseMaybeJson(s['regions']);
@@ -2248,6 +2408,16 @@ function coerceSlide(slide: unknown): unknown {
       const rr = parseMaybeJson(r);
       if (!isRecord(rr)) return rr;
       const out: Record<string, unknown> = { ...rr };
+      coerceArrayFields(out, ['bullets']);
+      return out;
+    });
+  }
+  const placeholders = parseMaybeJson(s['placeholders']);
+  if (Array.isArray(placeholders)) {
+    s['placeholders'] = placeholders.map((p) => {
+      const pp = parseMaybeJson(p);
+      if (!isRecord(pp)) return pp;
+      const out: Record<string, unknown> = { ...pp };
       coerceArrayFields(out, ['bullets']);
       return out;
     });
@@ -2313,14 +2483,19 @@ export class CreatePptxTool extends BaseDeclarativeTool<
         'layout="section" dividers between parts. Optional brand colors via "primary"/"accent" ' +
         '(hex), and a "footer" label.\n\n' +
         'TO MATCH AN EXISTING IN-HOUSE DECK: pass its path as "sample_path" and provide your ' +
-        'content as slides (title + body blocks / bullets). The tool opens the template through ' +
-        'PowerPoint (DRM-protected in-house files work) and, per slide, ADDS A FRESH SLIDE BUILT ' +
-        "FROM THE TEMPLATE'S OWN LAYOUT (slide master) and fills its placeholders — the new slide " +
-        'inherits the template background, logo, fonts and bullet styles, the way a template is ' +
-        'meant to be used. It does NOT clone/text-replace the example slides by default (that was ' +
-        "brittle). Rich body blocks are flattened into the template's styled body placeholder so " +
-        'nothing is lost. (DRM blocks python-pptx from reading the file, so this path runs through ' +
-        'PowerPoint and is Windows-only.)\n\n' +
+        'content as slides. The tool opens the template through PowerPoint (DRM-protected in-house ' +
+        "files work) and, per slide, ADDS A FRESH SLIDE BUILT FROM THE TEMPLATE'S OWN LAYOUT (slide " +
+        'master) and fills its placeholders — the new slide inherits the template background, logo, ' +
+        'fonts and bullet styles. BEST RESULT: FIRST call analyze_pptx_template to get ' +
+        'style_guide.available_layouts (the menu of addable slide types, each with placeholders ' +
+        'carrying an idx/role/name/bbox); then, per slide, set "layout_name" to pick the slide ' +
+        'TYPE (VARY it — do not repeat one layout) and "placeholders":[{idx,text|bullets}] to put ' +
+        'each piece of content into its OWN region (title placeholder gets the title, body/heading ' +
+        'placeholders get their text) so nothing piles into one box. Without layout_name/' +
+        'placeholders the tool falls back to a logical-layout heuristic and generic placeholder ' +
+        'fill. It does NOT clone/text-replace the example slides by default (that was brittle). ' +
+        '(DRM blocks python-pptx from reading the file, so this path runs through PowerPoint and is ' +
+        'Windows-only.)\n\n' +
         'ADVANCED: for an EXACT 1:1 clone of a specific example slide, set mode="reuse" + ' +
         'sample_slide_index (optionally "regions" from analyze_pptx_template to place text by ' +
         'region id). For a python-pptx rebuild WITHOUT the file (no PowerPoint), call ' +
@@ -2553,6 +2728,51 @@ export class CreatePptxTool extends BaseDeclarativeTool<
                       },
                     },
                     required: ['id'],
+                  },
+                },
+                layout_name: {
+                  type: 'string',
+                  description:
+                    'Name of the template CustomLayout to ADD for this slide — copy a `name` from ' +
+                    'analyze_pptx_template style_guide.available_layouts. Picks the slide TYPE; ' +
+                    'VARY it across slides to use the right layouts instead of repeating one. ' +
+                    'With sample_path only; falls back to `layout` if the name is not found.',
+                },
+                layout_index: {
+                  type: 'number',
+                  description:
+                    '1-based index of the template CustomLayout to add (fallback for layout_name; ' +
+                    'matches available_layouts[].index). With sample_path only.',
+                },
+                placeholders: {
+                  type: 'array',
+                  description:
+                    "Fill the added template slide's placeholders BY idx (use with sample_path, " +
+                    'after analyze_pptx_template). Each entry targets one placeholder of the chosen ' +
+                    'layout by its `idx` (from available_layouts[].placeholders) — put the title in ' +
+                    'the title placeholder, headings/body text in their own placeholders, so ' +
+                    'content lands in the right region instead of all in one box. Ignored without a sample.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      idx: {
+                        type: 'number',
+                        description:
+                          'PlaceholderFormat idx of the target placeholder, from ' +
+                          'available_layouts[].placeholders[].idx.',
+                      },
+                      text: {
+                        type: 'string',
+                        description: 'Plain text to place in the placeholder.',
+                      },
+                      bullets: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description:
+                          'Bullet lines to place in the placeholder (takes precedence over `text`).',
+                      },
+                    },
+                    required: ['idx'],
                   },
                 },
               },

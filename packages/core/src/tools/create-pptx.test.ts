@@ -423,6 +423,83 @@ describe('CreatePptxTool', () => {
     });
   });
 
+  it('forwards per-slide layout_name + placeholders (by idx) with the sample', async () => {
+    const { spec } = await run({
+      slides: [
+        {
+          layout_name: '제목 및 내용',
+          layout_index: 2,
+          title: '2026 1분기 실적',
+          placeholders: [
+            { idx: 1, text: '2026 1분기 실적' },
+            { idx: 2, bullets: ['매출 12%↑', '영업이익 8%↑'] },
+          ],
+        },
+      ],
+      sample_path: '/samples/inhouse.pptx',
+    });
+    expect(spec).toMatchObject({
+      sample_path: '/samples/inhouse.pptx',
+      slides: [
+        {
+          layout_name: '제목 및 내용',
+          layout_index: 2,
+          placeholders: [
+            { idx: 1, text: '2026 1분기 실적' },
+            { idx: 2, bullets: ['매출 12%↑', '영업이익 8%↑'] },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('exposes layout_name/layout_index/placeholders in the slide schema', () => {
+    const tool = makeTool();
+    const schema = tool.schema.parametersJsonSchema as {
+      properties: {
+        slides: { items: { properties: Record<string, unknown> } };
+      };
+    };
+    const slideProps = schema.properties.slides.items.properties;
+    expect(Object.keys(slideProps)).toEqual(
+      expect.arrayContaining(['layout_name', 'layout_index', 'placeholders']),
+    );
+    const ph = slideProps['placeholders'] as {
+      items: { properties: Record<string, unknown>; required: string[] };
+    };
+    expect(Object.keys(ph.items.properties)).toEqual(
+      expect.arrayContaining(['idx', 'text', 'bullets']),
+    );
+    expect(ph.items.required).toEqual(['idx']);
+  });
+
+  it('coerces string-encoded placeholders and nested bullets', async () => {
+    const { spec } = await run({
+      slides: [
+        {
+          layout_name: '제목 및 내용',
+          // Some models stringify nested arrays — both the outer array and the
+          // inner bullets arrive as JSON strings and must be repaired.
+          placeholders: JSON.stringify([
+            { idx: 1, text: '제목' },
+            { idx: 2, bullets: JSON.stringify(['항목 A', '항목 B']) },
+          ]),
+        },
+      ],
+      sample_path: '/samples/inhouse.pptx',
+    } as unknown as Parameters<typeof run>[0]);
+    expect(spec).toMatchObject({
+      slides: [
+        {
+          placeholders: [
+            { idx: 1, text: '제목' },
+            { idx: 2, bullets: ['항목 A', '항목 B'] },
+          ],
+        },
+      ],
+    });
+  });
+
   it('forwards template style (font/aspect) into the consulting spec', async () => {
     setPlatform('darwin'); // no sample → python-pptx path, runs anywhere
     const { result, spec } = await run({

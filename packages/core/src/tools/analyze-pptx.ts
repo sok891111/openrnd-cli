@@ -367,6 +367,101 @@ def _layout_names(pres):
     return names
 
 
+# PpPlaceholderType -> a readable role label for the model. The reliable JOIN key
+# back to the build tool is the placeholder's idx, not this label, but the label
+# (plus name + bbox) is what lets the model decide which region is title vs body
+# vs a smaller "heading" text box.
+PH_ROLE = {
+    13: "title", 12: "center_title", 4: "subtitle", 2: "body",
+    7: "object", 8: "chart", 9: "picture", 10: "media",
+    6: "org_chart", 11: "vertical_object", 14: "header",
+    15: "footer", 16: "date", 17: "slide_number",
+}
+
+
+def _ph_bbox(shp, sw, sh):
+    try:
+        return {
+            "left": round(float(shp.Left) / sw, 3),
+            "top": round(float(shp.Top) / sh, 3),
+            "width": round(float(shp.Width) / sw, 3),
+            "height": round(float(shp.Height) / sh, 3),
+        }
+    except Exception:
+        return None
+
+
+def _layout_placeholders(layout, sw, sh):
+    """Every placeholder of a CustomLayout, with its PlaceholderFormat.idx (the
+    stable id a slide added from this layout inherits), a role label, its name,
+    and bbox. The model fills these by idx via create_pptx placeholders."""
+    res = []
+    try:
+        phs = layout.Shapes.Placeholders
+        n = phs.Count
+    except Exception:
+        return res
+    for i in range(1, n + 1):
+        try:
+            ph = phs.Item(i)
+        except Exception:
+            continue
+        try:
+            idx = int(ph.PlaceholderFormat.idx)
+        except Exception:
+            idx = None
+        try:
+            ptype = int(ph.PlaceholderFormat.Type)
+        except Exception:
+            ptype = None
+        try:
+            name = ph.Name or ""
+        except Exception:
+            name = ""
+        res.append({
+            "idx": idx,
+            "type": ptype,
+            "role": PH_ROLE.get(ptype, "body"),
+            "name": name,
+            "bbox": _ph_bbox(ph, sw, sh),
+        })
+    return res
+
+
+def _layout_details(pres, sw, sh):
+    """The MENU of slide types the build tool can add from this template: each
+    CustomLayout with its name, a compact summary, and its fillable placeholders
+    (idx/role/name/bbox). The model reads this to (a) pick a layout per slide for
+    real variety and (b) map content to the right placeholder by idx."""
+    out = []
+    try:
+        layouts = pres.SlideMaster.CustomLayouts
+        n = layouts.Count
+    except Exception:
+        return out
+    for i in range(1, n + 1):
+        try:
+            lay = layouts.Item(i)
+            nm = lay.Name or ""
+        except Exception:
+            lay = None
+            nm = ""
+        phs = _layout_placeholders(lay, sw, sh) if lay is not None else []
+        roles = {}
+        for p in phs:
+            roles[p["role"]] = roles.get(p["role"], 0) + 1
+        bits = []
+        for r, c in roles.items():
+            bits.append("%s%s" % (r, ("×%d" % c) if c > 1 else ""))
+        out.append({
+            "index": i,
+            "name": nm,
+            "summary": ", ".join(bits) if bits else "빈 레이아웃",
+            "placeholders": phs,
+        })
+    return out
+
+
 def _suggest_brand(palette, fonts):
     """Pick a sensible primary (dark brand) + accent (highlight) and body fonts
     for the python-pptx generator. The model can override from the full palette."""
@@ -387,7 +482,7 @@ def _suggest_brand(palette, fonts):
     return out
 
 
-def build_style_guide(pres, slides_out):
+def build_style_guide(pres, slides_out, sw, sh):
     palette = _theme_palette(pres)
     fonts = _theme_fonts(pres)
     size = _slide_size(pres)
@@ -406,6 +501,10 @@ def build_style_guide(pres, slides_out):
         "fonts": fonts,
         "slide_size": size,
         "layouts": _layout_names(pres),
+        # The addable slide TYPES with their placeholders (idx/role/name/bbox).
+        # This is the menu the model picks from per slide (layout_name +
+        # placeholders[].idx in create_pptx).
+        "available_layouts": _layout_details(pres, sw, sh),
         "suggested": suggested,
         "design_notes": ", ".join(notes),
     }
@@ -447,7 +546,7 @@ def main():
                 warn("slide %d: %s" % (i, exc))
                 slides_out.append({"index": i, "layout_name": "", "summary": "분석 실패", "regions": []})
         try:
-            style_guide = build_style_guide(pres, slides_out)
+            style_guide = build_style_guide(pres, slides_out, sw, sh)
         except Exception as exc:
             warn("style_guide: %s" % exc)
         pres.Close()
@@ -643,14 +742,24 @@ class AnalyzePptxInvocation extends BaseToolInvocation<
         // template's colors/fonts rather than cloning.
         llmContent:
           `PowerPoint template analysis for ${samplePath}\n` +
-          'RECOMMENDED: re-author a fresh deck in this template\'s style. Read "style_guide" ' +
-          '(palette, fonts, slide_size, layouts, and a "suggested" {primary, accent, font, ' +
-          'font_kr}). Then call create_pptx WITHOUT sample_path, passing style_guide.suggested ' +
-          'values as primary/accent/font/font_kr (+ aspect from slide_size), and author ' +
-          "slides/body blocks that match the template's conventions (e.g. columns for " +
-          'comparison-heavy decks, process/timeline for sequences). This builds with ' +
-          'python-pptx and is robust. (Only use the clone path — create_pptx WITH sample_path ' +
-          'and per-slide "regions" — when an exact 1:1 replica is required.)\n\n' +
+          'TWO WAYS TO USE THIS (pick by goal):\n' +
+          'A) MATCH THE IN-HOUSE TEMPLATE EXACTLY (Windows + PowerPoint). Read ' +
+          '"style_guide.available_layouts" — that is the MENU of slide types you can add, each ' +
+          'with a "name", a "summary", and its "placeholders" (every placeholder has an "idx", a ' +
+          '"role" (title/body/subtitle/object/picture…), a "name", and a "bbox"). For EACH slide ' +
+          'you want, call create_pptx WITH sample_path and set per slide: "layout_name" (copy a ' +
+          'name from available_layouts — vary it so you use the right slide TYPE, not just one) ' +
+          'and "placeholders": [{ "idx", "text" | "bullets" }] mapping YOUR content to each ' +
+          'region by its idx. This fixes both common failures: only one layout being added, and ' +
+          "all text piling into one box. Put the slide title in the title placeholder's idx (or " +
+          'pass top-level "title"); put body text/bullets into the body/object placeholders by ' +
+          'their idx — do NOT put everything in one.\n' +
+          "B) RE-AUTHOR A FRESH DECK in the template's colors/fonts WITHOUT PowerPoint: call " +
+          'create_pptx WITHOUT sample_path, passing style_guide.suggested as ' +
+          'primary/accent/font/font_kr (+ aspect from slide_size), authoring slides/body blocks. ' +
+          "Robust (python-pptx) but does not reuse the template's actual layouts.\n" +
+          '(The per-slide "regions" clone path is only for an exact 1:1 replica of a specific ' +
+          'example slide.)\n\n' +
           JSON.stringify(parsed),
         returnDisplay: `🔍 양식 분석 완료 — \`${samplePath}\` (슬라이드 ${slideCount ?? '?'}장)`,
       };
@@ -687,11 +796,14 @@ export class AnalyzePptxTool extends BaseDeclarativeTool<
     super(
       AnalyzePptxTool.Name,
       ANALYZE_PPTX_DISPLAY_NAME,
-      'Analyze an existing PowerPoint deck (.ppt/.pptx) to understand its design, then RE-AUTHOR a ' +
-        'fresh deck in that style with create_pptx. Returns a "style_guide" (the headline output): ' +
-        'the theme "palette" (named RRGGBB colors), "fonts" (heading/body, latin + East-Asian), ' +
-        '"slide_size" (width/height + aspect), the master "layouts" names, and a "suggested" ' +
-        '{primary, accent, font, font_kr} ready to pass straight to create_pptx. Also returns, per ' +
+      'Analyze an existing PowerPoint deck (.ppt/.pptx) to understand its design, then build a deck ' +
+        'that matches it with create_pptx. Returns a "style_guide": the theme "palette" (named ' +
+        'RRGGBB colors), "fonts" (heading/body, latin + East-Asian), "slide_size" (width/height + ' +
+        'aspect), the master "layouts" names, and — most important for matching the template — ' +
+        '"available_layouts": the MENU of addable slide types, each with a name, summary, and its ' +
+        'placeholders (idx/role/name/bbox). Pass a per-slide "layout_name" + "placeholders" ' +
+        '(by idx) to create_pptx to add the RIGHT slide type and fill each region precisely. Also ' +
+        'returns a "suggested" {primary, accent, font, font_kr} for the no-sample rebuild path, and per ' +
         'slide, its layout name, a summary, shape-kind flags, and the fillable TEXT REGIONS (each ' +
         'with a structural-path id, role, bbox, and current text). RECOMMENDED flow when a user ' +
         'provides a sample deck to match: STEP 1 call this; STEP 2 call create_pptx WITHOUT ' +
