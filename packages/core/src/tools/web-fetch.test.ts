@@ -186,21 +186,39 @@ describe('parsePrompt', () => {
     expect(validUrls[1]).toBe('http://google.com/');
   });
 
-  it('should accept URLs with trailing punctuation', () => {
+  it('should strip trailing punctuation from URLs', () => {
     const prompt = 'Check https://example.com.';
     const { validUrls, errors } = parsePrompt(prompt);
 
     expect(errors).toHaveLength(0);
     expect(validUrls).toHaveLength(1);
-    expect(validUrls[0]).toBe('https://example.com./');
+    expect(validUrls[0]).toBe('https://example.com/');
+  });
+
+  it('should strip wrapping brackets/quotes from URLs', () => {
+    expect(parsePrompt('Read (https://example.com)').validUrls).toEqual([
+      'https://example.com/',
+    ]);
+    expect(parsePrompt('See <https://example.com>,').validUrls).toEqual([
+      'https://example.com/',
+    ]);
+    expect(parsePrompt('"https://example.com";').validUrls).toEqual([
+      'https://example.com/',
+    ]);
+  });
+
+  it('should preserve balanced parentheses inside a URL', () => {
+    const prompt =
+      'See https://en.wikipedia.org/wiki/Foo_(disambiguation). Done.';
+    const { validUrls, errors } = parsePrompt(prompt);
+
+    expect(errors).toHaveLength(0);
+    expect(validUrls).toEqual([
+      'https://en.wikipedia.org/wiki/Foo_(disambiguation)',
+    ]);
   });
 
   it.each([
-    {
-      name: 'URLs wrapped in punctuation',
-      prompt: 'Read (https://example.com)',
-      expectedErrorContent: ['Malformed URL detected', '(https://example.com)'],
-    },
     {
       name: 'unsupported protocols (httpshttps://)',
       prompt: 'Summarize httpshttps://github.com/JuliaLang/julia/issues/58346',
@@ -242,7 +260,7 @@ describe('parsePrompt', () => {
     const { validUrls, errors } = parsePrompt(prompt);
 
     expect(validUrls).toHaveLength(1);
-    expect(validUrls[0]).toBe('https://google.com,/');
+    expect(validUrls[0]).toBe('https://google.com/');
     expect(errors).toHaveLength(1);
     expect(errors[0]).toContain('ftp://bad.com');
   });

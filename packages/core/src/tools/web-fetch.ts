@@ -129,6 +129,51 @@ export function normalizeUrl(urlStr: string): string {
 }
 
 /**
+ * Strips punctuation that commonly clings to a URL when it is embedded in prose,
+ * so the extracted URL doesn't carry junk like a trailing period or wrapping
+ * brackets. Examples:
+ *   "https://example.com."        -> "https://example.com"
+ *   "(https://example.com)"       -> "https://example.com"
+ *   "<https://example.com>,"      -> "https://example.com"
+ *
+ * Trailing closing brackets are only stripped when unbalanced, so URLs that
+ * legitimately contain them (e.g. Wikipedia's ".../Foo_(disambiguation)") are
+ * left intact.
+ */
+export function trimUrlPunctuation(token: string): string {
+  // Strip leading openers / quotes.
+  let s = token.replace(/^[([{<'"`]+/, '');
+
+  // Strip trailing punctuation iteratively so combinations like ")." or ").
+  // are fully removed.
+  const ALWAYS_TRIM_TRAILING = `.,;:!?'"\`>`;
+  let changed = true;
+  while (changed && s.length > 0) {
+    changed = false;
+    const last = s[s.length - 1];
+
+    if (ALWAYS_TRIM_TRAILING.includes(last)) {
+      s = s.slice(0, -1);
+      changed = true;
+      continue;
+    }
+
+    if (last === ')' || last === ']' || last === '}') {
+      const open = last === ')' ? '(' : last === ']' ? '[' : '{';
+      const opens = s.split(open).length - 1;
+      const closes = s.split(last).length - 1;
+      // Only an unmatched closer is treated as trailing prose punctuation.
+      if (closes > opens) {
+        s = s.slice(0, -1);
+        changed = true;
+      }
+    }
+  }
+
+  return s;
+}
+
+/**
  * Parses a prompt to extract valid URLs and identify malformed ones.
  */
 export function parsePrompt(text: string): {
@@ -139,7 +184,12 @@ export function parsePrompt(text: string): {
   const validUrls: string[] = [];
   const errors: string[] = [];
 
-  for (const token of tokens) {
+  for (const rawToken of tokens) {
+    if (!rawToken) continue;
+
+    // Strip surrounding prose punctuation before validation so that, e.g.,
+    // "https://example.com." doesn't end up fetched with a trailing dot.
+    const token = trimUrlPunctuation(rawToken);
     if (!token) continue;
 
     // Heuristic to check if the url appears to contain URL-like chars.
@@ -185,17 +235,18 @@ export function collectUrlsFromParams(params: WebFetchToolParams): {
   const errors: string[] = [];
 
   if (params.url) {
+    const cleanedUrl = trimUrlPunctuation(params.url.trim());
     try {
-      const url = new URL(params.url);
+      const url = new URL(cleanedUrl);
       if (['http:', 'https:'].includes(url.protocol)) {
         validUrls.push(url.href);
       } else {
         errors.push(
-          `Unsupported protocol in URL: "${params.url}". Only http and https are supported.`,
+          `Unsupported protocol in URL: "${cleanedUrl}". Only http and https are supported.`,
         );
       }
     } catch {
-      errors.push(`Malformed URL detected: "${params.url}".`);
+      errors.push(`Malformed URL detected: "${cleanedUrl}".`);
     }
   }
 
