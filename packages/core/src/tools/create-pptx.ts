@@ -32,6 +32,11 @@ import { ToolErrorType } from './tool-error.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { debugLogger } from '../utils/debugLogger.js';
 import { resolveChromeExecutablePath } from '../utils/chromeFinder.js';
+import { renderPptxToImages } from '../utils/officeReader.js';
+import {
+  getVisionConfigFromEnv,
+  describeImageData,
+} from '../core/visionDescriber.js';
 
 export const CREATE_PPTX_TOOL_NAME = 'create_pptx';
 export const CREATE_PPTX_DISPLAY_NAME = 'Create PowerPoint';
@@ -80,7 +85,33 @@ export interface CreatePptxParams {
   open?: boolean;
   /** Max time (seconds) for the whole render+pack. Default 180, max 600. */
   timeout_seconds?: number;
+  /**
+   * Path to a sample PPT/PPTX deck to use as a visual TEMPLATE. When provided
+   * WITHOUT `html`/`html_path`, the tool runs in analysis mode: it renders the
+   * sample's slides to images, analyzes them with the vision model, and returns
+   * a reusable visual style guide (it does NOT create a .pptx). Author your HTML
+   * to follow that guide, then call again with `html`. Relative paths resolve
+   * against the workspace target dir.
+   */
+  template_path?: string;
 }
+
+/** Max slides rendered from a sample deck for template analysis (cost bound). */
+const TEMPLATE_MAX_SLIDES = 10;
+
+/** Vision instruction for extracting a reusable design system from sample slides. */
+const TEMPLATE_STYLE_GUIDE_PROMPT =
+  'These images are slides from a sample PowerPoint deck the user provided as a ' +
+  'DESIGN TEMPLATE. Analyze them together and produce a concise, reusable VISUAL ' +
+  'STYLE GUIDE another designer can follow to recreate this deck’s look in ' +
+  'HTML/CSS. Cover: overall tone/mood; the color palette with approximate hex ' +
+  'codes (background, primary, accent, text); typography (font family feel, ' +
+  'heading vs body sizes/weights, casing); layout grid, margins and content ' +
+  'density; title/header placement and any recurring header band; footer and ' +
+  'page-number treatment; recurring components (KPI/stat cards, tables, charts, ' +
+  'icons, dividers, callouts) and how they are styled; and whitespace rhythm. ' +
+  'Output structured bullet points. Do NOT summarize the slide CONTENT/topic — ' +
+  'describe only the reusable visual design system.';
 
 interface SlideDimensions {
   /** CSS pixel width/height of one slide (the render viewport). */
@@ -167,20 +198,6 @@ function buildSlideViewerInjection(dims: SlideDimensions): string {
     text-align: center;
     font-variant-numeric: tabular-nums;
   }
-  .openrnd-slide-hint {
-    position: fixed;
-    top: 18px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 2147483647;
-    padding: 8px 12px;
-    border-radius: 999px;
-    background: rgba(17, 19, 24, 0.72);
-    color: rgba(255, 255, 255, 0.82);
-    font: 12px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    letter-spacing: 0.02em;
-    backdrop-filter: blur(8px);
-  }
 }
 </style>
 <script id="openrnd-slide-viewer-script">
@@ -197,10 +214,6 @@ function buildSlideViewerInjection(dims: SlideDimensions): string {
     controls.className = 'openrnd-slide-controls';
     controls.innerHTML = '<button type="button" data-openrnd-prev aria-label="Previous slide">&lt;</button><span class="openrnd-slide-counter"></span><button type="button" data-openrnd-next aria-label="Next slide">&gt;</button>';
     document.body.appendChild(controls);
-    const hint = document.createElement('div');
-    hint.className = 'openrnd-slide-hint';
-    hint.textContent = 'Arrow keys or buttons';
-    document.body.appendChild(hint);
     const counter = controls.querySelector('.openrnd-slide-counter');
     let index = 0;
     const show = (next) => {
@@ -354,6 +367,120 @@ class CreatePptxInvocation extends BaseToolInvocation<
     );
   }
 
+  /**
+   * Analysis mode: render a sample deck's slides to images, have the vision
+   * model extract a reusable visual style guide, save it, and return it so the
+   * model can author HTML that matches the sample's look.
+   */
+  private async analyzeTemplate(templatePath: string): Promise<ToolResult> {
+    const resolved = path.isAbsolute(templatePath)
+      ? path.resolve(templatePath)
+      : path.resolve(this.config.getTargetDir(), templatePath);
+    try {
+      await fs.access(resolved);
+    } catch {
+      const msg = `Template file not found: ${resolved}`;
+      return {
+        llmContent: `Error: ${msg}`,
+        returnDisplay: `Error: ${msg}`,
+        error: { message: msg, type: ToolErrorType.INVALID_TOOL_PARAMS },
+      };
+    }
+
+    const visionConfig = getVisionConfigFromEnv();
+    if (!visionConfig) {
+      const msg =
+        'Visual template analysis requires a configured vision model ' +
+        '(settings.json `llm.vision.*`). Without it the sample deck’s visual ' +
+        'style cannot be analyzed; author the deck generically instead.';
+      return {
+        llmContent: `Template analysis unavailable: ${msg}`,
+        returnDisplay:
+          'Template analysis skipped (no vision model configured).',
+      };
+    }
+
+    const dims = resolveDimensions(this.params);
+    const renderDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openrnd_tpl_'));
+    try {
+      const rendered = await renderPptxToImages(resolved, renderDir, {
+        widthPx: dims.widthPx,
+        heightPx: dims.heightPx,
+        maxSlides: TEMPLATE_MAX_SLIDES,
+      });
+      if (rendered.error || !rendered.imagePaths?.length) {
+        const msg =
+          rendered.error ?? 'No slides were rendered from the sample deck.';
+        return {
+          llmContent: `Template analysis failed: ${msg}`,
+          returnDisplay: `Template analysis failed: ${msg}`,
+          error: { message: msg, type: ToolErrorType.EXECUTION_FAILED },
+        };
+      }
+
+      const images = await Promise.all(
+        rendered.imagePaths.map(async (p) => ({
+          data: (await fs.readFile(p)).toString('base64'),
+          mimeType: 'image/png',
+        })),
+      );
+
+      let styleGuide: string;
+      try {
+        styleGuide = await describeImageData(
+          visionConfig,
+          images,
+          TEMPLATE_STYLE_GUIDE_PROMPT,
+        );
+      } catch (e) {
+        const msg = getErrorMessage(e);
+        return {
+          llmContent: `Template analysis failed (vision model error): ${msg}`,
+          returnDisplay: `Template analysis failed: ${msg}`,
+          error: { message: msg, type: ToolErrorType.EXECUTION_FAILED },
+        };
+      }
+
+      // Save the style guide next to where decks are written, for reuse.
+      const guidePath = path.resolve(
+        this.config.getTargetDir(),
+        DEFAULT_OUTPUT_DIR,
+        `template-style-${timestamp()}.md`,
+      );
+      await fs
+        .mkdir(path.dirname(guidePath), { recursive: true })
+        .catch(() => {});
+      const guideDoc =
+        `# Visual style guide extracted from ${path.basename(resolved)}\n` +
+        `(Analyzed ${images.length} slide(s) with vision model "${visionConfig.model}")\n\n` +
+        styleGuide;
+      await fs.writeFile(guidePath, guideDoc, 'utf-8').catch(() => {});
+
+      return {
+        llmContent:
+          `VISUAL STYLE GUIDE extracted from the sample deck ` +
+          `(${path.basename(resolved)}, ${images.length} slide(s) analyzed).\n` +
+          `NEXT STEP: author the HTML deck so it closely follows this style ` +
+          `guide — palette, typography, layout, header/footer, and components — ` +
+          `then call create_pptx again with that HTML.\n\n` +
+          `${styleGuide}\n\n(Saved to: ${guidePath})`,
+        returnDisplay:
+          `🎨 샘플 PPT 양식 분석 완료 (${images.length}장)\n\n` +
+          `- 추출한 스타일 가이드를 반영해 HTML을 작성한 뒤 create_pptx를 다시 호출합니다.\n` +
+          `- 가이드 저장: \`${guidePath}\``,
+      };
+    } catch (e) {
+      const msg = getErrorMessage(e);
+      return {
+        llmContent: `Error analyzing template: ${msg}`,
+        returnDisplay: `Error analyzing template: ${msg}`,
+        error: { message: msg, type: ToolErrorType.EXECUTION_FAILED },
+      };
+    } finally {
+      await fs.rm(renderDir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+
   async execute({ abortSignal }: ExecuteOptions): Promise<ToolResult> {
     const inlineHtml =
       typeof this.params.html === 'string' ? this.params.html.trim() : '';
@@ -361,10 +488,22 @@ class CreatePptxInvocation extends BaseToolInvocation<
       typeof this.params.html_path === 'string'
         ? this.params.html_path.trim()
         : '';
+    const templatePathParam =
+      typeof this.params.template_path === 'string'
+        ? this.params.template_path.trim()
+        : '';
+
+    // Analysis mode: a sample template was given without HTML to render. Extract
+    // a visual style guide from the sample and return it so the model can author
+    // matching HTML, then call again with `html`.
+    if (templatePathParam && !inlineHtml && !htmlPathParam) {
+      return this.analyzeTemplate(templatePathParam);
+    }
 
     if (!inlineHtml && !htmlPathParam) {
       const msg =
-        "Provide the deck as 'html' (inline HTML string) or 'html_path' (path to an HTML file).";
+        "Provide the deck as 'html' (inline HTML string) or 'html_path' (path to an HTML file). " +
+        "To analyze a sample deck's visual style first, pass only 'template_path'.";
       return {
         llmContent: `Error: ${msg}`,
         returnDisplay: `Error: ${msg}`,
@@ -685,10 +824,11 @@ export class CreatePptxTool extends BaseDeclarativeTool<
         'and bottom-aligned supporting blocks so the main content typically occupies roughly 70-90% of the slide height. ' +
         'Write action-title takeaways, one idea per slide. For Korean/CJK text use ' +
         'word-break: keep-all so lines wrap at word boundaries (the tool also applies this by default).\n\n' +
-        'TEMPLATE MATCHING: if the user provides a sample PPT/PPTX file such as @sample_file, first read and analyze that file as a template reference. ' +
-        'Extract the slide system before authoring HTML: title placement, recurring header/footer, palette, font tone, grid, card shapes, chart/table styling, ' +
-        'icon treatment, page number treatment, whitespace rhythm, and how dense each slide feels. Then reproduce those patterns in the HTML instead of using a generic deck style. ' +
-        'If the sample deck has a strong master-slide structure, keep that structure consistent across the generated slides.\n\n' +
+        'TEMPLATE MATCHING: if the user provides a sample PPT/PPTX deck (e.g. @sample.pptx) to match its style, DO NOT rely on reading it as text — a text read ' +
+        'cannot convey the visual design. Instead FIRST call this tool with ONLY `template_path` set to the sample deck (and no `html`/`html_path`). The tool ' +
+        'renders the sample’s slides to images, analyzes them with the vision model, and returns a concrete VISUAL STYLE GUIDE (palette, typography, layout grid, ' +
+        'header/footer, recurring cards/charts/icons, density). THEN author the HTML deck so it closely follows that style guide, and call this tool again with that ' +
+        'HTML. If no sample deck is given, just author a strong generic deck as usual.\n\n' +
         'The .pptx is saved (default under <workspace>/openrnd-ppt/) and opened, and the original ' +
         'HTML is saved next to it (same name, .html) — both paths are reported so the user can ' +
         're-edit the HTML and regenerate.',
@@ -746,6 +886,15 @@ export class CreatePptxTool extends BaseDeclarativeTool<
             type: 'number',
             description:
               'Max seconds for the whole render+pack. Default 180, max 600.',
+          },
+          template_path: {
+            type: 'string',
+            description:
+              'Path to a sample PPT/PPTX deck to match its visual style. Pass this ' +
+              'ALONE (no html/html_path) to run analysis mode: the tool renders the ' +
+              'sample slides and returns a visual style guide to author HTML against. ' +
+              'Relative paths resolve against the workspace. Requires a configured ' +
+              'vision model and (for rendering) Windows + PowerPoint.',
           },
         },
         required: [],

@@ -221,6 +221,37 @@ describe('CreatePptxTool (HTML → PPTX)', () => {
     expect(String(htmlWrite?.[1])).not.toContain('scroll-snap-type');
   });
 
+  it('does not inject the arrow-keys hint banner', async () => {
+    await run({
+      html: '<html><body><section class="slide">A</section></body></html>',
+      output_path: 'decks/nohint',
+    });
+    const writes = vi.mocked(fsPromises.writeFile).mock.calls;
+    const htmlWrite = writes.find((c) => String(c[0]).endsWith('.html'));
+    expect(String(htmlWrite?.[1])).not.toContain('openrnd-slide-hint');
+    expect(String(htmlWrite?.[1])).not.toContain('Arrow keys or buttons');
+  });
+
+  it('skips template analysis (no .pptx) when no vision model is configured', async () => {
+    const prevUrl = process.env['OPENRND_VISION_BASE_URL'];
+    const prevModel = process.env['OPENRND_VISION_MODEL'];
+    delete process.env['OPENRND_VISION_BASE_URL'];
+    delete process.env['OPENRND_VISION_MODEL'];
+    try {
+      const result = await run({ template_path: 'sample.pptx' });
+      // Gracefully degrades: no error, no deck rendered, no Chrome launched.
+      expect(result.error).toBeUndefined();
+      expect(result.returnDisplay).toContain('Template analysis skipped');
+      expect(launchMock).not.toHaveBeenCalled();
+      expect(pptxState.slidesAdded).toBe(0);
+    } finally {
+      if (prevUrl !== undefined)
+        process.env['OPENRND_VISION_BASE_URL'] = prevUrl;
+      if (prevModel !== undefined)
+        process.env['OPENRND_VISION_MODEL'] = prevModel;
+    }
+  });
+
   it('reports the user-provided html_path as the source (no copy)', async () => {
     const result = await run({ html_path: 'deck.html' });
     expect(result.error).toBeUndefined();

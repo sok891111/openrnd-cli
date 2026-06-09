@@ -9,6 +9,12 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  getVisionConfigFromEnv,
+  describeImageData,
+  type VisionConfig,
+} from '../core/visionDescriber.js';
+import { coreEvents } from './events.js';
 
 /**
  * Document extensions that must be read through win32com COM automation.
@@ -195,22 +201,77 @@ def read_excel(path):
         excel.Quit()
     return "\n".join(parts)
 
-def read_ppt(path):
+# msoGroup=6, msoPicture=13, msoLinkedPicture=11, ppShapeFormatPNG=2
+_MSO_GROUP = 6
+_PICTURE_TYPES = (11, 13)
+
+def _iter_shapes(shapes):
+    """Yield every shape, recursing into groups so pictures/tables nested in a
+    grouped shape are not missed. The group container itself is yielded too, but
+    it matches none of the text/table/picture checks and is harmlessly skipped."""
+    for shape in shapes:
+        yield shape
+        try:
+            if shape.Type == _MSO_GROUP:
+                for child in _iter_shapes(shape.GroupItems):
+                    yield child
+        except Exception:
+            pass
+
+def _read_table(shape):
+    """Extract a PowerPoint table as tab-separated rows."""
+    rows = []
+    try:
+        table = shape.Table
+        for row in table.Rows:
+            cells = []
+            for cell in row.Cells:
+                try:
+                    cells.append(cell.Shape.TextFrame.TextRange.Text)
+                except Exception:
+                    cells.append("")
+            rows.append("\t".join(cells))
+    except Exception:
+        pass
+    return rows
+
+def read_ppt(path, image_dir=None):
     import win32com.client
     ppt = win32com.client.DispatchEx("PowerPoint.Application")
     parts = []
+    image_index = 0
     try:
         # PowerPoint cannot run fully hidden; WithWindow=False keeps it offscreen.
         pres = ppt.Presentations.Open(path, ReadOnly=True, WithWindow=False)
         try:
             for idx, slide in enumerate(pres.Slides, start=1):
                 parts.append("# Slide %d" % idx)
-                for shape in slide.Shapes:
+                for shape in _iter_shapes(slide.Shapes):
+                    # Tables: HasTextFrame is false, so handle them first.
+                    try:
+                        if shape.HasTable:
+                            parts.append("[Table]")
+                            parts.extend(_read_table(shape))
+                            continue
+                    except Exception:
+                        pass
                     try:
                         if shape.HasTextFrame and shape.TextFrame.HasText:
                             parts.append(shape.TextFrame.TextRange.Text)
+                            continue
                     except Exception:
                         pass
+                    # Pictures: only exported when an image dir is provided, which
+                    # the caller does only when a vision model is configured.
+                    if image_dir:
+                        try:
+                            if shape.Type in _PICTURE_TYPES:
+                                image_index += 1
+                                fname = "img_%d_%d.png" % (idx, image_index)
+                                shape.Export(os.path.join(image_dir, fname), 2)
+                                parts.append("[[OFFICE_IMAGE:%s]]" % fname)
+                        except Exception:
+                            pass
         finally:
             pres.Close()
     finally:
@@ -225,6 +286,9 @@ def main():
     path = os.path.abspath(sys.argv[1])
     forced = (sys.argv[2].strip().lower() if len(sys.argv) > 2 else "")
     ext = os.path.splitext(path)[1].lower()
+    # Set only when the caller (vision configured) wants embedded pictures
+    # exported for downstream description; empty/unset disables image export.
+    image_dir = os.environ.get("OPENRND_OFFICE_IMAGE_DIR") or None
     if not ensure_pywin32():
         sys.stderr.write(
             "WIN32COM_IMPORT_ERROR: pywin32 is required and could not be "
@@ -247,7 +311,7 @@ def main():
         elif ext in (".xls", ".xlsx", ".xlsm", ".xlsb"):
             text = read_excel(path)
         elif ext in (".ppt", ".pptx", ".pptm"):
-            text = read_ppt(path)
+            text = read_ppt(path, image_dir)
         elif forced == "word":
             text = read_word(path)
         elif forced == "pdf":
@@ -255,7 +319,7 @@ def main():
         elif forced == "excel":
             text = read_excel(path)
         elif forced == "ppt":
-            text = read_ppt(path)
+            text = read_ppt(path, image_dir)
         else:
             sys.stderr.write("UNSUPPORTED_OFFICE_EXT:%s\n" % ext)
             return 3
@@ -274,6 +338,153 @@ def main():
 if __name__ == "__main__":
     sys.exit(main())
 `;
+
+/** PowerPoint extensions, the only readers that export embedded pictures. */
+const PPT_EXTENSIONS: readonly string[] = ['.ppt', '.pptx', '.pptm'];
+
+/**
+ * Marker the win32com PPT reader emits in place of each embedded picture it
+ * exports: `[[OFFICE_IMAGE:<filename>]]`, where filename lives in the image dir.
+ */
+const OFFICE_IMAGE_MARKER = /\[\[OFFICE_IMAGE:([^\]]+)\]\]/g;
+
+function mimeTypeForImage(fileName: string): string {
+  const ext = path.extname(fileName).toLowerCase();
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+  if (ext === '.gif') return 'image/gif';
+  return 'image/png';
+}
+
+/**
+ * Replace each `[[OFFICE_IMAGE:...]]` marker in the extracted text with a
+ * vision-model description of the corresponding exported picture. Context for
+ * each image is the slide it sits on (the nearest preceding `# Slide N` header).
+ * A per-image failure leaves a short note instead of hard-failing the read.
+ */
+async function describeOfficeImages(
+  text: string,
+  imageDir: string,
+  config: VisionConfig,
+): Promise<string> {
+  const markers = [...text.matchAll(OFFICE_IMAGE_MARKER)];
+  if (markers.length === 0) return text;
+
+  coreEvents.emitFeedback(
+    'info',
+    `[Vision] Describing ${markers.length} image(s) from the slide deck with ${config.model}...`,
+  );
+
+  // Build replacements first, then splice them in, so indices stay stable.
+  const replacements = new Map<string, string>();
+  for (const match of markers) {
+    const fileName = match[1];
+    if (replacements.has(fileName)) continue;
+
+    // Slide context: text from the start of this slide up to the marker.
+    const slideStart = text.lastIndexOf('# Slide', match.index);
+    const contextText = text
+      .slice(slideStart === -1 ? 0 : slideStart, match.index)
+      .replace(OFFICE_IMAGE_MARKER, '')
+      .trim();
+
+    try {
+      const data = await fs.readFile(path.join(imageDir, fileName));
+      const description = await describeImageData(
+        config,
+        [
+          {
+            data: data.toString('base64'),
+            mimeType: mimeTypeForImage(fileName),
+          },
+        ],
+        contextText,
+      );
+      replacements.set(
+        fileName,
+        `[Image "${fileName}" described by vision model "${config.model}"]\n${description}`,
+      );
+    } catch (err) {
+      replacements.set(
+        fileName,
+        `[Image "${fileName}" could not be described: ${String(err)}]`,
+      );
+    }
+  }
+
+  return text.replace(
+    OFFICE_IMAGE_MARKER,
+    (whole, fileName: string) => replacements.get(fileName) ?? whole,
+  );
+}
+
+interface PythonRunResult {
+  stdout: string;
+  stderr: string;
+  code: number | null;
+}
+
+/**
+ * Spawns a Python helper script (no shell) and collects its stdout/stderr.
+ *
+ * IMPORTANT: do NOT spawn through a shell. On Windows `shell: true` runs
+ * `cmd.exe /d /s /c "..."`, and cmd.exe re-encodes the command line through the
+ * console's OEM code page (e.g. CP437/949). Any character not representable
+ * there -- e.g. a Korean file name like "한글.xlsx", even with no spaces -- is
+ * replaced with "?", so win32com receives a corrupted path and reports "file
+ * not found". It also splits unquoted paths on spaces. Spawning without a shell
+ * passes the argv array straight to CreateProcessW as Unicode (libuv does the
+ * quoting), preserving both Unicode characters and spaces. libuv still resolves
+ * `python` on PATH via PATHEXT, so we don't need the shell to find it.
+ */
+function runPythonScript(
+  pythonExe: string,
+  args: string[],
+  extraEnv?: Record<string, string>,
+): Promise<PythonRunResult> {
+  return new Promise<PythonRunResult>((resolve, reject) => {
+    const child = spawn(pythonExe, args, {
+      env: {
+        ...process.env,
+        PYTHONUTF8: '1',
+        PYTHONIOENCODING: 'utf-8',
+        ...extraEnv,
+      },
+      windowsHide: true,
+    });
+
+    let out = '';
+    let err = '';
+    let timedOut = false;
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, OFFICE_READ_TIMEOUT_MS);
+
+    child.stdout.on('data', (d: Buffer) => {
+      out += d.toString('utf-8');
+    });
+    child.stderr.on('data', (d: Buffer) => {
+      err += d.toString('utf-8');
+    });
+    child.on('error', (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
+    child.on('close', (c) => {
+      clearTimeout(timer);
+      if (timedOut) {
+        reject(
+          new Error(
+            `win32com 처리가 ${OFFICE_READ_TIMEOUT_MS / 1000}s 후 타임아웃되었습니다.`,
+          ),
+        );
+        return;
+      }
+      resolve({ stdout: out, stderr: err, code: c });
+    });
+  });
+}
 
 /**
  * Extracts plain text from an in-house Office document using win32com.
@@ -296,64 +507,31 @@ export async function readOfficeFile(
   const pythonExe = detectPythonExecutable();
   const tmpScript = path.join(os.tmpdir(), `openrnd_office_${randomUUID()}.py`);
 
+  // Embedded-picture description only runs for PowerPoint, and only when a
+  // vision model is configured. When it is, hand the win32com reader a temp dir
+  // to export pictures into; otherwise images are ignored (previous behavior).
+  const ext = path.extname(filePath).toLowerCase();
+  const isPpt =
+    PPT_EXTENSIONS.includes(ext) || options?.fallbackReader === 'ppt';
+  const visionConfig = isPpt ? getVisionConfigFromEnv() : undefined;
+  let imageDir: string | undefined;
+
   try {
+    if (visionConfig) {
+      imageDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'openrnd_office_img_'),
+      );
+    }
     await fs.writeFile(tmpScript, WIN32COM_EXTRACT_SCRIPT, 'utf-8');
 
-    const { stdout, stderr, code } = await new Promise<{
-      stdout: string;
-      stderr: string;
-      code: number | null;
-    }>((resolve, reject) => {
-      const spawnArgs = options?.fallbackReader
-        ? [tmpScript, filePath, options.fallbackReader]
-        : [tmpScript, filePath];
-      // IMPORTANT: do NOT spawn through a shell here. On Windows `shell: true`
-      // runs `cmd.exe /d /s /c "..."`, and cmd.exe re-encodes the command line
-      // through the console's OEM code page (e.g. CP437/949). Any character not
-      // representable there -- e.g. a Korean file name like "한글.xlsx", even
-      // with no spaces -- is replaced with "?", so win32com receives a corrupted
-      // path and reports "file not found". It also splits unquoted paths on
-      // spaces. Spawning without a shell passes the argv array straight to
-      // CreateProcessW as Unicode (libuv does the quoting), which preserves
-      // both Unicode characters and spaces. libuv still resolves `python` on
-      // PATH via PATHEXT, so we don't need the shell to find the interpreter.
-      const child = spawn(pythonExe, spawnArgs, {
-        env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
-        windowsHide: true,
-      });
-
-      let out = '';
-      let err = '';
-      let timedOut = false;
-
-      const timer = setTimeout(() => {
-        timedOut = true;
-        child.kill();
-      }, OFFICE_READ_TIMEOUT_MS);
-
-      child.stdout.on('data', (d: Buffer) => {
-        out += d.toString('utf-8');
-      });
-      child.stderr.on('data', (d: Buffer) => {
-        err += d.toString('utf-8');
-      });
-      child.on('error', (e) => {
-        clearTimeout(timer);
-        reject(e);
-      });
-      child.on('close', (c) => {
-        clearTimeout(timer);
-        if (timedOut) {
-          reject(
-            new Error(
-              `win32com 추출이 ${OFFICE_READ_TIMEOUT_MS / 1000}s 후 타임아웃되었습니다.`,
-            ),
-          );
-          return;
-        }
-        resolve({ stdout: out, stderr: err, code: c });
-      });
-    });
+    const spawnArgs = options?.fallbackReader
+      ? [tmpScript, filePath, options.fallbackReader]
+      : [tmpScript, filePath];
+    const { stdout, stderr, code } = await runPythonScript(
+      pythonExe,
+      spawnArgs,
+      imageDir ? { OPENRND_OFFICE_IMAGE_DIR: imageDir } : undefined,
+    );
 
     if (code !== 0) {
       const error =
@@ -362,6 +540,11 @@ export async function readOfficeFile(
       return { error };
     }
 
+    if (visionConfig && imageDir) {
+      return {
+        text: await describeOfficeImages(stdout, imageDir, visionConfig),
+      };
+    }
     return { text: stdout };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -370,6 +553,158 @@ export async function readOfficeFile(
         ? `Python 실행 파일 '${pythonExe}' 을(를) 찾을 수 없습니다. ` +
           `Python 3 와 pywin32 (pip install pywin32) 가 설치되어 있어야 합니다.`
         : `win32com Office 읽기 중 오류: ${message}`;
+    return { error };
+  } finally {
+    await fs.rm(tmpScript, { force: true }).catch(() => {});
+    if (imageDir) {
+      await fs.rm(imageDir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+}
+
+export interface PptxRenderResult {
+  /** Absolute PNG paths, one per exported slide, in slide order. */
+  imagePaths?: string[];
+  error?: string;
+}
+
+/**
+ * Python helper that renders each slide of a PowerPoint deck to a PNG using the
+ * installed PowerPoint app (the only path the DRM agent allows). Prints one
+ * absolute PNG path per line to stdout. Used to capture a sample deck's *visual*
+ * design for template matching, which plain text extraction cannot convey.
+ */
+const WIN32COM_RENDER_PPT_SCRIPT = String.raw`# -*- coding: utf-8 -*-
+import os
+import sys
+
+def _reconfigure_utf8():
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+def ensure_pywin32():
+    try:
+        import win32com.client  # noqa: F401
+        return True
+    except ImportError:
+        pass
+    import subprocess
+    sys.stderr.write("PYWIN32_MISSING: installing pywin32 with %s\n" % sys.executable)
+    try:
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "--user", "--upgrade", "pywin32"]
+        )
+    except Exception as exc:
+        sys.stderr.write("PYWIN32_AUTO_INSTALL_FAILED: %s\n" % exc)
+        return False
+    try:
+        import win32com.client  # noqa: F401
+        return True
+    except ImportError as exc:
+        sys.stderr.write("PYWIN32_STILL_MISSING: %s\n" % exc)
+        return False
+
+def main():
+    _reconfigure_utf8()
+    if len(sys.argv) < 3:
+        sys.stderr.write("MISSING_ARGS\n")
+        return 2
+    path = os.path.abspath(sys.argv[1])
+    out_dir = os.path.abspath(sys.argv[2])
+    try:
+        width = int(sys.argv[3]) if len(sys.argv) > 3 else 1280
+        height = int(sys.argv[4]) if len(sys.argv) > 4 else 720
+    except Exception:
+        width, height = 1280, 720
+    try:
+        max_slides = int(sys.argv[5]) if len(sys.argv) > 5 else 0
+    except Exception:
+        max_slides = 0
+    if not ensure_pywin32():
+        sys.stderr.write("WIN32COM_IMPORT_ERROR\n")
+        return 4
+    try:
+        import pythoncom
+        pythoncom.CoInitialize()
+    except Exception:
+        pass
+    import win32com.client
+    ppt = win32com.client.DispatchEx("PowerPoint.Application")
+    try:
+        pres = ppt.Presentations.Open(path, ReadOnly=True, WithWindow=False)
+        try:
+            count = pres.Slides.Count
+            if max_slides and count > max_slides:
+                count = max_slides
+            for i in range(1, count + 1):
+                out = os.path.join(out_dir, "slide_%d.png" % i)
+                pres.Slides(i).Export(out, "PNG", width, height)
+                sys.stdout.write(out + "\n")
+        finally:
+            pres.Close()
+    finally:
+        ppt.Quit()
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
+`;
+
+/**
+ * Renders a PowerPoint deck's slides to PNG images (one per slide) into
+ * `outDir`, using PowerPoint via win32com. Windows-only, like the office
+ * reader. `maxSlides` (0 = all) bounds how many slides are exported.
+ */
+export async function renderPptxToImages(
+  filePath: string,
+  outDir: string,
+  options?: { widthPx?: number; heightPx?: number; maxSlides?: number },
+): Promise<PptxRenderResult> {
+  if (process.platform !== 'win32') {
+    return {
+      error:
+        'PPT 슬라이드 렌더링(시각 템플릿 분석)은 Windows + PowerPoint 환경에서만 지원됩니다. ' +
+        '현재 플랫폼: ' +
+        process.platform,
+    };
+  }
+
+  const pythonExe = detectPythonExecutable();
+  const tmpScript = path.join(os.tmpdir(), `openrnd_render_${randomUUID()}.py`);
+
+  try {
+    await fs.writeFile(tmpScript, WIN32COM_RENDER_PPT_SCRIPT, 'utf-8');
+    const args = [
+      tmpScript,
+      filePath,
+      outDir,
+      String(options?.widthPx ?? 1280),
+      String(options?.heightPx ?? 720),
+      String(options?.maxSlides ?? 0),
+    ];
+    const { stdout, stderr, code } = await runPythonScript(pythonExe, args);
+    if (code !== 0) {
+      return {
+        error:
+          `win32com PPT 슬라이드 렌더링 실패 (exit ${code}). ` +
+          (stderr.trim() || '진단 메시지 없음'),
+      };
+    }
+    const imagePaths = stdout
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return { imagePaths };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    const error =
+      message.includes('ENOENT') || message.includes('not found')
+        ? `Python 실행 파일 '${pythonExe}' 을(를) 찾을 수 없습니다. ` +
+          `Python 3 와 pywin32 (pip install pywin32) 가 설치되어 있어야 합니다.`
+        : `win32com PPT 슬라이드 렌더링 중 오류: ${message}`;
     return { error };
   } finally {
     await fs.rm(tmpScript, { force: true }).catch(() => {});

@@ -202,6 +202,23 @@ async function describeImages(
   return description;
 }
 
+/**
+ * Describe raw image data (e.g. pictures exported from an Office document) with
+ * the vision model and return the plain-text description. Throws on failure so
+ * the caller can decide how to degrade. Used by the win32com Office reader to
+ * turn embedded pictures into text for the downstream text-only model.
+ */
+export async function describeImageData(
+  config: VisionConfig,
+  images: Array<{ data: string; mimeType: string }>,
+  contextText: string,
+): Promise<string> {
+  const parts: Part[] = images.map((img) => ({
+    inlineData: { data: img.data, mimeType: img.mimeType },
+  }));
+  return describeImages(config, parts, contextText);
+}
+
 function formatDescriptionPart(
   config: VisionConfig,
   imageCount: number,
