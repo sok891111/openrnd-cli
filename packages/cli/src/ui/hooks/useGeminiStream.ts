@@ -1629,14 +1629,39 @@ export const useGeminiStream = (
             prompt_id = config.getSessionId() + '########' + getPromptCount();
           }
           return promptIdContext.run(prompt_id, async () => {
-            const { queryToSend, shouldProceed } = await prepareQueryForGemini(
-              query,
-              userMessageTimestamp,
-              abortSignal,
-              prompt_id!,
-            );
+            // @-command processing reads referenced files, and Office files with
+            // images are sent to the vision model for description before the turn
+            // even starts. That can block for a while; without flipping into the
+            // Responding state here the UI shows no spinner and any text the user
+            // types would start a competing turn instead of being queued. Mark
+            // the turn as responding up front for @-commands and roll it back if
+            // we end up not proceeding.
+            const isAtCommandQuery =
+              typeof query === 'string' && isAtCommand(query.trim());
+            if (isAtCommandQuery) {
+              setIsResponding(true);
+            }
+
+            let queryToSend: PartListUnion | null;
+            let shouldProceed: boolean;
+            try {
+              ({ queryToSend, shouldProceed } = await prepareQueryForGemini(
+                query,
+                userMessageTimestamp,
+                abortSignal,
+                prompt_id!,
+              ));
+            } catch (error) {
+              if (isAtCommandQuery) {
+                setIsResponding(false);
+              }
+              throw error;
+            }
 
             if (!shouldProceed || queryToSend === null) {
+              if (isAtCommandQuery) {
+                setIsResponding(false);
+              }
               return;
             }
 
