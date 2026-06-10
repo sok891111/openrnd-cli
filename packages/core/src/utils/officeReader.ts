@@ -509,7 +509,7 @@ function runPythonScript(
  */
 export async function readOfficeFile(
   filePath: string,
-  options?: { fallbackReader?: OfficeFallbackReader },
+  options?: { fallbackReader?: OfficeFallbackReader; disableVision?: boolean },
 ): Promise<OfficeReadResult> {
   if (process.platform !== 'win32') {
     const error =
@@ -528,7 +528,10 @@ export async function readOfficeFile(
   const ext = path.extname(filePath).toLowerCase();
   const isPpt =
     PPT_EXTENSIONS.includes(ext) || options?.fallbackReader === 'ppt';
-  const visionConfig = isPpt ? getVisionConfigFromEnv() : undefined;
+  // Oversized documents skip vision image description (text-only) to keep the
+  // read responsive — see disableVision handling in processSingleFileContent.
+  const visionConfig =
+    isPpt && !options?.disableVision ? getVisionConfigFromEnv() : undefined;
   let imageDir: string | undefined;
 
   try {

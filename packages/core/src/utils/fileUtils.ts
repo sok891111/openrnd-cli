@@ -570,10 +570,13 @@ async function readOfficeViaWin32com(
   startLine?: number,
   endLine?: number,
   fallbackReader?: OfficeFallbackReader,
+  disableVision?: boolean,
 ): Promise<ProcessedFileReadResult> {
   const officeResult = await readOfficeFile(
     filePath,
-    fallbackReader ? { fallbackReader } : undefined,
+    fallbackReader || disableVision
+      ? { fallbackReader, disableVision }
+      : undefined,
   );
   if (officeResult.error || officeResult.text === undefined) {
     const message =
@@ -627,14 +630,7 @@ export async function processSingleFileContent(
     }
 
     const fileSizeInMB = stats.size / (1024 * 1024);
-    if (fileSizeInMB > MAX_FILE_SIZE_MB) {
-      return {
-        llmContent: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit.`,
-        returnDisplay: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit.`,
-        error: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit: ${filePath} (${fileSizeInMB.toFixed(2)}MB)`,
-        errorType: ToolErrorType.FILE_TOO_LARGE,
-      };
-    }
+    const exceedsSizeLimit = fileSizeInMB > MAX_FILE_SIZE_MB;
 
     const fileType = await detectFileType(filePath);
     const relativePathForDisplay = path
@@ -648,13 +644,38 @@ export async function processSingleFileContent(
     // (dispatched to the correct app by extension), so this only matters for
     // DRM files whose extension is not a recognized office type — for those we
     // let win32com fall back to Word as a last resort.
-    if (fileType !== 'office' && (await startsWithDrmMarker(filePath))) {
+    const isDrmRouted =
+      fileType !== 'office' && (await startsWithDrmMarker(filePath));
+    const isOfficeRoute = fileType === 'office' || isDrmRouted;
+
+    // The 20MB guard protects the context window from oversized raw content.
+    // Office documents are read as *extracted text* via win32com, so the raw
+    // byte size (inflated by embedded images, DRM envelope, etc.) doesn't
+    // reflect the actual content cost — apply the guard only to non-office
+    // files so large in-house documents can still be opened.
+    if (exceedsSizeLimit && !isOfficeRoute) {
+      return {
+        llmContent: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit.`,
+        returnDisplay: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit.`,
+        error: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit: ${filePath} (${fileSizeInMB.toFixed(2)}MB)`,
+        errorType: ToolErrorType.FILE_TOO_LARGE,
+      };
+    }
+
+    // For oversized office documents, skip vision-based image description and
+    // extract text only. Such files usually carry too many images, and running
+    // them all through the vision model would take far too long; text-only
+    // keeps the read responsive.
+    const disableVision = exceedsSizeLimit;
+
+    if (isDrmRouted) {
       return await readOfficeViaWin32com(
         filePath,
         relativePathForDisplay,
         startLine,
         endLine,
         'word',
+        disableVision,
       );
     }
 
@@ -688,6 +709,8 @@ export async function processSingleFileContent(
           relativePathForDisplay,
           startLine,
           endLine,
+          undefined,
+          disableVision,
         );
       }
       case 'text': {
