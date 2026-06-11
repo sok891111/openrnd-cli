@@ -9,12 +9,30 @@ import type { GenerateContentResponse } from '@google/genai';
 import { fetch } from 'undici';
 import { OpenAICompatibleContentGenerator } from './openaiCompatibleContentGenerator.js';
 import { coreEvents } from '../utils/events.js';
+import {
+  getVisionConfigFromEnv,
+  describeImagesInContents,
+} from './visionDescriber.js';
 
 vi.mock('undici', () => ({
   fetch: vi.fn(),
 }));
 
+// Keep the real `contentsHaveImages` (image detection) but stub the two
+// functions that actually invoke the vision model, so tests can assert whether
+// the vision preprocessing path ran.
+vi.mock('./visionDescriber.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./visionDescriber.js')>();
+  return {
+    ...actual,
+    getVisionConfigFromEnv: vi.fn(() => undefined),
+    describeImagesInContents: vi.fn(async (contents: unknown) => contents),
+  };
+});
+
 const mockedFetch = vi.mocked(fetch);
+const mockedGetVisionConfig = vi.mocked(getVisionConfigFromEnv);
+const mockedDescribeImages = vi.mocked(describeImagesInContents);
 
 /** Builds a Response-like object whose body streams the given SSE lines. */
 function sseResponse(lines: string[]) {
@@ -218,5 +236,81 @@ describe('OpenAICompatibleContentGenerator streaming usage', () => {
     ).rejects.toThrow('OpenAI-compatible API error 503');
 
     expect(feedbackSpy).not.toHaveBeenCalledWith('error', expect.any(String));
+  });
+});
+
+describe('OpenAICompatibleContentGenerator vision preprocessing', () => {
+  beforeEach(() => {
+    mockedFetch.mockReset();
+    mockedGetVisionConfig.mockReset();
+    mockedDescribeImages.mockReset();
+    mockedDescribeImages.mockImplementation(async (contents) => contents);
+    // A configured vision model so preprocessing would otherwise run.
+    mockedGetVisionConfig.mockReturnValue({
+      baseUrl: 'http://localhost/vision/v1',
+      apiKey: 'key',
+      model: 'vision-model',
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  const imageRequest = {
+    model: 'in-house-model',
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: 'summarize' },
+          {
+            inlineData: { mimeType: 'image/png', data: 'AAAA' },
+          },
+        ],
+      },
+    ],
+  };
+
+  function okStream() {
+    mockedFetch.mockResolvedValue(
+      sseResponse([
+        'data: {"choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}\n',
+        'data: [DONE]\n',
+      ]),
+    );
+  }
+
+  it('describes images via the vision model when skip is not requested', async () => {
+    okStream();
+    const gen = new OpenAICompatibleContentGenerator(
+      'http://localhost/v1',
+      'key',
+      'in-house-model',
+      { getSkipImagesForCurrentTurn: () => false },
+    );
+
+    await collect(
+      await gen.generateContentStream(imageRequest, 'p', 'model' as never),
+    );
+
+    expect(mockedDescribeImages).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips vision preprocessing when the user requested text-only', async () => {
+    okStream();
+    const gen = new OpenAICompatibleContentGenerator(
+      'http://localhost/v1',
+      'key',
+      'in-house-model',
+      { getSkipImagesForCurrentTurn: () => true },
+    );
+
+    await collect(
+      await gen.generateContentStream(imageRequest, 'p', 'model' as never),
+    );
+
+    expect(mockedDescribeImages).not.toHaveBeenCalled();
   });
 });

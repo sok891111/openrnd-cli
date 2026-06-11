@@ -392,6 +392,7 @@ export async function createContentGenerator(
           config.baseUrl,
           config.apiKey,
           gcConfig.getModel(),
+          gcConfig,
         ),
         gcConfig,
       );

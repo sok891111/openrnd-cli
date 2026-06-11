@@ -34,6 +34,15 @@ import {
   getVisionConfigFromEnv,
 } from './visionDescriber.js';
 
+/**
+ * Minimal view of Config the content generator needs: whether the user asked
+ * to skip image reading / vision analysis for the current turn. Kept narrow on
+ * purpose to avoid a circular import on the full Config type.
+ */
+export interface SkipImagesProvider {
+  getSkipImagesForCurrentTurn(): boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Debug logger
 // ---------------------------------------------------------------------------
@@ -488,12 +497,19 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly model: string;
+  private readonly skipImagesProvider?: SkipImagesProvider;
 
-  constructor(baseUrl?: string, apiKey?: string, model?: string) {
+  constructor(
+    baseUrl?: string,
+    apiKey?: string,
+    model?: string,
+    skipImagesProvider?: SkipImagesProvider,
+  ) {
     this.baseUrl =
       baseUrl ?? process.env['OPENRND_BASE_URL'] ?? 'http://localhost:11434/v1';
     this.apiKey = apiKey ?? process.env['OPENRND_API_KEY'] ?? 'ollama';
     this.model = model ?? process.env['OPENRND_MODEL'] ?? 'llama3.2';
+    this.skipImagesProvider = skipImagesProvider;
 
     debugLog('INFO', 'OpenAICompatibleContentGenerator initialized', {
       baseUrl: this.baseUrl,
@@ -518,6 +534,18 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
   ): Promise<GenerateContentParameters> {
     const contents = (request.contents ?? []) as Content[];
     if (!Array.isArray(contents) || !contentsHaveImages(contents)) {
+      return request;
+    }
+
+    // The user explicitly asked to skip images / read text only this turn.
+    // Honor that here too — this is the central vision execution point for the
+    // text-only model, so without this guard image parts would still be routed
+    // to the vision model even though read-file already drops image-file reads.
+    if (this.skipImagesProvider?.getSkipImagesForCurrentTurn()) {
+      debugLog(
+        'INFO',
+        'preprocessVision → skipped: user requested text-only (skip images) for this turn',
+      );
       return request;
     }
 
