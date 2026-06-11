@@ -28,22 +28,24 @@ const TERMINAL_CLEANUP_SEQUENCE =
 // (FullyQualifiedErrorId: NativeCommandFailed) when it regains control after a
 // full-screen TUI exits and the cursor/scroll-region/buffer state is left in a
 // position it cannot recompute. (cmd.exe and Windows Terminal/ConPTY are fine.)
-// The key part is resetting the scroll region (DECSTBM, "\x1b[r"): a leftover
-// scroll margin is what makes PSReadLine miscompute coordinates and throw.
-// But DECSTBM also homes the cursor to the top-left, which would push the next
-// shell prompt to the top of the screen and overlap the previous output. So we
-// wrap it in save/restore cursor (DECSC "\x1b7" / DECRC "\x1b8") to reset the
-// margins while keeping the cursor at the bottom of the rendered output, then
-// land on a fresh line.
+// Two conditions, verified on Windows, jointly avoid the PSReadLine crash AND
+// the broken/overlapping screen:
+//   1. Reset the scroll region (DECSTBM "\x1b[r") AND leave the cursor at the
+//      home position. A leftover scroll margin / non-home cursor is what makes
+//      PSReadLine miscompute coordinates and throw. (Confirmed: keeping the
+//      cursor at the bottom re-triggers the crash; homing it avoids it.)
+//   2. Clear the visible screen so the next shell prompt — which now starts at
+//      the top — does not overlap the previous session's output.
+// The conversation scrolls into the terminal's scrollback. This mirrors how
+// full-screen TUIs clean up on exit.
 // Refs: PSReadLine #1826/#2348, gemini-cli #12045/#10258.
 const WINDOWS_EXIT_RESET =
   '\x1b[?25h' + // show cursor (in case it was hidden)
   '\x1b[0m' + // reset SGR attributes
   '\x1b[?7h' + // re-enable line wrapping
-  '\x1b7' + // save cursor position (DECSC)
-  '\x1b[r' + // reset scroll region to full screen (fixes PSReadLine; homes cursor)
-  '\x1b8' + // restore cursor position (DECRC) — undo the home from DECSTBM
-  '\r\n'; // start the next shell prompt on a fresh line below the output
+  '\x1b[r' + // reset scroll region to full screen (homes the cursor)
+  '\x1b[2J' + // clear the visible screen
+  '\x1b[H'; // ensure the cursor is at the home position for a clean prompt
 
 export function cleanupTerminalOnExit() {
   const sequence =
