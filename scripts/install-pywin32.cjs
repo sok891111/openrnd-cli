@@ -5,12 +5,17 @@
  */
 
 /**
- * Best-effort installer for pywin32, run as an npm `postinstall` hook.
+ * Best-effort postinstall tasks.
  *
  * In-house DRM-protected Office files (Word/Excel/PowerPoint) can only be read
  * through win32com COM automation, which needs the `pywin32` Python package.
  * Bundling it into `npm install` means users don't have to `pip install pywin32`
  * as a separate step.
+ *
+ * On Windows, this also replaces npm's generated openrnd.ps1 shim with one that
+ * launches Node through .NET ProcessStartInfo instead of PowerShell's native
+ * command invocation operator. That avoids PSReadLine/PowerShell surfacing
+ * "Program 'node.exe' failed to run ... NativeCommandFailed" after TUI exit.
  *
  * This script never fails the install:
  *  - It is a no-op on non-Windows platforms (win32com is Windows-only).
@@ -19,9 +24,185 @@
  */
 
 const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 
 function log(message) {
-  process.stderr.write(`[pywin32-install] ${message}\n`);
+  process.stderr.write(`[openrnd-postinstall] ${message}\n`);
+}
+
+function quotePowerShellString(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+function findNodeModulesRoot(packageRoot) {
+  let current = path.resolve(packageRoot);
+  while (true) {
+    if (path.basename(current).toLowerCase() === 'node_modules') {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return undefined;
+    }
+    current = parent;
+  }
+}
+
+function getPowerShellShimCandidates({
+  packageRoot = path.resolve(__dirname, '..'),
+  prefix = process.env.npm_config_prefix,
+} = {}) {
+  const candidates = new Set();
+
+  if (prefix) {
+    candidates.add(path.join(prefix, 'openrnd.ps1'));
+  }
+
+  const nodeModulesRoot = findNodeModulesRoot(packageRoot);
+  if (nodeModulesRoot) {
+    candidates.add(path.join(nodeModulesRoot, '.bin', 'openrnd.ps1'));
+  }
+
+  return [...candidates];
+}
+
+function buildPowerShellShim({ nodePath, targetPath }) {
+  return `#!/usr/bin/env pwsh
+# openrnd managed ProcessStartInfo shim.
+# npm's default PowerShell shim invokes node.exe with "& node.exe ...".
+# In classic Windows PowerShell/conhost, that path can surface a PSReadLine
+# IndexOutOfRangeException as NativeCommandFailed after an interactive TUI exits.
+$ErrorActionPreference = 'Stop'
+
+function ConvertTo-WindowsArgument {
+  param([AllowNull()][object]$Argument)
+
+  if ($null -eq $Argument) {
+    return '""'
+  }
+
+  $text = [string]$Argument
+  if ($text.Length -eq 0) {
+    return '""'
+  }
+
+  if ($text -notmatch '[\\s"]') {
+    return $text
+  }
+
+  $result = '"'
+  $backslashes = 0
+  foreach ($char in $text.ToCharArray()) {
+    if ($char -eq '\\') {
+      $backslashes++
+      continue
+    }
+
+    if ($char -eq '"') {
+      $result += '\\' * (($backslashes * 2) + 1)
+      $result += '"'
+      $backslashes = 0
+      continue
+    }
+
+    if ($backslashes -gt 0) {
+      $result += '\\' * $backslashes
+      $backslashes = 0
+    }
+    $result += $char
+  }
+
+  if ($backslashes -gt 0) {
+    $result += '\\' * ($backslashes * 2)
+  }
+  $result += '"'
+  return $result
+}
+
+$basedir = Split-Path $MyInvocation.MyCommand.Definition -Parent
+$node = ${quotePowerShellString(nodePath)}
+if (-not (Test-Path $node)) {
+  $localNode = Join-Path $basedir 'node.exe'
+  if (Test-Path $localNode) {
+    $node = $localNode
+  } else {
+    $node = 'node.exe'
+  }
+}
+
+$target = ${quotePowerShellString(targetPath)}
+$allArgs = @($target) + $args
+
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = $node
+$psi.UseShellExecute = $false
+$psi.WorkingDirectory = (Get-Location).ProviderPath
+$psi.Arguments = (($allArgs | ForEach-Object { ConvertTo-WindowsArgument $_ }) -join ' ')
+
+if ($MyInvocation.ExpectingInput) {
+  $psi.RedirectStandardInput = $true
+}
+
+$child = [System.Diagnostics.Process]::Start($psi)
+if ($MyInvocation.ExpectingInput) {
+  foreach ($line in $input) {
+    $child.StandardInput.WriteLine([string]$line)
+  }
+  $child.StandardInput.Close()
+}
+
+$child.WaitForExit()
+exit $child.ExitCode
+`;
+}
+
+function patchPowerShellShim() {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  if (process.env.OPENRND_SKIP_POWERSHELL_SHIM_PATCH === '1') {
+    log(
+      'OPENRND_SKIP_POWERSHELL_SHIM_PATCH=1 set. Skipping PowerShell shim patch.',
+    );
+    return;
+  }
+
+  const packageRoot = path.resolve(__dirname, '..');
+  const targetPath = path.join(packageRoot, 'bundle', 'gemini.js');
+  if (!fs.existsSync(targetPath)) {
+    log(
+      `CLI bundle not found at '${targetPath}'. Skipping PowerShell shim patch.`,
+    );
+    return;
+  }
+
+  const shim = buildPowerShellShim({
+    nodePath: process.execPath,
+    targetPath,
+  });
+
+  let patched = false;
+  for (const candidate of getPowerShellShimCandidates({ packageRoot })) {
+    try {
+      const dir = path.dirname(candidate);
+      if (!fs.existsSync(dir)) {
+        continue;
+      }
+      fs.writeFileSync(candidate, shim, 'utf8');
+      patched = true;
+      log(`Patched PowerShell shim: ${candidate}`);
+    } catch (err) {
+      log(
+        `Could not patch PowerShell shim '${candidate}': ${err && err.message ? err.message : err}`,
+      );
+    }
+  }
+
+  if (!patched) {
+    log('No PowerShell shim candidate found to patch.');
+  }
 }
 
 function isAlreadyInstalled(pythonExe) {
@@ -70,6 +251,8 @@ function main() {
     return;
   }
 
+  patchPowerShellShim();
+
   // Honor the standard opt-out used by Office automation environments / CI.
   if (process.env.OPENRND_SKIP_PYWIN32_INSTALL === '1') {
     log('OPENRND_SKIP_PYWIN32_INSTALL=1 set. Skipping pywin32 install.');
@@ -82,7 +265,9 @@ function main() {
         return;
       }
     } catch (err) {
-      log(`Error with '${pythonExe}': ${err && err.message ? err.message : err}`);
+      log(
+        `Error with '${pythonExe}': ${err && err.message ? err.message : err}`,
+      );
     }
   }
 
@@ -98,3 +283,10 @@ try {
   // Never break `npm install`.
   log(`Unexpected error: ${err && err.message ? err.message : err}`);
 }
+
+module.exports = {
+  buildPowerShellShim,
+  findNodeModulesRoot,
+  getPowerShellShimCandidates,
+  quotePowerShellString,
+};
