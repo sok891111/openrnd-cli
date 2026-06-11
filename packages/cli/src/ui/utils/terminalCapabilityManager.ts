@@ -33,33 +33,35 @@ const TERMINAL_CLEANUP_SEQUENCE =
 // cursor) followed by a real newline ("\r\n"). A leftover scroll margin OR
 // ending without that trailing newline (e.g. cursor parked exactly at 1;1)
 // re-triggers PSReadLine's IndexOutOfRange crash.
-// To ALSO avoid the next prompt overlapping the previous session's output, we
-// must blank the viewport — but NOT with ED "\x1b[2J": conhost implements 2J by
-// repositioning the viewport within the screen buffer, which desyncs the
-// coordinates PowerShell reads back and re-triggers the crash (verified
-// empirically). Instead we move to the bottom row and emit one newline per
-// visible row: plain newline scrolling is the one path conhost and PowerShell
-// always agree on, it pushes the conversation into scrollback, and it leaves
-// the viewport blank before the crash-free "\x1b[r" + "\r\n" ending.
+//
+// Empirically, the ONE thing that always re-triggers the crash is SCROLLING the
+// screen buffer — whether via ED "\x1b[2J" (conhost implements 2J by moving the
+// viewport) OR by emitting a screenful of newlines. Either way the viewport is
+// repositioned within the buffer, PowerShell reads back stale coordinates, and
+// PSReadLine throws IndexOutOfRange. Nothing appended after the scroll undoes
+// it. Conclusion: clearing the final screen by scrolling and avoiding the crash
+// are mutually exclusive on conhost+PSReadLine.
+//
+// So we blank the viewport WITHOUT scrolling: home the cursor (via "\x1b[r"),
+// then ED-to-end "\x1b[0J", which overwrites the visible cells with blanks in
+// place and never moves the viewport. The next prompt then starts at the top of
+// a blank screen (no overlap), and the buffer/viewport relationship PowerShell
+// reads back is unchanged (no crash). Trade-off: the final on-screen lines are
+// blanked rather than pushed to scrollback — lines that scrolled off naturally
+// during the session are still in scrollback, but the last screen is cleared.
 // Refs: PSReadLine #1826/#2348, gemini-cli #12045/#10258.
-function getWindowsExitReset(): string {
-  const rows =
-    process.stdout?.isTTY && process.stdout.rows ? process.stdout.rows : 50;
-  return (
-    '\x1b[?25h' + // show cursor (in case it was hidden)
-    '\x1b[0m' + // reset SGR attributes
-    '\x1b[?7h' + // re-enable line wrapping
-    `\x1b[${rows};1H` + // move cursor to the bottom row
-    '\r\n'.repeat(rows) + // scroll the conversation into scrollback, blanking the viewport
-    '\x1b[r' + // reset scroll region to full screen (homes the cursor)
-    '\r\n' // trailing newline — required to avoid the PSReadLine crash
-  );
-}
+const WINDOWS_EXIT_RESET =
+  '\x1b[?25h' + // show cursor (in case it was hidden)
+  '\x1b[0m' + // reset SGR attributes
+  '\x1b[?7h' + // re-enable line wrapping
+  '\x1b[r' + // reset scroll region to full screen (also homes the cursor)
+  '\x1b[0J' + // erase from cursor (home) to end of screen IN PLACE — no scroll
+  '\r\n'; // trailing newline — required to avoid the PSReadLine crash
 
 export function cleanupTerminalOnExit() {
   const sequence =
     TERMINAL_CLEANUP_SEQUENCE +
-    (process.platform === 'win32' ? getWindowsExitReset() : '');
+    (process.platform === 'win32' ? WINDOWS_EXIT_RESET : '');
   try {
     if (process.stdout?.fd !== undefined) {
       fs.writeSync(process.stdout.fd, sequence);
