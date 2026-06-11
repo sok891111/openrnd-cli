@@ -22,10 +22,29 @@ export type TerminalBackgroundColor = string | undefined;
 const TERMINAL_CLEANUP_SEQUENCE =
   '\x1b[<u\x1b[>4;0m\x1b[?2004l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l';
 
+// Extra reset emitted on exit only on Windows. The legacy console host
+// (conhost) that backs the classic PowerShell window crashes PSReadLine with
+// "System.IndexOutOfRangeException: Index was outside the bounds of the array"
+// (FullyQualifiedErrorId: NativeCommandFailed) when it regains control after a
+// full-screen TUI exits and the cursor/scroll-region/buffer state is left in a
+// position it cannot recompute. (cmd.exe and Windows Terminal/ConPTY are fine.)
+// Restoring a clean state and landing on a fresh line lets PSReadLine re-init
+// without miscalculating coordinates.
+// Refs: PSReadLine #1826/#2348, gemini-cli #12045/#10258.
+const WINDOWS_EXIT_RESET =
+  '\x1b[?25h' + // show cursor (in case it was hidden)
+  '\x1b[0m' + // reset SGR attributes
+  '\x1b[?7h' + // re-enable line wrapping
+  '\x1b[r' + // reset scroll region to the full screen (DECSTBM)
+  '\r\n'; // start the next shell prompt on a fresh line
+
 export function cleanupTerminalOnExit() {
+  const sequence =
+    TERMINAL_CLEANUP_SEQUENCE +
+    (process.platform === 'win32' ? WINDOWS_EXIT_RESET : '');
   try {
     if (process.stdout?.fd !== undefined) {
-      fs.writeSync(process.stdout.fd, TERMINAL_CLEANUP_SEQUENCE);
+      fs.writeSync(process.stdout.fd, sequence);
       return;
     }
   } catch (e) {
