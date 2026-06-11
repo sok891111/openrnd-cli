@@ -492,6 +492,31 @@ describe('ReadManyFilesTool', () => {
       ]);
     });
 
+    it('should skip explicitly requested images when skip_images is true', async () => {
+      createFile('notes.txt', 'text content');
+      createBinaryFile(
+        'image.png',
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      );
+      const params = { include: ['*.txt', '*.png'], skip_images: true };
+      const invocation = tool.build(params);
+      const result = await invocation.execute({
+        abortSignal: new AbortController().signal,
+      });
+
+      const content = result.llmContent as unknown[];
+      expect(
+        content.some(
+          (part) =>
+            typeof part === 'object' && part !== null && 'inlineData' in part,
+        ),
+      ).toBe(false);
+      expect(content.join('\n')).toContain('text content');
+      expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
+        'image file skipped because image reading was disabled',
+      );
+    });
+
     it('should route PDF files through the win32com path (not inlineData)', async () => {
       createBinaryFile('important.pdf', Buffer.from('%PDF-1.4...'));
       const params = { include: ['*.pdf'] };

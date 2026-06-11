@@ -34,6 +34,7 @@ import {
   PARAM_RESPECT_GIT_IGNORE,
   PARAM_RESPECT_GEMINI_IGNORE,
   PARAM_FILE_FILTERING_OPTIONS,
+  PARAM_SKIP_IMAGES,
   // Tool-specific parameter names
   READ_FILE_PARAM_START_LINE,
   READ_FILE_PARAM_END_LINE,
@@ -83,7 +84,7 @@ import {
 export const DEFAULT_LEGACY_SET: CoreToolSet = {
   read_file: {
     name: READ_FILE_TOOL_NAME,
-    description: `Reads and returns the content of a specified file. If the file is large, the content will be truncated. The tool's response will clearly indicate if truncation has occurred and will provide details on how to read more of the file using the 'start_line' and 'end_line' parameters. Handles text, images (PNG, JPG, GIF, WEBP, SVG, BMP), audio files (MP3, WAV, AIFF, AAC, OGG, FLAC), and PDF files. For text files, it can read specific line ranges.`,
+    description: `Reads and returns the content of a specified file. If the file is large, the content will be truncated. The tool's response will clearly indicate if truncation has occurred and will provide details on how to read more of the file using the 'start_line' and 'end_line' parameters. Handles text, images (PNG, JPG, GIF, WEBP, SVG, BMP), audio files (MP3, WAV, AIFF, AAC, OGG, FLAC), and PDF files. For text files, it can read specific line ranges. If the user explicitly asks to skip/exclude images, read text only, or says "이미지 빼고", "이미지는 분석하지마", or "텍스트만", set 'skip_images' to true.`,
     parametersJsonSchema: {
       type: 'object',
       properties: {
@@ -102,6 +103,12 @@ export const DEFAULT_LEGACY_SET: CoreToolSet = {
             'Optional: The 1-based line number to end reading at (inclusive).',
           type: 'integer',
           minimum: 1,
+        },
+        [PARAM_SKIP_IMAGES]: {
+          description:
+            'Optional. Set true only when the user explicitly asks to skip/exclude images or read text only. This skips direct image file inlineData and prevents vision analysis of embedded PowerPoint images while preserving text extraction.',
+          type: 'boolean',
+          default: false,
         },
       },
       required: [PARAM_FILE_PATH],
@@ -454,7 +461,7 @@ This tool is useful when you need to understand or analyze a collection of files
 - Gathering context from multiple configuration files.
 - When the user asks to "read all files in X directory" or "show me the content of all Y files".
 
-Use this tool when the user's query implies needing the content of several files simultaneously for context, analysis, or summarization. For text files, it uses default UTF-8 encoding and a '--- {filePath} ---' separator between file contents. The tool inserts a '--- End of content ---' after the last file. Ensure glob patterns are relative to the target directory. Glob patterns like 'src/**/*.js' are supported. Avoid using for single files if a more specific single-file reading tool is available, unless the user specifically requests to process a list containing just one file via this tool. Other binary files (not explicitly requested as image/audio/PDF) are generally skipped. Default excludes apply to common non-text files (except for explicitly requested images/audio/PDFs) and large dependency directories unless 'useDefaultExcludes' is false.`,
+Use this tool when the user's query implies needing the content of several files simultaneously for context, analysis, or summarization. For text files, it uses default UTF-8 encoding and a '--- {filePath} ---' separator between file contents. The tool inserts a '--- End of content ---' after the last file. Ensure glob patterns are relative to the target directory. Glob patterns like 'src/**/*.js' are supported. Avoid using for single files if a more specific single-file reading tool is available, unless the user specifically requests to process a list containing just one file via this tool. Other binary files (not explicitly requested as image/audio/PDF) are generally skipped. Default excludes apply to common non-text files (except for explicitly requested images/audio/PDFs) and large dependency directories unless 'useDefaultExcludes' is false. If the user explicitly asks to skip/exclude images, read text only, or says "이미지 빼고", "이미지는 분석하지마", or "텍스트만", set 'skip_images' to true.`,
     parametersJsonSchema: {
       type: 'object',
       properties: {
@@ -490,6 +497,12 @@ Use this tool when the user's query implies needing the content of several files
           description:
             'Optional. Whether to apply a list of default exclusion patterns (e.g., node_modules, .git, binary files). Defaults to true.',
           default: true,
+        },
+        [PARAM_SKIP_IMAGES]: {
+          type: 'boolean',
+          description:
+            'Optional. Set true only when the user explicitly asks to skip/exclude images or read text only. This skips direct image file inlineData and prevents vision analysis of embedded PowerPoint images while preserving text extraction.',
+          default: false,
         },
         [PARAM_FILE_FILTERING_OPTIONS]: {
           description:

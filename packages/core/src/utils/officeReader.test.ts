@@ -6,6 +6,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
+import fsPromises from 'node:fs/promises';
 import {
   isOfficeFile,
   OFFICE_EXTENSIONS,
@@ -164,5 +165,22 @@ describe('readOfficeFile', () => {
     } finally {
       feedbackSpy.mockRestore();
     }
+  });
+
+  it('does not export PPT images when vision is disabled', async () => {
+    setPlatform('win32');
+    vi.stubEnv('OPENRND_VISION_BASE_URL', 'http://vision/v1');
+    vi.stubEnv('OPENRND_VISION_MODEL', 'llava');
+    mockSuccessfulSpawn('# Slide 1\nTitle\n[[OFFICE_IMAGE:img_1_1.png]]');
+    vi.mocked(fsPromises.mkdtemp).mockClear();
+
+    const result = await readOfficeFile('C:\\deck.pptx', {
+      disableVision: true,
+    });
+
+    expect(result.text).toBe('# Slide 1\nTitle\n[[OFFICE_IMAGE:img_1_1.png]]');
+    expect(fsPromises.mkdtemp).not.toHaveBeenCalled();
+    const [, , options] = spawnMock.mock.calls[0];
+    expect(options.env.OPENRND_OFFICE_IMAGE_DIR).toBeUndefined();
   });
 });

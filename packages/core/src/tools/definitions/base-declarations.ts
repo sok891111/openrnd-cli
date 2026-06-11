@@ -21,6 +21,7 @@ export const PARAM_RESPECT_GIT_IGNORE = 'respect_git_ignore';
 export const PARAM_RESPECT_GEMINI_IGNORE = 'respect_gemini_ignore';
 export const PARAM_FILE_FILTERING_OPTIONS = 'file_filtering_options';
 export const PARAM_DESCRIPTION = 'description';
+export const PARAM_SKIP_IMAGES = 'skip_images';
 
 // ============================================================================
 // TOOL NAMES & TOOL-SPECIFIC PARAMETER NAMES

@@ -606,6 +606,7 @@ export async function processSingleFileContent(
   _fileSystemService: FileSystemService,
   startLine?: number,
   endLine?: number,
+  options?: { skipImages?: boolean },
 ): Promise<ProcessedFileReadResult> {
   try {
     if (!fs.existsSync(filePath)) {
@@ -666,7 +667,8 @@ export async function processSingleFileContent(
     // extract text only. Such files usually carry too many images, and running
     // them all through the vision model would take far too long; text-only
     // keeps the read responsive.
-    const disableVision = exceedsSizeLimit;
+    const skipImages = options?.skipImages === true;
+    const disableVision = exceedsSizeLimit || skipImages;
 
     if (isDrmRouted) {
       return await readOfficeViaWin32com(
@@ -746,6 +748,13 @@ export async function processSingleFileContent(
         };
       }
       case 'image':
+        if (skipImages) {
+          return {
+            llmContent: `Skipped image file because image reading was disabled: ${relativePathForDisplay}`,
+            returnDisplay: `Skipped image file: ${relativePathForDisplay}`,
+          };
+        }
+      // Fall through: image files are read as inline data when image reading is enabled.
       case 'pdf':
       case 'video': {
         const mimeType =

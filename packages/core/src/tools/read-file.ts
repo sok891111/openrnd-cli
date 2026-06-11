@@ -59,6 +59,11 @@ export interface ReadFileToolParams {
    * The line number to end reading at (optional, 1-based, inclusive)
    */
   end_line?: number;
+
+  /**
+   * Skip image content and embedded image vision analysis.
+   */
+  skip_images?: boolean;
 }
 
 class ReadFileToolInvocation extends BaseToolInvocation<
@@ -127,6 +132,7 @@ class ReadFileToolInvocation extends BaseToolInvocation<
       this.config.getFileSystemService(),
       this.params.start_line,
       this.params.end_line,
+      { skipImages: this.params.skip_images === true },
     );
 
     if (result.error) {

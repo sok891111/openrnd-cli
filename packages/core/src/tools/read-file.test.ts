@@ -361,6 +361,26 @@ describe('ReadFileTool', () => {
       expect(result.returnDisplay).toBe('Read image file: image.png');
     });
 
+    it('should skip image content when skip_images is true', async () => {
+      const imagePath = path.join(tempRootDir, 'image.png');
+      const pngHeader = Buffer.from([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      ]);
+      await fsp.writeFile(imagePath, pngHeader);
+      const params: ReadFileToolParams = {
+        file_path: imagePath,
+        skip_images: true,
+      };
+      const invocation = tool.build(params);
+
+      const result = await invocation.execute({ abortSignal });
+      expect(result.llmContent).toContain(
+        'Skipped image file because image reading was disabled',
+      );
+      expect(result.llmContent).not.toHaveProperty('inlineData');
+      expect(result.returnDisplay).toBe('Skipped image file: image.png');
+    });
+
     it('should route PDF reads through the win32com office path (not inlineData)', async () => {
       const pdfPath = path.join(tempRootDir, 'document.pdf');
       // Minimal PDF header

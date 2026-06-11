@@ -90,6 +90,11 @@ export interface ReadManyFilesParams {
     respect_git_ignore?: boolean;
     respect_gemini_ignore?: boolean;
   };
+
+  /**
+   * Skip image content and embedded image vision analysis.
+   */
+  skip_images?: boolean;
 }
 
 /**
@@ -332,6 +337,15 @@ ${finalExclusionPatternsForDescription
 
           const fileType = await detectFileType(filePath);
 
+          if (this.params.skip_images === true && fileType === 'image') {
+            return {
+              success: false,
+              filePath,
+              relativePathForDisplay,
+              reason: 'image file skipped because image reading was disabled',
+            };
+          }
+
           if (
             fileType === 'image' ||
             fileType === 'pdf' ||
@@ -365,6 +379,9 @@ ${finalExclusionPatternsForDescription
             filePath,
             this.config.getTargetDir(),
             this.config.getFileSystemService(),
+            undefined,
+            undefined,
+            { skipImages: this.params.skip_images === true },
           );
 
           if (fileReadResult.error) {
