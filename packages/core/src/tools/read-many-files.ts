@@ -53,6 +53,12 @@ import {
   JIT_CONTEXT_SUFFIX,
 } from './jit-context.js';
 
+function shouldSkipImages(config: Config, explicit?: boolean): boolean {
+  if (explicit === true) return true;
+  const maybeConfig = config as { getSkipImagesForCurrentTurn?: () => boolean };
+  return maybeConfig.getSkipImagesForCurrentTurn?.() === true;
+}
+
 /**
  * Parameters for the ReadManyFilesTool.
  */
@@ -327,6 +333,7 @@ ${finalExclusionPatternsForDescription
     }
 
     const sortedFiles = Array.from(filesToConsider).sort();
+    const skipImages = shouldSkipImages(this.config, this.params.skip_images);
 
     const fileProcessingPromises = sortedFiles.map(
       async (filePath): Promise<FileProcessingResult> => {
@@ -337,7 +344,7 @@ ${finalExclusionPatternsForDescription
 
           const fileType = await detectFileType(filePath);
 
-          if (this.params.skip_images === true && fileType === 'image') {
+          if (skipImages && fileType === 'image') {
             return {
               success: false,
               filePath,
@@ -381,7 +388,7 @@ ${finalExclusionPatternsForDescription
             this.config.getFileSystemService(),
             undefined,
             undefined,
-            { skipImages: this.params.skip_images === true },
+            { skipImages },
           );
 
           if (fileReadResult.error) {

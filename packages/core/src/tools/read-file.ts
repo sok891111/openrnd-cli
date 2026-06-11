@@ -41,6 +41,12 @@ import {
   appendJitContextToParts,
 } from './jit-context.js';
 
+function shouldSkipImages(config: Config, explicit?: boolean): boolean {
+  if (explicit === true) return true;
+  const maybeConfig = config as { getSkipImagesForCurrentTurn?: () => boolean };
+  return maybeConfig.getSkipImagesForCurrentTurn?.() === true;
+}
+
 /**
  * Parameters for the ReadFile tool
  */
@@ -132,7 +138,7 @@ class ReadFileToolInvocation extends BaseToolInvocation<
       this.config.getFileSystemService(),
       this.params.start_line,
       this.params.end_line,
-      { skipImages: this.params.skip_images === true },
+      { skipImages: shouldSkipImages(this.config, this.params.skip_images) },
     );
 
     if (result.error) {

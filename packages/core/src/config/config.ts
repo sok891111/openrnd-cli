@@ -778,6 +778,7 @@ export class Config implements McpContext, AgentLoopContext {
   private _sessionId: string;
   private readonly clientName: string | undefined;
   private _clientVersion: string;
+  private skipImagesForCurrentTurn = false;
 
   private fileSystemService: FileSystemService;
   private trackerService?: TrackerService;
@@ -1829,6 +1830,14 @@ export class Config implements McpContext, AgentLoopContext {
 
   getSessionId(): string {
     return this.promptId;
+  }
+
+  setSkipImagesForCurrentTurn(skipImages: boolean): void {
+    this.skipImagesForCurrentTurn = skipImages;
+  }
+
+  getSkipImagesForCurrentTurn(): boolean {
+    return this.skipImagesForCurrentTurn;
   }
 
   getWorktreeSettings(): WorktreeSettings | undefined {

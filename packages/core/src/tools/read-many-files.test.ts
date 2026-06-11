@@ -81,6 +81,7 @@ describe('ReadManyFilesTool', () => {
   let tempRootDir: string;
   let tempDirOutsideRoot: string;
   let mockReadFileFn: Mock;
+  let skipImagesForCurrentTurn: boolean;
 
   beforeEach(async () => {
     tempRootDir = fs.realpathSync(
@@ -89,6 +90,7 @@ describe('ReadManyFilesTool', () => {
     tempDirOutsideRoot = fs.realpathSync(
       fs.mkdtempSync(path.join(os.tmpdir(), 'read-many-files-external-')),
     );
+    skipImagesForCurrentTurn = false;
     fs.writeFileSync(path.join(tempRootDir, GEMINI_IGNORE_FILE_NAME), 'foo.*');
     const fileService = new FileDiscoveryService(tempRootDir);
     const mockConfig = {
@@ -103,6 +105,7 @@ describe('ReadManyFilesTool', () => {
       getTargetDir: () => tempRootDir,
       getWorkspaceDirs: () => [tempRootDir],
       getWorkspaceContext: () => new WorkspaceContext(tempRootDir),
+      getSkipImagesForCurrentTurn: () => skipImagesForCurrentTurn,
       getFileExclusions: () => ({
         getCoreIgnorePatterns: () => COMMON_IGNORE_PATTERNS,
         getDefaultExcludePatterns: () => DEFAULT_FILE_EXCLUDES,
@@ -499,6 +502,32 @@ describe('ReadManyFilesTool', () => {
         Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
       );
       const params = { include: ['*.txt', '*.png'], skip_images: true };
+      const invocation = tool.build(params);
+      const result = await invocation.execute({
+        abortSignal: new AbortController().signal,
+      });
+
+      const content = result.llmContent as unknown[];
+      expect(
+        content.some(
+          (part) =>
+            typeof part === 'object' && part !== null && 'inlineData' in part,
+        ),
+      ).toBe(false);
+      expect(content.join('\n')).toContain('text content');
+      expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
+        'image file skipped because image reading was disabled',
+      );
+    });
+
+    it('should skip images when the current user turn requests text only', async () => {
+      skipImagesForCurrentTurn = true;
+      createFile('notes.txt', 'text content');
+      createBinaryFile(
+        'image.png',
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      );
+      const params = { include: ['*.txt', '*.png'] };
       const invocation = tool.build(params);
       const result = await invocation.execute({
         abortSignal: new AbortController().signal,

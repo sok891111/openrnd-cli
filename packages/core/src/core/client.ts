@@ -68,6 +68,7 @@ import {
   applyModelSelection,
   createAvailabilityContextProvider,
 } from '../availability/policyHelpers.js';
+import { userRequestSkipsImages } from '../utils/skipImagesIntent.js';
 import { getDisplayString, resolveModel } from '../config/models.js';
 import { partToString } from '../utils/partUtils.js';
 import { randomUUID } from 'node:crypto';
@@ -1006,7 +1007,11 @@ export class GeminiClient {
     const messageBus = this.context.messageBus;
 
     if (this.lastPromptId !== prompt_id) {
-      this.loopDetector.reset(prompt_id, partListUnionToString(request));
+      const requestText = partListUnionToString(request);
+      this.config.setSkipImagesForCurrentTurn(
+        userRequestSkipsImages(requestText),
+      );
+      this.loopDetector.reset(prompt_id, requestText);
       this.hookStateMap.delete(this.lastPromptId);
       this.lastPromptId = prompt_id;
       this.currentSequenceModel = null;

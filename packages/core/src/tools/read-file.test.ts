@@ -44,12 +44,14 @@ vi.mock('./jit-context.js', () => ({
 describe('ReadFileTool', () => {
   let tempRootDir: string;
   let tool: ReadFileTool;
+  let skipImagesForCurrentTurn: boolean;
   const abortSignal = new AbortController().signal;
 
   beforeEach(async () => {
     // Create a unique temporary root directory for each test run
     const realTmp = await fsp.realpath(os.tmpdir());
     tempRootDir = await fsp.mkdtemp(path.join(realTmp, 'read-file-tool-root-'));
+    skipImagesForCurrentTurn = false;
 
     const mockConfigInstance = {
       getFileService: () => new FileDiscoveryService(tempRootDir),
@@ -60,6 +62,7 @@ describe('ReadFileTool', () => {
         respectGitIgnore: true,
         respectGeminiIgnore: true,
       }),
+      getSkipImagesForCurrentTurn: () => skipImagesForCurrentTurn,
       storage: {
         getProjectTempDir: () => path.join(tempRootDir, '.temp'),
       },
@@ -379,6 +382,23 @@ describe('ReadFileTool', () => {
       );
       expect(result.llmContent).not.toHaveProperty('inlineData');
       expect(result.returnDisplay).toBe('Skipped image file: image.png');
+    });
+
+    it('should skip image content when the current user turn requests text only', async () => {
+      skipImagesForCurrentTurn = true;
+      const imagePath = path.join(tempRootDir, 'image.png');
+      const pngHeader = Buffer.from([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      ]);
+      await fsp.writeFile(imagePath, pngHeader);
+      const params: ReadFileToolParams = { file_path: imagePath };
+      const invocation = tool.build(params);
+
+      const result = await invocation.execute({ abortSignal });
+      expect(result.llmContent).toContain(
+        'Skipped image file because image reading was disabled',
+      );
+      expect(result.llmContent).not.toHaveProperty('inlineData');
     });
 
     it('should route PDF reads through the win32com office path (not inlineData)', async () => {
