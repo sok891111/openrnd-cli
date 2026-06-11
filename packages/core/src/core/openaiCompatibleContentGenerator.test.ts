@@ -194,7 +194,10 @@ describe('OpenAICompatibleContentGenerator streaming usage', () => {
     expect(mockedFetch.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it('does not emit user-facing errors when a non-streaming request fails', async () => {
+  it('surfaces a user-facing error when a non-streaming request fails', async () => {
+    // The thrown error is silently retried with backoff by geminiChat, so this
+    // emitFeedback is the only signal the user sees while a flaky endpoint is
+    // being retried. Without it the turn looks like a silent hang.
     const feedbackSpy = vi.spyOn(coreEvents, 'emitFeedback');
     mockedFetch.mockRejectedValue(new Error('connect ECONNREFUSED'));
 
@@ -212,10 +215,13 @@ describe('OpenAICompatibleContentGenerator streaming usage', () => {
       ),
     ).rejects.toThrow('connect ECONNREFUSED');
 
-    expect(feedbackSpy).not.toHaveBeenCalledWith('error', expect.any(String));
+    expect(feedbackSpy).toHaveBeenCalledWith(
+      'error',
+      expect.stringContaining('Connection failed'),
+    );
   });
 
-  it('does not emit user-facing errors when a streaming request fails', async () => {
+  it('surfaces a user-facing error when a streaming request fails', async () => {
     const feedbackSpy = vi.spyOn(coreEvents, 'emitFeedback');
     mockedFetch.mockResolvedValue(
       jsonResponse({ error: 'unavailable' }, false, 503),
@@ -235,7 +241,10 @@ describe('OpenAICompatibleContentGenerator streaming usage', () => {
       ),
     ).rejects.toThrow('OpenAI-compatible API error 503');
 
-    expect(feedbackSpy).not.toHaveBeenCalledWith('error', expect.any(String));
+    expect(feedbackSpy).toHaveBeenCalledWith(
+      'error',
+      expect.stringContaining('HTTP 503'),
+    );
   });
 });
 
