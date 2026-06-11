@@ -40,6 +40,8 @@ git clone https://github.com/your-username/openrnd.git
 cd openrnd
 ```
 
+<!-- sync: rollback alignment -->
+
 ### 2. 의존성 설치 및 빌드
 
 ```bash
