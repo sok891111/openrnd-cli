@@ -112,6 +112,38 @@ describe('cleanup', () => {
     expect(callOrder).toEqual(['drain', 'drain', 'sync', 'cleanup']);
   });
 
+  it('should not drain stdin on Windows during exit cleanup', async () => {
+    const originalPlatform = process.platform;
+    const originalResume = process.stdin.resume;
+    const originalIsTTY = process.stdin.isTTY;
+    Object.defineProperty(process, 'platform', {
+      value: 'win32',
+      configurable: true,
+    });
+    const resumeSpy = vi.fn().mockReturnValue(process.stdin);
+    process.stdin.resume = resumeSpy;
+    Object.defineProperty(process.stdin, 'isTTY', {
+      value: true,
+      configurable: true,
+    });
+
+    try {
+      await runExitCleanup();
+    } finally {
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true,
+      });
+      process.stdin.resume = originalResume;
+      Object.defineProperty(process.stdin, 'isTTY', {
+        value: originalIsTTY,
+        configurable: true,
+      });
+    }
+
+    expect(resumeSpy).not.toHaveBeenCalled();
+  });
+
   it('should continue running cleanup functions even if one throws an error', async () => {
     const errorFn = vi.fn().mockImplementation(() => {
       throw new Error('test error');

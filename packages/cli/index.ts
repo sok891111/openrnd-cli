@@ -124,7 +124,6 @@ async function run() {
           resolve(1);
         });
         child.on('close', (code) => {
-          process.stdin.resume();
           resolve(code ?? 1);
         });
       });

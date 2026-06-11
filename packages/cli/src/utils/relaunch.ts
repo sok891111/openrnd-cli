@@ -71,8 +71,6 @@ export async function relaunchAppInChildProcess(
     return new Promise<number>((resolve, reject) => {
       child.on('error', reject);
       child.on('close', (code) => {
-        // Resume stdin before the parent process exits.
-        process.stdin.resume();
         resolve(code ?? 1);
       });
     });

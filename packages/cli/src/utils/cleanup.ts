@@ -114,6 +114,9 @@ export async function runExitCleanup() {
 }
 
 async function drainStdin() {
+  // Windows PowerShell/PSReadLine can report a NativeCommandFailed error after
+  // process exit if a terminal app resumes/drains stdin during shutdown.
+  if (process.platform === 'win32') return;
   if (!process.stdin?.isTTY) return;
   // Resume stdin and attach a no-op listener to drain the buffer.
   // We use removeAllListeners to ensure we don't trigger other handlers.
