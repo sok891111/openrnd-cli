@@ -30,13 +30,17 @@ const TERMINAL_CLEANUP_SEQUENCE =
 // position it cannot recompute. (cmd.exe and Windows Terminal/ConPTY are fine.)
 // Restoring a clean state and landing on a fresh line lets PSReadLine re-init
 // without miscalculating coordinates.
+// NOTE: do NOT reset the scroll region here (DECSTBM, "\x1b[r"). Per the VT
+// spec that homes the cursor to the top-left, which makes the next shell prompt
+// start at the top of the screen and overlap the previous session's output.
+// openrnd renders in the normal buffer and never sets a scroll region, so there
+// is nothing to reset anyway.
 // Refs: PSReadLine #1826/#2348, gemini-cli #12045/#10258.
 const WINDOWS_EXIT_RESET =
   '\x1b[?25h' + // show cursor (in case it was hidden)
   '\x1b[0m' + // reset SGR attributes
   '\x1b[?7h' + // re-enable line wrapping
-  '\x1b[r' + // reset scroll region to the full screen (DECSTBM)
-  '\r\n'; // start the next shell prompt on a fresh line
+  '\r\n'; // start the next shell prompt on a fresh line below the output
 
 export function cleanupTerminalOnExit() {
   const sequence =
