@@ -44,7 +44,6 @@ import {
   rememberFallbackChoice,
   type CorporateFetchContext,
 } from './corporate-fetch.js';
-import { isDebugLoggingEnabled } from '../utils/debugLogging.js';
 
 const URL_FETCH_TIMEOUT_MS = 10000;
 const MAX_CONTENT_LENGTH = 250000;
@@ -552,9 +551,8 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     const manager = BrowserManager.getInstance(this.context.config);
     manager.acquire();
     let pageIdToClose: number | undefined;
-    coreEvents.emitFeedback(
-      'info',
-      `🌐 [web_fetch] 로그인된 브라우저 세션(sessionMode=existing)으로 여는 중: ${urlStr}`,
+    debugLogger.debug(
+      `[WebFetchTool] Opening signed-in browser session (sessionMode=existing) for: ${urlStr}`,
     );
     try {
       await manager.callTool('new_page', { url: urlStr }, signal, true);
@@ -562,9 +560,8 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       // Give SPA / detail pages time to render before reading their text.
       const settleMs = this.getBrowserSettleMs();
       if (settleMs > 0) {
-        coreEvents.emitFeedback(
-          'info',
-          `⏳ [web_fetch] 페이지 렌더링 대기 ${settleMs}ms 후 텍스트 추출: ${urlStr}`,
+        debugLogger.debug(
+          `[WebFetchTool] Waiting ${settleMs}ms for page render before extracting text: ${urlStr}`,
         );
         await this.waitForPageSettle(signal);
       }
@@ -618,9 +615,8 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       if (!text) {
         throw new Error('Browser returned empty page content.');
       }
-      coreEvents.emitFeedback(
-        'info',
-        `✅ [web_fetch] 브라우저로 ${text.length}자 읽음: ${urlStr}`,
+      debugLogger.debug(
+        `[WebFetchTool] Read ${text.length} chars via browser: ${urlStr}`,
       );
       return text;
     } catch (err) {
@@ -753,20 +749,17 @@ class WebFetchToolInvocation extends BaseToolInvocation<
    *
    * `emitInfo` carries the handlers' Python `print(..., file=sys.stderr)`
    * lines (🐍 …) plus per-handler trace messages. These are *informational*
-   * logs, so they are gated on the same debug-logging switch as the rest of
-   * the app (settings.general.debugLogging / OPENRND_DEBUG): turning logging
-   * off silences them all. Real failures still surface via the ⚠️/✅ feedback
-   * emitted directly by the callers below.
+   * developer logs, so they go to the debug logger (visible in the debug
+   * drawer / debug.log only when debug logging is enabled) and never clutter
+   * the chat. Real failures still surface via the error feedback emitted
+   * directly by the callers below.
    */
   private makeCorporateFetchContext(
     signal: AbortSignal,
   ): CorporateFetchContext {
-    const logging = isDebugLoggingEnabled();
     return {
       signal,
-      emitInfo: logging
-        ? (message: string) => coreEvents.emitFeedback('info', message)
-        : () => {},
+      emitInfo: (message: string) => debugLogger.debug(message),
     };
   }
 
@@ -873,12 +866,9 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       this.makeCorporateFetchContext(signal),
     );
     if (corp) {
-      if (isDebugLoggingEnabled()) {
-        coreEvents.emitFeedback(
-          'info',
-          `✅ [web_fetch] 사내 fetch 핸들러(${corp.handlerName})로 ${corp.text.length}자 읽음: ${url}`,
-        );
-      }
+      debugLogger.debug(
+        `[WebFetchTool] Read ${corp.text.length} chars via corporate fetch handler (${corp.handlerName}): ${url}`,
+      );
       return corp.text;
     }
     if (!(await this.confirmBrowserFallback(url, signal))) {
@@ -900,12 +890,9 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       this.makeCorporateFetchContext(signal),
     );
     if (corp) {
-      if (isDebugLoggingEnabled()) {
-        coreEvents.emitFeedback(
-          'info',
-          `✅ [web_fetch] 사내 fetch 핸들러(${corp.handlerName})로 ${corp.text.length}자 읽음: ${url}`,
-        );
-      }
+      debugLogger.debug(
+        `[WebFetchTool] Read ${corp.text.length} chars via corporate fetch handler (${corp.handlerName}): ${url}`,
+      );
       return {
         llmContent: this.applyFallbackTruncation(corp.text),
         returnDisplay: `Fetched content from ${url} via corporate fetch handler (${corp.handlerName}).`,
@@ -1012,18 +999,10 @@ class WebFetchToolInvocation extends BaseToolInvocation<
         if (!reason) {
           return this.applyFallbackTruncation(text);
         }
-        coreEvents.emitFeedback(
-          'info',
-          `🔐 [web_fetch] ${reason} → 사내 fetch/브라우저 세션으로 폴백: ${url}`,
-        );
         debugLogger.warn(
           `[WebFetchTool] ${reason} for ${url}. Falling back to corporate/browser fetch.`,
         );
       } catch (error) {
-        coreEvents.emitFeedback(
-          'info',
-          `⚠️ [web_fetch] 직접 fetch 실패 (${getErrorMessage(error)}) → 사내 fetch/브라우저 세션으로 폴백: ${url}`,
-        );
         debugLogger.warn(
           `[WebFetchTool] Direct fetch failed for ${url} ` +
             `(${getErrorMessage(error)}). Falling back to corporate/browser fetch.`,
@@ -1339,10 +1318,6 @@ ${aggregatedContent}
         this.shouldUseBrowserFetch() &&
         this.looksLikeAuthRedirect(url, response)
       ) {
-        coreEvents.emitFeedback(
-          'info',
-          `🔐 [web_fetch] SSO/인증 벽 감지 (status ${status}, 최종 URL ${response.url}) → 사내 fetch/브라우저 세션으로 폴백: ${url}`,
-        );
         debugLogger.warn(
           `[WebFetchTool] Auth/SSO wall detected for ${url} ` +
             `(status ${status}). Using corporate/browser fetch.`,
@@ -1386,9 +1361,8 @@ Response: ${rawResponseText}`;
         this.looksLikeSsoStub(response, bodyBuffer.length)
       ) {
         const size = this.responseSize(response, bodyBuffer.length);
-        coreEvents.emitFeedback(
-          'info',
-          `🔐 [web_fetch] SSO 의심 — 응답 크기 ${size}B ≤ ${this.getSsoStubThreshold()}B (status ${status}) → 사내 fetch/브라우저 세션으로 폴백: ${url}`,
+        debugLogger.warn(
+          `[WebFetchTool] Suspected SSO stub — response size ${size}B <= ${this.getSsoStubThreshold()}B (status ${status}) for ${url}. Falling back to corporate/browser fetch.`,
         );
         return await this.corporateOrBrowserResult(url, signal);
       }
@@ -1459,10 +1433,6 @@ Response: ${rawResponseText}`;
     } catch (e) {
       // Network failure on the direct fetch — try the signed-in browser.
       if (this.shouldUseBrowserFetch()) {
-        coreEvents.emitFeedback(
-          'info',
-          `⚠️ [web_fetch] 직접 fetch 실패 (${getErrorMessage(e)}) → 사내 fetch/브라우저 세션으로 폴백: ${url}`,
-        );
         debugLogger.warn(
           `[WebFetchTool] Experimental fetch failed for ${url} ` +
             `(${getErrorMessage(e)}). Falling back to corporate/browser fetch.`,

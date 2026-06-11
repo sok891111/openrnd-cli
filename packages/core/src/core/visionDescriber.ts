@@ -30,6 +30,7 @@ import { createHash } from 'node:crypto';
 import type { Content, Part } from '@google/genai';
 import { fetch } from 'undici';
 import { coreEvents } from '../utils/events.js';
+import { debugLogger } from '../utils/debugLogger.js';
 
 export interface VisionConfig {
   baseUrl: string;
@@ -322,8 +323,7 @@ export async function describeImagesInContents(
       );
     } else {
       try {
-        coreEvents.emitFeedback(
-          'info',
+        debugLogger.debug(
           `[Vision] Analyzing ${imageParts.length} image(s) with ${config.model}...`,
         );
         const description = await describeImages(

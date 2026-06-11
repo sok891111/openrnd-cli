@@ -15,6 +15,7 @@ import {
   type VisionConfig,
 } from '../core/visionDescriber.js';
 import { coreEvents } from './events.js';
+import { debugLogger } from './debugLogger.js';
 
 /**
  * Document extensions that must be read through win32com COM automation.
@@ -369,8 +370,7 @@ async function describeOfficeImages(
   const markers = [...text.matchAll(OFFICE_IMAGE_MARKER)];
   if (markers.length === 0) return text;
 
-  coreEvents.emitFeedback(
-    'info',
+  debugLogger.debug(
     `[Vision] Describing ${markers.length} image(s) from the slide deck with ${config.model}...`,
   );
 
@@ -386,8 +386,7 @@ async function describeOfficeImages(
     if (replacements.has(fileName)) continue;
 
     describedCount += 1;
-    coreEvents.emitFeedback(
-      'info',
+    debugLogger.debug(
       `[Vision] (${describedCount}/${uniqueCount}) Describing "${fileName}"...`,
     );
 
