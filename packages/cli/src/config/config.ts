@@ -14,7 +14,7 @@ import { extensionsCommand } from '../commands/extensions.js';
 import { skillsCommand } from '../commands/skills.js';
 import { hooksCommand } from '../commands/hooks.js';
 import { gemmaCommand } from '../commands/gemma.js';
-import { llmCommand } from '../commands/llm.js';
+import { llmCommand, visionCommand } from '../commands/llm.js';
 import {
   setGeminiMdFilename as setServerGeminiMdFilename,
   resetGeminiMdFilename,
@@ -188,6 +188,7 @@ export async function parseArguments(
         hooksCommand,
         gemmaCommand,
         llmCommand,
+        visionCommand,
       ];
 
       const subcommands = commandModules.flatMap((mod) => {
@@ -279,6 +280,7 @@ export async function parseArguments(
   yargsInstance.command(hooksCommand);
   yargsInstance.command(gemmaCommand);
   yargsInstance.command(llmCommand);
+  yargsInstance.command(visionCommand);
 
   yargsInstance
     .command('$0 [query..]', 'Launch openrnd', (yargsInstance) =>
