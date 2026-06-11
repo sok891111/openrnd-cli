@@ -34,22 +34,32 @@ const TERMINAL_CLEANUP_SEQUENCE =
 // ending without that trailing newline (e.g. cursor parked exactly at 1;1)
 // re-triggers PSReadLine's IndexOutOfRange crash.
 // To ALSO avoid the next prompt overlapping the previous session's output, we
-// clear the screen FIRST (which scrolls the conversation into scrollback), then
-// reproduce that exact crash-free ending so the prompt starts cleanly near the
-// top.
+// must blank the viewport — but NOT with ED "\x1b[2J": conhost implements 2J by
+// repositioning the viewport within the screen buffer, which desyncs the
+// coordinates PowerShell reads back and re-triggers the crash (verified
+// empirically). Instead we move to the bottom row and emit one newline per
+// visible row: plain newline scrolling is the one path conhost and PowerShell
+// always agree on, it pushes the conversation into scrollback, and it leaves
+// the viewport blank before the crash-free "\x1b[r" + "\r\n" ending.
 // Refs: PSReadLine #1826/#2348, gemini-cli #12045/#10258.
-const WINDOWS_EXIT_RESET =
-  '\x1b[?25h' + // show cursor (in case it was hidden)
-  '\x1b[0m' + // reset SGR attributes
-  '\x1b[?7h' + // re-enable line wrapping
-  '\x1b[2J' + // clear the visible screen (conversation scrolls into scrollback)
-  '\x1b[r' + // reset scroll region to full screen (homes the cursor)
-  '\r\n'; // trailing newline — required to avoid the PSReadLine crash
+function getWindowsExitReset(): string {
+  const rows =
+    process.stdout?.isTTY && process.stdout.rows ? process.stdout.rows : 50;
+  return (
+    '\x1b[?25h' + // show cursor (in case it was hidden)
+    '\x1b[0m' + // reset SGR attributes
+    '\x1b[?7h' + // re-enable line wrapping
+    `\x1b[${rows};1H` + // move cursor to the bottom row
+    '\r\n'.repeat(rows) + // scroll the conversation into scrollback, blanking the viewport
+    '\x1b[r' + // reset scroll region to full screen (homes the cursor)
+    '\r\n' // trailing newline — required to avoid the PSReadLine crash
+  );
+}
 
 export function cleanupTerminalOnExit() {
   const sequence =
     TERMINAL_CLEANUP_SEQUENCE +
-    (process.platform === 'win32' ? WINDOWS_EXIT_RESET : '');
+    (process.platform === 'win32' ? getWindowsExitReset() : '');
   try {
     if (process.stdout?.fd !== undefined) {
       fs.writeSync(process.stdout.fd, sequence);
