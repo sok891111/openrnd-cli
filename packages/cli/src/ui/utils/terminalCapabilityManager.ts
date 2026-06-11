@@ -22,49 +22,10 @@ export type TerminalBackgroundColor = string | undefined;
 const TERMINAL_CLEANUP_SEQUENCE =
   '\x1b[<u\x1b[>4;0m\x1b[?2004l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l';
 
-// Extra reset emitted on exit only on Windows. The legacy console host
-// (conhost) that backs the classic PowerShell window crashes PSReadLine with
-// "System.IndexOutOfRangeException: Index was outside the bounds of the array"
-// (FullyQualifiedErrorId: NativeCommandFailed) when it regains control after a
-// full-screen TUI exits and the cursor/scroll-region/buffer state is left in a
-// position it cannot recompute. (cmd.exe and Windows Terminal/ConPTY are fine.)
-// The crash-free exit on Windows, verified empirically, requires this exact
-// ending: reset the scroll region (DECSTBM "\x1b[r", which also homes the
-// cursor) followed by a real newline ("\r\n"). A leftover scroll margin OR
-// ending without that trailing newline (e.g. cursor parked exactly at 1;1)
-// re-triggers PSReadLine's IndexOutOfRange crash.
-//
-// Empirically, the ONE thing that always re-triggers the crash is SCROLLING the
-// screen buffer — whether via ED "\x1b[2J" (conhost implements 2J by moving the
-// viewport) OR by emitting a screenful of newlines. Either way the viewport is
-// repositioned within the buffer, PowerShell reads back stale coordinates, and
-// PSReadLine throws IndexOutOfRange. Nothing appended after the scroll undoes
-// it. Conclusion: clearing the final screen by scrolling and avoiding the crash
-// are mutually exclusive on conhost+PSReadLine.
-//
-// So we blank the viewport WITHOUT scrolling: home the cursor (via "\x1b[r"),
-// then ED-to-end "\x1b[0J", which overwrites the visible cells with blanks in
-// place and never moves the viewport. The next prompt then starts at the top of
-// a blank screen (no overlap), and the buffer/viewport relationship PowerShell
-// reads back is unchanged (no crash). Trade-off: the final on-screen lines are
-// blanked rather than pushed to scrollback — lines that scrolled off naturally
-// during the session are still in scrollback, but the last screen is cleared.
-// Refs: PSReadLine #1826/#2348, gemini-cli #12045/#10258.
-const WINDOWS_EXIT_RESET =
-  '\x1b[?25h' + // show cursor (in case it was hidden)
-  '\x1b[0m' + // reset SGR attributes
-  '\x1b[?7h' + // re-enable line wrapping
-  '\x1b[r' + // reset scroll region to full screen (also homes the cursor)
-  '\x1b[0J' + // erase from cursor (home) to end of screen IN PLACE — no scroll
-  '\r\n'; // trailing newline — required to avoid the PSReadLine crash
-
 export function cleanupTerminalOnExit() {
-  const sequence =
-    TERMINAL_CLEANUP_SEQUENCE +
-    (process.platform === 'win32' ? WINDOWS_EXIT_RESET : '');
   try {
     if (process.stdout?.fd !== undefined) {
-      fs.writeSync(process.stdout.fd, sequence);
+      fs.writeSync(process.stdout.fd, TERMINAL_CLEANUP_SEQUENCE);
       return;
     }
   } catch (e) {
