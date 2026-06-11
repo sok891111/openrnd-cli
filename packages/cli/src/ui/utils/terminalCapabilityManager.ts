@@ -28,24 +28,23 @@ const TERMINAL_CLEANUP_SEQUENCE =
 // (FullyQualifiedErrorId: NativeCommandFailed) when it regains control after a
 // full-screen TUI exits and the cursor/scroll-region/buffer state is left in a
 // position it cannot recompute. (cmd.exe and Windows Terminal/ConPTY are fine.)
-// Two conditions, verified on Windows, jointly avoid the PSReadLine crash AND
-// the broken/overlapping screen:
-//   1. Reset the scroll region (DECSTBM "\x1b[r") AND leave the cursor at the
-//      home position. A leftover scroll margin / non-home cursor is what makes
-//      PSReadLine miscompute coordinates and throw. (Confirmed: keeping the
-//      cursor at the bottom re-triggers the crash; homing it avoids it.)
-//   2. Clear the visible screen so the next shell prompt — which now starts at
-//      the top — does not overlap the previous session's output.
-// The conversation scrolls into the terminal's scrollback. This mirrors how
-// full-screen TUIs clean up on exit.
+// The crash-free exit on Windows, verified empirically, requires this exact
+// ending: reset the scroll region (DECSTBM "\x1b[r", which also homes the
+// cursor) followed by a real newline ("\r\n"). A leftover scroll margin OR
+// ending without that trailing newline (e.g. cursor parked exactly at 1;1)
+// re-triggers PSReadLine's IndexOutOfRange crash.
+// To ALSO avoid the next prompt overlapping the previous session's output, we
+// clear the screen FIRST (which scrolls the conversation into scrollback), then
+// reproduce that exact crash-free ending so the prompt starts cleanly near the
+// top.
 // Refs: PSReadLine #1826/#2348, gemini-cli #12045/#10258.
 const WINDOWS_EXIT_RESET =
   '\x1b[?25h' + // show cursor (in case it was hidden)
   '\x1b[0m' + // reset SGR attributes
   '\x1b[?7h' + // re-enable line wrapping
+  '\x1b[2J' + // clear the visible screen (conversation scrolls into scrollback)
   '\x1b[r' + // reset scroll region to full screen (homes the cursor)
-  '\x1b[2J' + // clear the visible screen
-  '\x1b[H'; // ensure the cursor is at the home position for a clean prompt
+  '\r\n'; // trailing newline — required to avoid the PSReadLine crash
 
 export function cleanupTerminalOnExit() {
   const sequence =
