@@ -357,29 +357,6 @@ export function matchCorporateSystem(
 }
 
 /**
- * SSO 폴백 시 사용자가 고른 경로("browser" = 브라우저로 열기 / "apikey" = API
- * 키 등록 경로)를 프로세스 동안 기억해, 같은 선택을 매번 다시 묻지 않도록 한다.
- *
- * - manage_credential 로 키를 등록(set)하면 {@link clearRememberedFallbackChoice}
- *   로 초기화 → 다음 web_fetch 때 (필요하면) 다시 묻거나 등록된 키로 곧장 가져온다.
- */
-export type WebFetchFallbackChoice = 'browser' | 'apikey';
-
-let rememberedFallbackChoice: WebFetchFallbackChoice | null = null;
-
-export function getRememberedFallbackChoice(): WebFetchFallbackChoice | null {
-  return rememberedFallbackChoice;
-}
-
-export function rememberFallbackChoice(choice: WebFetchFallbackChoice): void {
-  rememberedFallbackChoice = choice;
-}
-
-export function clearRememberedFallbackChoice(): void {
-  rememberedFallbackChoice = null;
-}
-
-/**
  * 등록된 핸들러들을 순서대로 시도한다.
  *
  * - 매칭되는 핸들러가 없으면 `null` 반환 → 브라우저 폴백.

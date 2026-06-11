@@ -635,10 +635,6 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
           stack: err instanceof Error ? err.stack : undefined,
         },
       );
-      coreEvents.emitFeedback(
-        'error',
-        `[LLM] Connection failed → ${url}: ${String(err)}`,
-      );
       throw err;
     } finally {
       cleanup();
@@ -656,10 +652,6 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
         status: response.status,
         body: errorText,
       });
-      coreEvents.emitFeedback(
-        'error',
-        `[LLM] HTTP ${response.status} from ${url}: ${errorText}`,
-      );
       throw new Error(
         `OpenAI-compatible API error ${response.status}: ${errorText}`,
       );
@@ -724,10 +716,6 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
           stack: err instanceof Error ? err.stack : undefined,
         },
       );
-      coreEvents.emitFeedback(
-        'error',
-        `[LLM] Connection failed → ${url}: ${String(err)}`,
-      );
       throw err;
     } finally {
       cleanup();
@@ -745,10 +733,6 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
         status: response.status,
         body: errorText,
       });
-      coreEvents.emitFeedback(
-        'error',
-        `[LLM] HTTP ${response.status} from ${url}: ${errorText}`,
-      );
       throw new Error(
         `OpenAI-compatible API error ${response.status}: ${errorText}`,
       );

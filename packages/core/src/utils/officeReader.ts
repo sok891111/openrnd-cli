@@ -14,7 +14,7 @@ import {
   describeImageData,
   type VisionConfig,
 } from '../core/visionDescriber.js';
-import { coreEvents } from './events.js';
+import { emitFeedbackAfterDelay } from './delayedFeedback.js';
 import { debugLogger } from './debugLogger.js';
 
 /**
@@ -348,6 +348,7 @@ const PPT_EXTENSIONS: readonly string[] = ['.ppt', '.pptx', '.pptm'];
  * exports: `[[OFFICE_IMAGE:<filename>]]`, where filename lives in the image dir.
  */
 const OFFICE_IMAGE_MARKER = /\[\[OFFICE_IMAGE:([^\]]+)\]\]/g;
+const OFFICE_VISION_PROGRESS_FEEDBACK_DELAY_MS = 2_000;
 
 function mimeTypeForImage(fileName: string): string {
   const ext = path.extname(fileName).toLowerCase();
@@ -373,62 +374,69 @@ async function describeOfficeImages(
   debugLogger.debug(
     `[Vision] Describing ${markers.length} image(s) from the slide deck with ${config.model}...`,
   );
-
-  // Build replacements first, then splice them in, so indices stay stable.
-  // Describe images sequentially so the vision endpoint isn't flooded with
-  // (potentially large) concurrent requests; emit per-image progress so a slow
-  // run doesn't look frozen.
-  const replacements = new Map<string, string>();
-  let describedCount = 0;
-  const uniqueCount = new Set(markers.map((m) => m[1])).size;
-  for (const match of markers) {
-    const fileName = match[1];
-    if (replacements.has(fileName)) continue;
-
-    describedCount += 1;
-    debugLogger.debug(
-      `[Vision] (${describedCount}/${uniqueCount}) Describing "${fileName}"...`,
-    );
-
-    // Slide context: text from the start of this slide up to the marker.
-    const slideStart = text.lastIndexOf('# Slide', match.index);
-    const contextText = text
-      .slice(slideStart === -1 ? 0 : slideStart, match.index)
-      .replace(OFFICE_IMAGE_MARKER, '')
-      .trim();
-
-    try {
-      const data = await fs.readFile(path.join(imageDir, fileName));
-      const description = await describeImageData(
-        config,
-        [
-          {
-            data: data.toString('base64'),
-            mimeType: mimeTypeForImage(fileName),
-          },
-        ],
-        contextText,
-      );
-      replacements.set(
-        fileName,
-        `[Image "${fileName}" described by vision model "${config.model}"]\n${description}`,
-      );
-    } catch (err) {
-      coreEvents.emitFeedback(
-        'error',
-        `[Vision] Could not describe "${fileName}": ${String(err)}`,
-      );
-      replacements.set(
-        fileName,
-        `[Image "${fileName}" could not be described: ${String(err)}]`,
-      );
-    }
-  }
-
-  return text.replace(
-    OFFICE_IMAGE_MARKER,
-    (whole, fileName: string) => replacements.get(fileName) ?? whole,
+  const progressFeedback = emitFeedbackAfterDelay(
+    'info',
+    `[Vision] PowerPoint 이미지 ${markers.length}개를 분석 중입니다 (${config.model}). 잠시만 기다려 주세요...`,
+    OFFICE_VISION_PROGRESS_FEEDBACK_DELAY_MS,
   );
+
+  try {
+    // Build replacements first, then splice them in, so indices stay stable.
+    // Describe images sequentially so the vision endpoint isn't flooded with
+    // potentially large concurrent requests.
+    const replacements = new Map<string, string>();
+    let describedCount = 0;
+    const uniqueCount = new Set(markers.map((m) => m[1])).size;
+    for (const match of markers) {
+      const fileName = match[1];
+      if (replacements.has(fileName)) continue;
+
+      describedCount += 1;
+      debugLogger.debug(
+        `[Vision] (${describedCount}/${uniqueCount}) Describing "${fileName}"...`,
+      );
+
+      // Slide context: text from the start of this slide up to the marker.
+      const slideStart = text.lastIndexOf('# Slide', match.index);
+      const contextText = text
+        .slice(slideStart === -1 ? 0 : slideStart, match.index)
+        .replace(OFFICE_IMAGE_MARKER, '')
+        .trim();
+
+      try {
+        const data = await fs.readFile(path.join(imageDir, fileName));
+        const description = await describeImageData(
+          config,
+          [
+            {
+              data: data.toString('base64'),
+              mimeType: mimeTypeForImage(fileName),
+            },
+          ],
+          contextText,
+        );
+        replacements.set(
+          fileName,
+          `[Image "${fileName}" described by vision model "${config.model}"]\n${description}`,
+        );
+      } catch (err) {
+        debugLogger.debug(
+          `[Vision] Could not describe "${fileName}": ${String(err)}`,
+        );
+        replacements.set(
+          fileName,
+          `[Image "${fileName}" could not be described: ${String(err)}]`,
+        );
+      }
+    }
+
+    return text.replace(
+      OFFICE_IMAGE_MARKER,
+      (whole, fileName: string) => replacements.get(fileName) ?? whole,
+    );
+  } finally {
+    progressFeedback.cancel();
+  }
 }
 
 interface PythonRunResult {

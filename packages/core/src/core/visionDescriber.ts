@@ -29,8 +29,8 @@
 import { createHash } from 'node:crypto';
 import type { Content, Part } from '@google/genai';
 import { fetch } from 'undici';
-import { coreEvents } from '../utils/events.js';
 import { debugLogger } from '../utils/debugLogger.js';
+import { emitFeedbackAfterDelay } from '../utils/delayedFeedback.js';
 
 export interface VisionConfig {
   baseUrl: string;
@@ -46,6 +46,7 @@ export interface VisionConfig {
  * per-image catch leaves a placeholder note so the read still completes.
  */
 const VISION_REQUEST_TIMEOUT_MS = 60_000;
+const VISION_PROGRESS_FEEDBACK_DELAY_MS = 2_000;
 
 // ---------------------------------------------------------------------------
 // Description cache
@@ -322,6 +323,11 @@ export async function describeImagesInContents(
         cached,
       );
     } else {
+      const progressFeedback = emitFeedbackAfterDelay(
+        'info',
+        `[Vision] 이미지 ${imageParts.length}개를 분석 중입니다 (${config.model}). 잠시만 기다려 주세요...`,
+        VISION_PROGRESS_FEEDBACK_DELAY_MS,
+      );
       try {
         debugLogger.debug(
           `[Vision] Analyzing ${imageParts.length} image(s) with ${config.model}...`,
@@ -338,14 +344,13 @@ export async function describeImagesInContents(
           description,
         );
       } catch (err) {
-        coreEvents.emitFeedback(
-          'error',
-          `[Vision] Image analysis failed: ${String(err)}`,
-        );
+        debugLogger.debug(`[Vision] Image analysis failed: ${String(err)}`);
         // Don't cache failures — a transient error should be retried next turn.
         descriptionPart = {
           text: `\n\n[Image analysis unavailable: the vision model could not process ${imageParts.length} attached image(s). Error: ${String(err)}]`,
         };
+      } finally {
+        progressFeedback.cancel();
       }
     }
 

@@ -14,6 +14,7 @@ import {
   getVisionConfigFromEnv,
   type VisionConfig,
 } from './visionDescriber.js';
+import { coreEvents } from '../utils/events.js';
 
 vi.mock('undici', () => ({
   fetch: vi.fn(),
@@ -96,6 +97,11 @@ describe('describeImagesInContents', () => {
     clearVisionDescriptionCache();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
   it('replaces image parts with the vision model description', async () => {
     mockedFetch.mockResolvedValue(
       jsonResponse({
@@ -125,6 +131,63 @@ describe('describeImagesInContents', () => {
     expect(
       userContent.some((c: { type: string }) => c.type === 'image_url'),
     ).toBe(true);
+  });
+
+  it('emits progress feedback only after vision analysis takes long enough', async () => {
+    vi.useFakeTimers();
+    const feedbackSpy = vi.spyOn(coreEvents, 'emitFeedback');
+    let resolveFetch!: (value: ReturnType<typeof jsonResponse>) => void;
+    const fetchPromise = new Promise<ReturnType<typeof jsonResponse>>(
+      (resolve) => {
+        resolveFetch = resolve;
+      },
+    );
+    mockedFetch.mockReturnValue(fetchPromise);
+
+    const contents: Content[] = [
+      { role: 'user', parts: [{ text: 'analyze this' }, IMAGE_PART] },
+    ];
+    const resultPromise = describeImagesInContents(contents, config);
+
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(feedbackSpy).not.toHaveBeenCalledWith(
+      'info',
+      expect.stringContaining('이미지 1개를 분석 중입니다'),
+    );
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(feedbackSpy).toHaveBeenCalledWith(
+      'info',
+      expect.stringContaining('이미지 1개를 분석 중입니다'),
+    );
+
+    resolveFetch(
+      jsonResponse({
+        choices: [{ message: { content: 'delayed description' } }],
+      }),
+    );
+    await resultPromise;
+  });
+
+  it('cancels progress feedback when vision analysis finishes quickly', async () => {
+    vi.useFakeTimers();
+    const feedbackSpy = vi.spyOn(coreEvents, 'emitFeedback');
+    mockedFetch.mockResolvedValue(
+      jsonResponse({
+        choices: [{ message: { content: 'quick description' } }],
+      }),
+    );
+
+    const contents: Content[] = [
+      { role: 'user', parts: [{ text: 'analyze this' }, IMAGE_PART] },
+    ];
+    await describeImagesInContents(contents, config);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(feedbackSpy).not.toHaveBeenCalledWith(
+      'info',
+      expect.stringContaining('이미지 1개를 분석 중입니다'),
+    );
   });
 
   it('sends one request per image and never batches multiple images', async () => {
@@ -241,6 +304,7 @@ describe('describeImagesInContents', () => {
   });
 
   it('inserts a placeholder note when the vision model fails', async () => {
+    const feedbackSpy = vi.spyOn(coreEvents, 'emitFeedback');
     mockedFetch.mockResolvedValue(jsonResponse('boom', false, 500));
 
     const contents: Content[] = [{ role: 'user', parts: [IMAGE_PART] }];
@@ -248,5 +312,6 @@ describe('describeImagesInContents', () => {
     const text = (out[0].parts ?? []).map((p) => p.text ?? '').join('');
     expect(text).toContain('Image analysis unavailable');
     expect((out[0].parts ?? []).some((p) => p.inlineData)).toBe(false);
+    expect(feedbackSpy).not.toHaveBeenCalledWith('error', expect.any(String));
   });
 });

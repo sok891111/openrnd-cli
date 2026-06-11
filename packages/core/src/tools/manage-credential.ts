@@ -20,10 +20,7 @@ import {
   credentialEnvVar,
   getCredentialsPath,
 } from './corporate-credentials.js';
-import {
-  listCorporateSystems,
-  clearRememberedFallbackChoice,
-} from './corporate-fetch.js';
+import { listCorporateSystems } from './corporate-fetch.js';
 
 export const MANAGE_CREDENTIAL_TOOL_NAME = 'manage_credential';
 export const MANAGE_CREDENTIAL_DISPLAY_NAME = 'Manage Credential';
@@ -175,9 +172,6 @@ class ManageCredentialInvocation extends BaseToolInvocation<
           };
         }
         setCredential(system, value);
-        // 키가 새로 등록됐으니 이전에 기억한 (브라우저/ API) 선택을 초기화 →
-        // 다음 web_fetch 는 등록된 키로 곧장 시도하거나, 필요하면 다시 묻는다.
-        clearRememberedFallbackChoice();
         const msg =
           `✅ **${system}** 키를 저장했습니다 (${maskSecret(value)}).\n` +
           `핸들러에는 환경변수 \`${credentialEnvVar(system)}\` 로 주입됩니다.\n` +

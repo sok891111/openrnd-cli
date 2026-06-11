@@ -19,7 +19,6 @@ import {
   convertGithubUrlToRaw,
   normalizeUrl,
 } from './web-fetch.js';
-import { clearRememberedFallbackChoice } from './corporate-fetch.js';
 import type { Config } from '../config/config.js';
 import { ApprovalMode } from '../policy/types.js';
 import { ToolConfirmationOutcome } from './tools.js';
@@ -29,7 +28,6 @@ import {
   getMockMessageBusInstance,
 } from '../test-utils/mock-message-bus.js';
 import * as fetchUtils from '../utils/fetch.js';
-import { coreEvents, CoreEvent } from '../utils/events.js';
 import { MessageBus } from '../confirmation-bus/message-bus.js';
 import { PolicyEngine } from '../policy/policy-engine.js';
 import {
@@ -810,19 +808,15 @@ describe('WebFetchTool', () => {
     });
   });
 
-  describe('SSO fallback user choice (browser vs API key)', () => {
+  describe('SSO fallback browser path', () => {
     beforeEach(() => {
       vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
       process.env['OPENRND_WEBFETCH_BROWSER_FALLBACK'] = '1';
       process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'] = '1500';
-      delete process.env['OPENRND_WEBFETCH_BROWSER_PROMPT'];
-      // The remembered (browser/apikey) choice is module-level and would leak
-      // between tests; reset it so each test starts from "no choice yet".
-      clearRememberedFallbackChoice();
       mockGenerateContent.mockReset();
       // market.naver.com is claimed by the bundled sample corporate handler, so
-      // it is an "API-requiring" URL → the browser-vs-API prompt is shown.
-      // The handler itself returns no body, so we fall through to the prompt.
+      // it is an "API-requiring" URL. The handler itself returns no body, so we
+      // fall through to the browser fallback.
       // Tiny SSO stub so the fetch is routed to the fallback.
       mockFetch('https://market.naver.com/', {
         headers: new Headers({ 'content-type': 'text/html' }),
@@ -833,39 +827,7 @@ describe('WebFetchTool', () => {
       }));
     });
 
-    it('asks the user and, when declined, returns the API-key guidance without opening the browser', async () => {
-      const handler = vi.fn(
-        (p: { prompt: string; onConfirm: (c: boolean) => void }) =>
-          p.onConfirm(false),
-      );
-      coreEvents.on(CoreEvent.ConsentRequest, handler);
-      try {
-        const tool = new WebFetchTool(mockConfig, bus);
-        const invocation = tool.build({
-          prompt: 'fetch https://market.naver.com',
-        });
-        const result = await invocation.execute({
-          abortSignal: new AbortController().signal,
-        });
-
-        expect(handler).toHaveBeenCalledTimes(1);
-        // Prompt mentions both options.
-        expect(handler.mock.calls[0][0].prompt).toContain('manage_credential');
-        // The browser was NOT opened.
-        expect(mockBrowserCallTool).not.toHaveBeenCalledWith(
-          'new_page',
-          expect.anything(),
-          expect.anything(),
-          true,
-        );
-        // Guidance surfaced to the model/user.
-        expect(String(result.llmContent)).toContain('manage_credential');
-      } finally {
-        coreEvents.off(CoreEvent.ConsentRequest, handler);
-      }
-    });
-
-    it('opens the browser when the user accepts', async () => {
+    it('opens the browser directly for a claimed corporate URL without asking for API-key input', async () => {
       const fakeManager = {
         acquire: vi.fn(),
         release: vi.fn(),
@@ -895,31 +857,22 @@ describe('WebFetchTool', () => {
         return { content: [], isError: false };
       });
 
-      const handler = vi.fn(
-        (p: { prompt: string; onConfirm: (c: boolean) => void }) =>
-          p.onConfirm(true),
-      );
-      coreEvents.on(CoreEvent.ConsentRequest, handler);
-      try {
-        const tool = new WebFetchTool(mockConfig, bus);
-        const invocation = tool.build({
-          prompt: 'fetch https://market.naver.com',
-        });
-        const result = await invocation.execute({
-          abortSignal: new AbortController().signal,
-        });
+      const tool = new WebFetchTool(mockConfig, bus);
+      const invocation = tool.build({
+        prompt: 'fetch https://market.naver.com',
+      });
+      const result = await invocation.execute({
+        abortSignal: new AbortController().signal,
+      });
 
-        expect(handler).toHaveBeenCalledTimes(1);
-        expect(mockBrowserCallTool).toHaveBeenCalledWith(
-          'new_page',
-          { url: 'https://market.naver.com/' },
-          expect.anything(),
-          true,
-        );
-        expect(String(result.llmContent)).toContain('VIA BROWSER');
-      } finally {
-        coreEvents.off(CoreEvent.ConsentRequest, handler);
-      }
+      expect(mockBrowserCallTool).toHaveBeenCalledWith(
+        'new_page',
+        { url: 'https://market.naver.com/' },
+        expect.anything(),
+        true,
+      );
+      expect(String(result.llmContent)).toContain('VIA BROWSER');
+      expect(String(result.llmContent)).not.toContain('manage_credential');
     });
 
     it('includes the chrome remote-debugging hint when the browser fails to open', async () => {
@@ -937,30 +890,19 @@ describe('WebFetchTool', () => {
         return { content: [], isError: false };
       });
 
-      const handler = (p: {
-        prompt: string;
-        onConfirm: (c: boolean) => void;
-      }) => p.onConfirm(true);
-      coreEvents.on(CoreEvent.ConsentRequest, handler);
-      try {
-        const tool = new WebFetchTool(mockConfig, bus);
-        const invocation = tool.build({
-          prompt: 'fetch https://market.naver.com',
-        });
-        const result = await invocation.execute({
-          abortSignal: new AbortController().signal,
-        });
-        expect(String(result.llmContent)).toContain(
-          'chrome://inspect/#remote-debugging',
-        );
-      } finally {
-        coreEvents.off(CoreEvent.ConsentRequest, handler);
-      }
+      const tool = new WebFetchTool(mockConfig, bus);
+      const invocation = tool.build({
+        prompt: 'fetch https://market.naver.com',
+      });
+      const result = await invocation.execute({
+        abortSignal: new AbortController().signal,
+      });
+      expect(String(result.llmContent)).toContain(
+        'chrome://inspect/#remote-debugging',
+      );
     });
 
-    it('does NOT prompt for a URL no corporate handler claims — opens the browser directly', async () => {
-      // example.com is not claimed by any corporate handler, so there is no API
-      // key that could help → we must NOT ask, and go straight to the browser.
+    it('opens the browser directly for a URL no corporate handler claims', async () => {
       mockFetch('https://example.com/', {
         headers: new Headers({ 'content-type': 'text/html' }),
         text: () => Promise.resolve('<html><body>SSO</body></html>'),
@@ -986,62 +928,19 @@ describe('WebFetchTool', () => {
         return { content: [], isError: false };
       });
 
-      const handler = vi.fn(
-        (p: { prompt: string; onConfirm: (c: boolean) => void }) =>
-          p.onConfirm(false),
+      const tool = new WebFetchTool(mockConfig, bus);
+      const invocation = tool.build({ prompt: 'fetch https://example.com' });
+      const result = await invocation.execute({
+        abortSignal: new AbortController().signal,
+      });
+
+      expect(mockBrowserCallTool).toHaveBeenCalledWith(
+        'new_page',
+        { url: 'https://example.com/' },
+        expect.anything(),
+        true,
       );
-      coreEvents.on(CoreEvent.ConsentRequest, handler);
-      try {
-        const tool = new WebFetchTool(mockConfig, bus);
-        const invocation = tool.build({ prompt: 'fetch https://example.com' });
-        const result = await invocation.execute({
-          abortSignal: new AbortController().signal,
-        });
-
-        // No question was asked, and the browser was used.
-        expect(handler).not.toHaveBeenCalled();
-        expect(mockBrowserCallTool).toHaveBeenCalledWith(
-          'new_page',
-          { url: 'https://example.com/' },
-          expect.anything(),
-          true,
-        );
-        expect(String(result.llmContent)).toContain('NO PROMPT BROWSER');
-      } finally {
-        coreEvents.off(CoreEvent.ConsentRequest, handler);
-      }
-    });
-
-    it('remembers the choice and does not re-prompt on the next call until a credential is set', async () => {
-      const handler = vi.fn(
-        (p: { prompt: string; onConfirm: (c: boolean) => void }) =>
-          p.onConfirm(false),
-      );
-      coreEvents.on(CoreEvent.ConsentRequest, handler);
-      try {
-        const tool = new WebFetchTool(mockConfig, bus);
-
-        // 1st call: asks once, user picks the API-key route (decline browser).
-        const first = await tool
-          .build({ prompt: 'fetch https://market.naver.com' })
-          .execute({
-            abortSignal: new AbortController().signal,
-          });
-        expect(handler).toHaveBeenCalledTimes(1);
-        expect(String(first.llmContent)).toContain('manage_credential');
-
-        // 2nd call (NEW invocation): the remembered "apikey" choice is reused —
-        // no second prompt, same guidance returned.
-        const second = await tool
-          .build({ prompt: 'fetch https://market.naver.com' })
-          .execute({
-            abortSignal: new AbortController().signal,
-          });
-        expect(handler).toHaveBeenCalledTimes(1); // still 1 — not re-asked
-        expect(String(second.llmContent)).toContain('manage_credential');
-      } finally {
-        coreEvents.off(CoreEvent.ConsentRequest, handler);
-      }
+      expect(String(result.llmContent)).toContain('NO PROMPT BROWSER');
     });
   });
 

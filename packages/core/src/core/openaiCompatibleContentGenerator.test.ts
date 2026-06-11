@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { GenerateContentResponse } from '@google/genai';
 import { fetch } from 'undici';
 import { OpenAICompatibleContentGenerator } from './openaiCompatibleContentGenerator.js';
+import { coreEvents } from '../utils/events.js';
 
 vi.mock('undici', () => ({
   fetch: vi.fn(),
@@ -50,6 +51,17 @@ function hangingSseResponse() {
   } as unknown as Awaited<ReturnType<typeof fetch>>;
 }
 
+function jsonResponse(body: unknown, ok = true, status = 200) {
+  return {
+    ok,
+    status,
+    statusText: ok ? 'OK' : 'Error',
+    headers: new Headers(),
+    text: async () => JSON.stringify(body),
+    json: async () => body,
+  } as unknown as Awaited<ReturnType<typeof fetch>>;
+}
+
 async function collect(
   gen: AsyncGenerator<GenerateContentResponse>,
 ): Promise<GenerateContentResponse[]> {
@@ -67,6 +79,7 @@ describe('OpenAICompatibleContentGenerator streaming usage', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.restoreAllMocks();
   });
 
   it('requests usage in the stream and surfaces token counts', async () => {
@@ -161,5 +174,49 @@ describe('OpenAICompatibleContentGenerator streaming usage', () => {
     );
 
     expect(mockedFetch.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('does not emit user-facing errors when a non-streaming request fails', async () => {
+    const feedbackSpy = vi.spyOn(coreEvents, 'emitFeedback');
+    mockedFetch.mockRejectedValue(new Error('connect ECONNREFUSED'));
+
+    const gen = new OpenAICompatibleContentGenerator(
+      'http://localhost/v1',
+      'key',
+      'in-house-model',
+    );
+
+    await expect(
+      gen.generateContent(
+        { model: 'in-house-model', contents: [] },
+        'prompt-1',
+        'model' as never,
+      ),
+    ).rejects.toThrow('connect ECONNREFUSED');
+
+    expect(feedbackSpy).not.toHaveBeenCalledWith('error', expect.any(String));
+  });
+
+  it('does not emit user-facing errors when a streaming request fails', async () => {
+    const feedbackSpy = vi.spyOn(coreEvents, 'emitFeedback');
+    mockedFetch.mockResolvedValue(
+      jsonResponse({ error: 'unavailable' }, false, 503),
+    );
+
+    const gen = new OpenAICompatibleContentGenerator(
+      'http://localhost/v1',
+      'key',
+      'in-house-model',
+    );
+
+    await expect(
+      gen.generateContentStream(
+        { model: 'in-house-model', contents: [] },
+        'prompt-1',
+        'model' as never,
+      ),
+    ).rejects.toThrow('OpenAI-compatible API error 503');
+
+    expect(feedbackSpy).not.toHaveBeenCalledWith('error', expect.any(String));
   });
 });

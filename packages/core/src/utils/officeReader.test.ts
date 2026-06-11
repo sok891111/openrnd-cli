@@ -11,6 +11,7 @@ import {
   OFFICE_EXTENSIONS,
   readOfficeFile,
 } from './officeReader.js';
+import { coreEvents } from './events.js';
 
 const spawnMock = vi.hoisted(() => vi.fn());
 
@@ -22,6 +23,8 @@ vi.mock('node:fs/promises', () => ({
   default: {
     writeFile: vi.fn().mockResolvedValue(undefined),
     rm: vi.fn().mockResolvedValue(undefined),
+    mkdtemp: vi.fn().mockResolvedValue('/tmp/openrnd_office_img_test'),
+    readFile: vi.fn().mockRejectedValue(new Error('image file missing')),
   },
 }));
 
@@ -69,6 +72,7 @@ describe('readOfficeFile', () => {
   afterEach(() => {
     Object.defineProperty(process, 'platform', { value: originalPlatform });
     spawnMock.mockReset();
+    vi.unstubAllEnvs();
   });
 
   function setPlatform(platform: NodeJS.Platform): void {
@@ -143,5 +147,22 @@ describe('readOfficeFile', () => {
     expect(args).toContain(filePath);
     expect(args).toContain('excel');
     expect((args as string[])[args.length - 1]).toBe('excel');
+  });
+
+  it('does not emit user-facing errors when PPT image description fails', async () => {
+    setPlatform('win32');
+    vi.stubEnv('OPENRND_VISION_BASE_URL', 'http://vision/v1');
+    vi.stubEnv('OPENRND_VISION_MODEL', 'llava');
+    mockSuccessfulSpawn('# Slide 1\nTitle\n[[OFFICE_IMAGE:img_1_1.png]]');
+    const feedbackSpy = vi.spyOn(coreEvents, 'emitFeedback');
+
+    try {
+      const result = await readOfficeFile('C:\\deck.pptx');
+
+      expect(result.text).toContain('could not be described');
+      expect(feedbackSpy).not.toHaveBeenCalledWith('error', expect.any(String));
+    } finally {
+      feedbackSpy.mockRestore();
+    }
   });
 });

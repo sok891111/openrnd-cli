@@ -31,7 +31,7 @@ import {
 import { LlmRole } from '../telemetry/llmRole.js';
 import { WEB_FETCH_TOOL_NAME, WEB_FETCH_DISPLAY_NAME } from './tool-names.js';
 import { debugLogger } from '../utils/debugLogger.js';
-import { coreEvents, CoreEvent } from '../utils/events.js';
+import { coreEvents } from '../utils/events.js';
 import { retryWithBackoff, getRetryErrorType } from '../utils/retry.js';
 import { WEB_FETCH_DEFINITION } from './definitions/coreTools.js';
 import { resolveToolDeclaration } from './definitions/resolver.js';
@@ -39,9 +39,6 @@ import { LRUCache } from 'mnemonist';
 import type { AgentLoopContext } from '../config/agent-loop-context.js';
 import {
   tryCorporateFetch,
-  matchCorporateSystem,
-  getRememberedFallbackChoice,
-  rememberFallbackChoice,
   type CorporateFetchContext,
 } from './corporate-fetch.js';
 
@@ -763,99 +760,10 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     };
   }
 
-  /** Whether the interactive SSO fallback prompt is disabled (keep auto-browser). */
-  private isBrowserPromptDisabled(): boolean {
-    const raw = (
-      process.env['OPENRND_WEBFETCH_BROWSER_PROMPT'] ?? ''
-    ).toLowerCase();
-    return raw === '0' || raw === 'false' || raw === 'off';
-  }
-
-  /**
-   * When a direct fetch is blocked by SSO and no API key (corporate credential)
-   * produced content, decide how to proceed:
-   *   • true   → open the URL via the signed-in browser session
-   *   • false  → stop and use an API key instead (register via manage_credential)
-   *
-   * Two rules govern whether (and how) we ask:
-   *
-   *   1) Only prompt for URLs that an API key could actually help with — i.e.
-   *      URLs a corporate fetch handler claims (matchCorporateSystem != null).
-   *      If no handler matches, there is no API to register, so we skip the
-   *      question and go straight to the browser.
-   *
-   *   2) Once the user has chosen, remember that choice and reuse it as the
-   *      default WITHOUT re-prompting, until a credential is (re)registered via
-   *      manage_credential (which clears the remembered choice).
-   *
-   * Also auto-returns true when prompting is disabled or there is no interactive
-   * UI listening.
-   */
-  private async confirmBrowserFallback(
-    url: string,
-    signal: AbortSignal,
-  ): Promise<boolean> {
-    // (1) Only URLs a corporate handler claims are "API-requiring". For anything
-    // else, registering an API key is meaningless — open the browser directly.
-    const system = await matchCorporateSystem(url, signal).catch(() => null);
-    if (!system) {
-      return true;
-    }
-
-    // (2) Reuse the previously chosen route without asking again.
-    const remembered = getRememberedFallbackChoice();
-    if (remembered === 'browser') {
-      return true;
-    }
-    if (remembered === 'apikey') {
-      return false;
-    }
-
-    if (this.isBrowserPromptDisabled()) {
-      return true;
-    }
-    // Non-interactive run (no dialog UI): keep the existing auto-browser path.
-    if (coreEvents.listenerCount(CoreEvent.ConsentRequest) === 0) {
-      return true;
-    }
-
-    const systemLabel = system.name
-      ? `${system.name} (${system.id})`
-      : system.id;
-    const prompt =
-      `🔐 SSO 인증 벽으로 직접 가져오기가 막혔습니다:\n${url}\n\n` +
-      `이 URL 은 사내 시스템 '${systemLabel}' 핸들러가 처리하며, 등록된 API 키` +
-      `(자격증명)가 없어 서버에서 바로 가져올 수 없습니다. 어떻게 진행할까요?\n\n` +
-      '  • 예  → 로그인된 브라우저 세션으로 열어서 내용을 가져옵니다\n' +
-      `  • 아니오 → 중단합니다. API 키를 쓰려면 manage_credential 툴로 '${system.id}' ` +
-      '키를 등록한 뒤 다시 시도하세요\n\n' +
-      '(선택한 답은 키를 등록하기 전까지 기억되어 다시 묻지 않습니다.)';
-
-    const confirmed = await new Promise<boolean>((resolve) => {
-      coreEvents.emitConsentRequest({
-        prompt,
-        onConfirm: (c: boolean) => resolve(c),
-      });
-    });
-    rememberFallbackChoice(confirmed ? 'browser' : 'apikey');
-    return confirmed;
-  }
-
-  /** Guidance returned when the user chooses the API-key route over the browser. */
-  private apiKeyGuidance(url: string): string {
-    return (
-      'SSO 로 직접 가져오기가 막혔고, 브라우저 열기 대신 API 키 사용을 선택했습니다.\n' +
-      'manage_credential 툴로 해당 시스템의 API 키(자격증명)를 등록한 뒤 web_fetch 를 ' +
-      '다시 실행하세요. 등록되면 사내 fetch 핸들러가 그 키로 자동 인증해 가져옵니다.\n' +
-      `URL: ${url}`
-    );
-  }
-
   /**
    * Fallback step between the direct fetch and the browser session: try the
    * corporate per-URL fetch handlers defined in corporate-fetch.ts; if none
-   * match or all fail, ask the user (browser vs API key) and act on the choice.
-   * Returns page text. Throws {@link apiKeyGuidance} if the API-key route is chosen.
+   * match or all fail, open the URL through the signed-in browser session.
    */
   private async corporateThenBrowser(
     url: string,
@@ -870,9 +778,6 @@ class WebFetchToolInvocation extends BaseToolInvocation<
         `[WebFetchTool] Read ${corp.text.length} chars via corporate fetch handler (${corp.handlerName}): ${url}`,
       );
       return corp.text;
-    }
-    if (!(await this.confirmBrowserFallback(url, signal))) {
-      throw new Error(this.apiKeyGuidance(url));
     }
     return this.fetchViaBrowser(url, signal);
   }
@@ -896,17 +801,6 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       return {
         llmContent: this.applyFallbackTruncation(corp.text),
         returnDisplay: `Fetched content from ${url} via corporate fetch handler (${corp.handlerName}).`,
-      };
-    }
-    if (!(await this.confirmBrowserFallback(url, signal))) {
-      const msg = this.apiKeyGuidance(url);
-      return {
-        llmContent: msg,
-        returnDisplay: msg,
-        error: {
-          message: 'User chose the API-key route over the browser fallback.',
-          type: ToolErrorType.WEB_FETCH_PROCESSING_ERROR,
-        },
       };
     }
     return this.browserFetchResult(url, signal);
@@ -987,8 +881,8 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     // Try a fast server-side fetch first; on SSO/auth walls or failure, fall
     // back to the corporate handlers / signed-in browser session. The fallback
     // (corporateThenBrowser) is invoked exactly ONCE — its own errors (e.g. the
-    // user choosing the API-key route, or the browser failing to attach) must
-    // propagate to the caller, not get caught here and retried.
+    // browser failing to attach) must propagate to the caller, not get caught
+    // here and retried.
     if (this.shouldUseBrowserFetch()) {
       try {
         const { response, text, byteLength } = await this.nodeFetchText(
