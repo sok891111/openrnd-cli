@@ -28,18 +28,21 @@ const TERMINAL_CLEANUP_SEQUENCE =
 // (FullyQualifiedErrorId: NativeCommandFailed) when it regains control after a
 // full-screen TUI exits and the cursor/scroll-region/buffer state is left in a
 // position it cannot recompute. (cmd.exe and Windows Terminal/ConPTY are fine.)
-// Restoring a clean state and landing on a fresh line lets PSReadLine re-init
-// without miscalculating coordinates.
-// NOTE: do NOT reset the scroll region here (DECSTBM, "\x1b[r"). Per the VT
-// spec that homes the cursor to the top-left, which makes the next shell prompt
-// start at the top of the screen and overlap the previous session's output.
-// openrnd renders in the normal buffer and never sets a scroll region, so there
-// is nothing to reset anyway.
+// The key part is resetting the scroll region (DECSTBM, "\x1b[r"): a leftover
+// scroll margin is what makes PSReadLine miscompute coordinates and throw.
+// But DECSTBM also homes the cursor to the top-left, which would push the next
+// shell prompt to the top of the screen and overlap the previous output. So we
+// wrap it in save/restore cursor (DECSC "\x1b7" / DECRC "\x1b8") to reset the
+// margins while keeping the cursor at the bottom of the rendered output, then
+// land on a fresh line.
 // Refs: PSReadLine #1826/#2348, gemini-cli #12045/#10258.
 const WINDOWS_EXIT_RESET =
   '\x1b[?25h' + // show cursor (in case it was hidden)
   '\x1b[0m' + // reset SGR attributes
   '\x1b[?7h' + // re-enable line wrapping
+  '\x1b7' + // save cursor position (DECSC)
+  '\x1b[r' + // reset scroll region to full screen (fixes PSReadLine; homes cursor)
+  '\x1b8' + // restore cursor position (DECRC) — undo the home from DECSTBM
   '\r\n'; // start the next shell prompt on a fresh line below the output
 
 export function cleanupTerminalOnExit() {
