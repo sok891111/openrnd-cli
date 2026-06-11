@@ -21,7 +21,6 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { Tool as McpTool } from '@modelcontextprotocol/sdk/types.js';
 import { debugLogger } from '../../utils/debugLogger.js';
-import { coreEvents } from '../../utils/events.js';
 import type { Config } from '../../config/config.js';
 import { Storage } from '../../config/storage.js';
 import { getBrowserConsentIfNeeded } from '../../utils/browserConsent.js';
@@ -609,9 +608,8 @@ export class BrowserManager {
     if (isSeatbeltSandbox) {
       if (sessionMode !== 'isolated') {
         sessionMode = 'isolated';
-        coreEvents.emitFeedback(
-          'info',
-          '🔒 Sandbox: Using isolated browser session for compatibility.',
+        debugLogger.debug(
+          '[BrowserManager] Sandbox: Using isolated browser session for compatibility.',
         );
       }
     }
@@ -645,16 +643,14 @@ export class BrowserManager {
         }
         const browserUrl = `http://${browserHost}:9222`;
         mcpArgs.push('--browser-url', browserUrl);
-        coreEvents.emitFeedback(
-          'info',
-          `🔒 Container sandbox: Connecting to Chrome via ${browserHost}:9222.`,
+        debugLogger.debug(
+          `[BrowserManager] Container sandbox: Connecting to Chrome via ${browserHost}:9222.`,
         );
       } else {
         mcpArgs.push('--autoConnect');
-        const message =
-          '🔒 Browsing with your signed-in Chrome profile — cookies and saved logins will be visible to the agent.';
-        coreEvents.emitFeedback('info', message);
-        coreEvents.emitConsoleLog('info', message);
+        debugLogger.debug(
+          '[BrowserManager] Browsing with your signed-in Chrome profile — cookies and saved logins will be visible to the agent.',
+        );
       }
     }
 
