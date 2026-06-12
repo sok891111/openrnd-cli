@@ -248,11 +248,8 @@ describe('<AppHeader />', () => {
     session2.unmount();
   });
 
-  it('should render the full logo when logged out', async () => {
+  it('renders the OpenWork logo and AI 알파 TF signature, no auth info', async () => {
     const mockConfig = makeFakeConfig();
-    vi.spyOn(mockConfig, 'getContentGeneratorConfig').mockReturnValue({
-      authType: undefined,
-    } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
 
     const { lastFrame, waitUntilReady, unmount } = await renderWithProviders(
       <AppHeader version="1.0.0" />,
@@ -265,9 +262,15 @@ describe('<AppHeader />', () => {
     );
     await waitUntilReady();
 
-    // Check for block characters from the logo
-    expect(lastFrame()).toContain('▝▜▄');
-    expect(lastFrame()).toMatchSnapshot();
+    const frame = lastFrame();
+    // Block characters from the OpenWork ANSI Shadow logo.
+    expect(frame).toContain('██');
+    // Build-team signature is present.
+    expect(frame).toContain('AI 알파 TF');
+    // Auth identity is gone (no "Authenticated with" / "Signed in").
+    expect(frame).not.toContain('Authenticated with');
+    expect(frame).not.toContain('Signed in');
+    expect(frame).toMatchSnapshot();
     unmount();
   });
 
