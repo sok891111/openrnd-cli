@@ -323,11 +323,15 @@ export async function describeImagesInContents(
         cached,
       );
     } else {
-      const progressFeedback = emitFeedbackAfterDelay(
-        'info',
-        `[Vision] 이미지 ${imageParts.length}개를 분석 중입니다 (${config.model}). 잠시만 기다려 주세요...`,
-        VISION_PROGRESS_FEEDBACK_DELAY_MS,
-      );
+      // 2개 이하는 사내 vision 모델이 금방 처리하므로 진행 메시지를 띄우지 않는다.
+      const progressFeedback =
+        imageParts.length > 2
+          ? emitFeedbackAfterDelay(
+              'info',
+              `[Vision] 이미지 ${imageParts.length}개를 분석 중입니다 (${config.model}). 잠시만 기다려 주세요...`,
+              VISION_PROGRESS_FEEDBACK_DELAY_MS,
+            )
+          : undefined;
       try {
         debugLogger.debug(
           `[Vision] Analyzing ${imageParts.length} image(s) with ${config.model}...`,
@@ -350,7 +354,7 @@ export async function describeImagesInContents(
           text: `\n\n[Image analysis unavailable: the vision model could not process ${imageParts.length} attached image(s). Error: ${String(err)}]`,
         };
       } finally {
-        progressFeedback.cancel();
+        progressFeedback?.cancel();
       }
     }
 

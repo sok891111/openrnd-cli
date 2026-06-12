@@ -145,20 +145,23 @@ describe('describeImagesInContents', () => {
     mockedFetch.mockReturnValue(fetchPromise);
 
     const contents: Content[] = [
-      { role: 'user', parts: [{ text: 'analyze this' }, IMAGE_PART] },
+      {
+        role: 'user',
+        parts: [{ text: 'analyze this' }, IMAGE_PART, IMAGE_PART, IMAGE_PART],
+      },
     ];
     const resultPromise = describeImagesInContents(contents, config);
 
     await vi.advanceTimersByTimeAsync(1_999);
     expect(feedbackSpy).not.toHaveBeenCalledWith(
       'info',
-      expect.stringContaining('이미지 1개를 분석 중입니다'),
+      expect.stringContaining('이미지 3개를 분석 중입니다'),
     );
 
     await vi.advanceTimersByTimeAsync(1);
     expect(feedbackSpy).toHaveBeenCalledWith(
       'info',
-      expect.stringContaining('이미지 1개를 분석 중입니다'),
+      expect.stringContaining('이미지 3개를 분석 중입니다'),
     );
 
     resolveFetch(
@@ -179,15 +182,53 @@ describe('describeImagesInContents', () => {
     );
 
     const contents: Content[] = [
-      { role: 'user', parts: [{ text: 'analyze this' }, IMAGE_PART] },
+      {
+        role: 'user',
+        parts: [{ text: 'analyze this' }, IMAGE_PART, IMAGE_PART, IMAGE_PART],
+      },
     ];
     await describeImagesInContents(contents, config);
 
     await vi.advanceTimersByTimeAsync(2_000);
     expect(feedbackSpy).not.toHaveBeenCalledWith(
       'info',
-      expect.stringContaining('이미지 1개를 분석 중입니다'),
+      expect.stringContaining('이미지 3개를 분석 중입니다'),
     );
+  });
+
+  it('never emits progress feedback for 2 or fewer images', async () => {
+    vi.useFakeTimers();
+    const feedbackSpy = vi.spyOn(coreEvents, 'emitFeedback');
+    let resolveFetch!: (value: ReturnType<typeof jsonResponse>) => void;
+    const fetchPromise = new Promise<ReturnType<typeof jsonResponse>>(
+      (resolve) => {
+        resolveFetch = resolve;
+      },
+    );
+    mockedFetch.mockReturnValue(fetchPromise);
+
+    const contents: Content[] = [
+      {
+        role: 'user',
+        parts: [{ text: 'analyze this' }, IMAGE_PART, IMAGE_PART],
+      },
+    ];
+    const resultPromise = describeImagesInContents(contents, config);
+
+    // Even after the progress delay elapses, no feedback should appear because
+    // 2 or fewer images are processed quickly by the in-house vision model.
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(feedbackSpy).not.toHaveBeenCalledWith(
+      'info',
+      expect.stringContaining('분석 중입니다'),
+    );
+
+    resolveFetch(
+      jsonResponse({
+        choices: [{ message: { content: 'desc' } }],
+      }),
+    );
+    await resultPromise;
   });
 
   it('sends one request per image and never batches multiple images', async () => {
