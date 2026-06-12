@@ -16,6 +16,7 @@ import {
 } from '../core/visionDescriber.js';
 import { emitFeedbackAfterDelay } from './delayedFeedback.js';
 import { debugLogger } from './debugLogger.js';
+import { coreEvents } from './events.js';
 
 /**
  * Document extensions that must be read through win32com COM automation.
@@ -350,6 +351,29 @@ const PPT_EXTENSIONS: readonly string[] = ['.ppt', '.pptx', '.pptm'];
 const OFFICE_IMAGE_MARKER = /\[\[OFFICE_IMAGE:([^\]]+)\]\]/g;
 const OFFICE_VISION_PROGRESS_FEEDBACK_DELAY_MS = 2_000;
 
+/**
+ * Image-heavy decks describe one image at a time through the (slow) in-house
+ * vision model, so a single read can take minutes. Above this many *distinct*
+ * images we auto-skip vision and return text only, leaving a per-image note so
+ * the model can re-read with images forced if the user actually needs them.
+ * Default 15; override with OPENRND_OFFICE_VISION_MAX_IMAGES (0 disables the
+ * cap entirely).
+ */
+const DEFAULT_OFFICE_VISION_MAX_IMAGES = 15;
+
+function officeVisionMaxImages(): number {
+  const raw = process.env['OPENRND_OFFICE_VISION_MAX_IMAGES'];
+  if (raw === undefined || raw.trim() === '') {
+    return DEFAULT_OFFICE_VISION_MAX_IMAGES;
+  }
+  const parsed = Number(raw);
+  // 0 disables the cap; ignore negative/NaN and fall back to the default.
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return DEFAULT_OFFICE_VISION_MAX_IMAGES;
+  }
+  return Math.floor(parsed);
+}
+
 function mimeTypeForImage(fileName: string): string {
   const ext = path.extname(fileName).toLowerCase();
   if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
@@ -370,6 +394,29 @@ async function describeOfficeImages(
 ): Promise<string> {
   const markers = [...text.matchAll(OFFICE_IMAGE_MARKER)];
   if (markers.length === 0) return text;
+
+  // Auto-skip vision when the deck carries too many images: describing them one
+  // by one through the in-house vision model is too slow to be worth blocking
+  // the read on. Replace each marker with a short note so the model can ask to
+  // include images (forcing a full re-read) if they actually matter.
+  const maxImages = officeVisionMaxImages();
+  const uniqueImages = new Set(markers.map((m) => m[1])).size;
+  if (maxImages > 0 && uniqueImages > maxImages) {
+    debugLogger.debug(
+      `[Vision] Skipping vision for slide deck: ${uniqueImages} images exceed the cap of ${maxImages}.`,
+    );
+    coreEvents.emitFeedback(
+      'info',
+      `[Vision] 이미지 ${uniqueImages}개가 많아 분석을 건너뛰고 텍스트만 읽었습니다 ` +
+        `(임계값 ${maxImages}). 이미지 분석이 필요하면 "이미지도 포함해서" 다시 요청하세요.`,
+    );
+    return text.replace(
+      OFFICE_IMAGE_MARKER,
+      (_whole, fileName: string) =>
+        `[Image "${fileName}" — vision skipped: deck has ${uniqueImages} images ` +
+        `(> ${maxImages}). Ask to include images to force analysis.]`,
+    );
+  }
 
   debugLogger.debug(
     `[Vision] Describing ${markers.length} image(s) from the slide deck with ${config.model}...`,

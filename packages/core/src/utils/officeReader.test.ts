@@ -167,6 +167,52 @@ describe('readOfficeFile', () => {
     }
   });
 
+  it('auto-skips vision when a deck has more images than the cap', async () => {
+    setPlatform('win32');
+    vi.stubEnv('OPENRND_VISION_BASE_URL', 'http://vision/v1');
+    vi.stubEnv('OPENRND_VISION_MODEL', 'llava');
+    // 16 distinct images exceed the default cap of 15.
+    const markers = Array.from(
+      { length: 16 },
+      (_, i) => `[[OFFICE_IMAGE:img_${i + 1}.png]]`,
+    ).join('\n');
+    mockSuccessfulSpawn(`# Slide 1\n${markers}`);
+    vi.mocked(fsPromises.readFile).mockClear();
+    const feedbackSpy = vi.spyOn(coreEvents, 'emitFeedback');
+
+    try {
+      const result = await readOfficeFile('C:\\deck.pptx');
+
+      // No image bytes were read → the slow vision loop never ran.
+      expect(fsPromises.readFile).not.toHaveBeenCalled();
+      expect(result.text).toContain('vision skipped');
+      expect(result.text).not.toContain('[[OFFICE_IMAGE:');
+      expect(feedbackSpy).toHaveBeenCalledWith(
+        'info',
+        expect.stringContaining('건너뛰고'),
+      );
+    } finally {
+      feedbackSpy.mockRestore();
+    }
+  });
+
+  it('honors OPENRND_OFFICE_VISION_MAX_IMAGES=0 to disable the cap', async () => {
+    setPlatform('win32');
+    vi.stubEnv('OPENRND_VISION_BASE_URL', 'http://vision/v1');
+    vi.stubEnv('OPENRND_VISION_MODEL', 'llava');
+    vi.stubEnv('OPENRND_OFFICE_VISION_MAX_IMAGES', '0');
+    const markers = Array.from(
+      { length: 20 },
+      (_, i) => `[[OFFICE_IMAGE:img_${i + 1}.png]]`,
+    ).join('\n');
+    mockSuccessfulSpawn(`# Slide 1\n${markers}`);
+
+    const result = await readOfficeFile('C:\\deck.pptx');
+
+    // Cap disabled → falls through to the (mocked, failing) describe loop.
+    expect(result.text).toContain('could not be described');
+  });
+
   it('does not export PPT images when vision is disabled', async () => {
     setPlatform('win32');
     vi.stubEnv('OPENRND_VISION_BASE_URL', 'http://vision/v1');
