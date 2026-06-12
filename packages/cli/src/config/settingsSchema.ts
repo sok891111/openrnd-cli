@@ -632,15 +632,6 @@ const SETTINGS_SCHEMA = {
         description: 'Show warnings about terminal or OS compatibility issues.',
         showInDialog: true,
       },
-      hideTips: {
-        type: 'boolean',
-        label: 'Hide Tips',
-        category: 'UI',
-        requiresRestart: false,
-        default: false,
-        description: 'Hide helpful tips in the UI',
-        showInDialog: true,
-      },
       escapePastedAtSymbols: {
         type: 'boolean',
         label: 'Escape Pasted @ Symbols',

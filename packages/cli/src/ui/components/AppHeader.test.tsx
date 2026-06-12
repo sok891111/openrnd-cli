@@ -8,7 +8,6 @@ import {
   renderWithProviders,
   persistentStateMock,
 } from '../../test-utils/render.js';
-import type { LoadedSettings } from '../../config/settings.js';
 import { AppHeader } from './AppHeader.js';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { makeFakeConfig } from '@openwork/core';
@@ -128,9 +127,9 @@ describe('<AppHeader />', () => {
       },
     };
 
-    // Set tipsShown to 10 or more to prevent Tips from incrementing its count
-    // and interfering with the expected persistentState.set call.
-    persistentStateMock.setData({ tipsShown: 10 });
+    // Reset persisted state so the banner count from earlier tests doesn't
+    // suppress this banner (the fake's data persists across tests).
+    persistentStateMock.setData({});
 
     const { unmount } = await renderWithProviders(
       <AppHeader version="1.0.0" />,
@@ -172,82 +171,6 @@ describe('<AppHeader />', () => {
     unmount();
   });
 
-  it('should render Tips when tipsShown is less than 10', async () => {
-    const uiState = {
-      history: [],
-      bannerData: {
-        defaultText: 'First line\\nSecond line',
-        warningText: '',
-      },
-      bannerVisible: true,
-    };
-
-    persistentStateMock.setData({ tipsShown: 5 });
-
-    const { lastFrame, unmount } = await renderWithProviders(
-      <AppHeader version="1.0.0" />,
-      {
-        uiState,
-      },
-    );
-
-    expect(lastFrame()).toContain('Tips');
-    expect(persistentStateMock.set).toHaveBeenCalledWith('tipsShown', 6);
-    unmount();
-  });
-
-  it('should NOT render Tips when tipsShown is 10 or more', async () => {
-    const uiState = {
-      bannerData: {
-        defaultText: '',
-        warningText: '',
-      },
-    };
-
-    persistentStateMock.setData({ tipsShown: 10 });
-
-    const { lastFrame, unmount } = await renderWithProviders(
-      <AppHeader version="1.0.0" />,
-      {
-        uiState,
-      },
-    );
-
-    expect(lastFrame()).not.toContain('Tips');
-    unmount();
-  });
-
-  it('should show tips until they have been shown 10 times (persistence flow)', async () => {
-    persistentStateMock.setData({ tipsShown: 9 });
-
-    const uiState = {
-      history: [],
-      bannerData: {
-        defaultText: 'First line\\nSecond line',
-        warningText: '',
-      },
-      bannerVisible: true,
-    };
-
-    // First session
-    const session1 = await renderWithProviders(<AppHeader version="1.0.0" />, {
-      uiState,
-    });
-
-    expect(session1.lastFrame()).toContain('Tips');
-    expect(persistentStateMock.get('tipsShown')).toBe(10);
-    session1.unmount();
-
-    // Second session - state is persisted in the fake
-    const session2 = await renderWithProviders(
-      <AppHeader version="1.0.0" />,
-      {},
-    );
-
-    expect(session2.lastFrame()).not.toContain('Tips');
-    session2.unmount();
-  });
-
   it('renders the OpenWork logo and AI 알파 TF signature, no auth info', async () => {
     const mockConfig = makeFakeConfig();
 
@@ -271,25 +194,6 @@ describe('<AppHeader />', () => {
     expect(frame).not.toContain('Authenticated with');
     expect(frame).not.toContain('Signed in');
     expect(frame).toMatchSnapshot();
-    unmount();
-  });
-
-  it('should NOT render Tips when ui.hideTips is true', async () => {
-    const mockConfig = makeFakeConfig();
-    const { lastFrame, waitUntilReady, unmount } = await renderWithProviders(
-      <AppHeader version="1.0.0" />,
-      {
-        config: mockConfig,
-        settings: {
-          merged: {
-            ui: { hideTips: true },
-          },
-        } as unknown as LoadedSettings,
-      },
-    );
-    await waitUntilReady();
-
-    expect(lastFrame()).not.toContain('Tips');
     unmount();
   });
 });

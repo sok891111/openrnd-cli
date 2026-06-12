@@ -13,11 +13,11 @@ exports[`App > Snapshots > renders default layout correctly 1`] = `
  ✦ AI 알파 TF ✦                                         openwork v1.2.3
 
 
-Tips for getting started:
-1. Create GEMINI.md files to customize your interactions
-2. /help for more information
-3. Ask coding questions, edit code or run commands
-4. Be specific for the best results
+
+
+
+
+
 
 
 
@@ -57,12 +57,6 @@ Footer
 
  ✦ AI 알파 TF ✦                                         openwork v1.2.3
 
-
-Tips for getting started:
-1. Create GEMINI.md files to customize your interactions
-2. /help for more information
-3. Ask coding questions, edit code or run commands
-4. Be specific for the best results
 Composer
 "
 `;
@@ -122,12 +116,6 @@ exports[`App > should render ToolConfirmationQueue along with Composer when tool
 
  ✦ AI 알파 TF ✦                                         openwork v1.2.3
 
-
-Tips for getting started:
-1. Create GEMINI.md files to customize your interactions
-2. /help for more information
-3. Ask coding questions, edit code or run commands
-4. Be specific for the best results
 HistoryItemDisplay
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Action Required                                                                                  │
@@ -143,6 +131,12 @@ HistoryItemDisplay
 │   2. Allow for this session                                                                      │
 │   3. No, suggest changes (esc)                                                                   │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
 
 
 

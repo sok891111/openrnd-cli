@@ -106,7 +106,7 @@ describe('AlternateBufferQuittingDisplay', () => {
   };
 
   it('renders with active and pending tool messages', async () => {
-    persistentStateMock.setData({ tipsShown: 0 });
+    persistentStateMock.setData({});
     const { lastFrame, unmount } = await renderWithProviders(
       <AlternateBufferQuittingDisplay />,
       {
@@ -122,7 +122,7 @@ describe('AlternateBufferQuittingDisplay', () => {
   });
 
   it('renders with empty history and no pending items', async () => {
-    persistentStateMock.setData({ tipsShown: 0 });
+    persistentStateMock.setData({});
     const { lastFrame, unmount } = await renderWithProviders(
       <AlternateBufferQuittingDisplay />,
       {
@@ -138,7 +138,7 @@ describe('AlternateBufferQuittingDisplay', () => {
   });
 
   it('renders with history but no pending items', async () => {
-    persistentStateMock.setData({ tipsShown: 0 });
+    persistentStateMock.setData({});
     const { lastFrame, unmount } = await renderWithProviders(
       <AlternateBufferQuittingDisplay />,
       {
@@ -154,7 +154,7 @@ describe('AlternateBufferQuittingDisplay', () => {
   });
 
   it('renders with pending items but no history', async () => {
-    persistentStateMock.setData({ tipsShown: 0 });
+    persistentStateMock.setData({});
     const { lastFrame, unmount } = await renderWithProviders(
       <AlternateBufferQuittingDisplay />,
       {
@@ -170,7 +170,7 @@ describe('AlternateBufferQuittingDisplay', () => {
   });
 
   it('renders with a tool awaiting confirmation', async () => {
-    persistentStateMock.setData({ tipsShown: 0 });
+    persistentStateMock.setData({});
     const pendingHistoryItems: HistoryItemWithoutId[] = [
       {
         type: 'tool_group',
@@ -209,7 +209,7 @@ describe('AlternateBufferQuittingDisplay', () => {
   });
 
   it('renders with user and gemini messages', async () => {
-    persistentStateMock.setData({ tipsShown: 0 });
+    persistentStateMock.setData({});
     const history: HistoryItem[] = [
       { id: 1, type: 'user', text: 'Hello Gemini' },
       { id: 2, type: 'gemini', text: 'Hello User!' },

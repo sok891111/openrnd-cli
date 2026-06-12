@@ -5,13 +5,11 @@
  */
 
 import { Box, Text } from 'ink';
-import { Tips } from './Tips.js';
 import { useSettings } from '../contexts/SettingsContext.js';
 import { useConfig } from '../contexts/ConfigContext.js';
 import { useUIState } from '../contexts/UIStateContext.js';
 import { Banner } from './Banner.js';
 import { useBanner } from '../hooks/useBanner.js';
-import { useTips } from '../hooks/useTips.js';
 import { theme } from '../semantic-colors.js';
 import { ThemedGradient } from './ThemedGradient.js';
 import { CliSpinner } from './CliSpinner.js';
@@ -35,7 +33,6 @@ export const AppHeader = ({ version, showDetails = true }: AppHeaderProps) => {
   const { terminalWidth, bannerData, bannerVisible, updateInfo } = useUIState();
 
   const { bannerText } = useBanner(bannerData);
-  const { showTips } = useTips();
 
   const showHeader = !(
     settings.merged.ui.hideBanner || config.getScreenReader()
@@ -106,9 +103,6 @@ export const AppHeader = ({ version, showDetails = true }: AppHeaderProps) => {
           isWarning={bannerData.warningText !== ''}
         />
       )}
-
-      {!(settings.merged.ui.hideTips || config.getScreenReader()) &&
-        showTips && <Tips config={config} />}
     </Box>
   );
 };

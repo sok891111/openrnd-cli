@@ -97,7 +97,6 @@ describe('App', () => {
       settings: createMockSettings({ ui: { useAlternateBuffer: false } }),
     });
 
-    expect(lastFrame()).toContain('Tips for getting started');
     expect(lastFrame()).toContain('Notifications');
     expect(lastFrame()).toContain('Composer');
     unmount();
@@ -147,7 +146,6 @@ describe('App', () => {
       settings: createMockSettings({ ui: { useAlternateBuffer: true } }),
     });
 
-    expect(lastFrame()).toContain('Tips for getting started');
     expect(lastFrame()).toContain('Notifications');
     expect(lastFrame()).toContain('DialogManager');
     unmount();
@@ -185,7 +183,6 @@ describe('App', () => {
 
     expect(lastFrame()).toContain('Notifications');
     expect(lastFrame()).toContain('Footer');
-    expect(lastFrame()).toContain('Tips for getting started');
     expect(lastFrame()).toContain('Composer');
     unmount();
   });
@@ -198,7 +195,6 @@ describe('App', () => {
       settings: createMockSettings({ ui: { useAlternateBuffer: true } }),
     });
 
-    expect(lastFrame()).toContain('Tips for getting started');
     expect(lastFrame()).toContain('Notifications');
     expect(lastFrame()).toContain('Composer');
     unmount();
@@ -250,7 +246,6 @@ describe('App', () => {
       settings: createMockSettings({ ui: { useAlternateBuffer: true } }),
     });
 
-    expect(lastFrame()).toContain('Tips for getting started');
     expect(lastFrame()).toContain('Notifications');
     expect(lastFrame()).toContain('Action Required'); // From ToolConfirmationQueue
     expect(lastFrame()).toContain('Composer');

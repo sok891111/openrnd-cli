@@ -195,7 +195,6 @@ export class AppRig {
   async initialize() {
     persistentStateMock.setData({
       terminalSetupPromptShown: true,
-      tipsShown: 10,
     });
 
     this.setupEnvironment();

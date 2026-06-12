@@ -13,12 +13,6 @@ exports[`MainContent tool group border SVG snapshots > should render SVG snapsho
  ✦ AI 알파 TF ✦
 
 
-Tips for getting started:
-1. Create GEMINI.md files to customize your interactions
-2. /help for more information
-3. Ask coding questions, edit code or run commands
-4. Be specific for the best results
-
 ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ⊶  google_web_search                                                                         │
 │                                                                                              │
@@ -39,12 +33,6 @@ exports[`MainContent tool group border SVG snapshots > should render SVG snapsho
  ✦ AI 알파 TF ✦
 
 
-Tips for getting started:
-1. Create GEMINI.md files to customize your interactions
-2. /help for more information
-3. Ask coding questions, edit code or run commands
-4. Be specific for the best results
-
 ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ⊶  run_shell_command                                                                         │
 │                                                                                              │
@@ -64,12 +52,6 @@ exports[`MainContent tool group border SVG snapshots > should render SVG snapsho
 
  ✦ AI 알파 TF ✦
 
-
-Tips for getting started:
-1. Create GEMINI.md files to customize your interactions
-2. /help for more information
-3. Ask coding questions, edit code or run commands
-4. Be specific for the best results
 
 ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
 │ ⊶  google_web_search                                                                         │

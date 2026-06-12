@@ -296,10 +296,6 @@ their corresponding top-level category object in your `settings.json` file.
   - **Default:** `true`
   - **Requires restart:** Yes
 
-- **`ui.hideTips`** (boolean):
-  - **Description:** Hide helpful tips in the UI
-  - **Default:** `false`
-
 - **`ui.escapePastedAtSymbols`** (boolean):
   - **Description:** When enabled, @ symbols in pasted text are escaped to
     prevent unintended @path expansion.
@@ -2289,7 +2285,6 @@ of v0.3.0:
   "ui": {
     "theme": "GitHub",
     "hideBanner": true,
-    "hideTips": false,
     "customWittyPhrases": [
       "You forget a thousand things every day. Make sure this is one of ’em",
       "Connecting to AGI"

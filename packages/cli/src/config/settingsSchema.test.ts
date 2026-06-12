@@ -218,9 +218,6 @@ describe('SettingsSchema', () => {
       expect(
         getSettingsSchema().ui.properties.hideWindowTitle.showInDialog,
       ).toBe(true);
-      expect(getSettingsSchema().ui.properties.hideTips.showInDialog).toBe(
-        true,
-      );
       expect(
         getSettingsSchema().ui.properties.showShortcutsHint.showInDialog,
       ).toBe(true);

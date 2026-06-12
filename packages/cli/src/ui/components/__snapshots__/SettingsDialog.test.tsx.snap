@@ -16,6 +16,9 @@ exports[`SettingsDialog > Initial Rendering > should render settings list with v
 │    Default Approval Mode                                                                Default  │
 │    The default approval mode for tool execution. 'default' prompts for approval, 'au…            │
 │                                                                                                  │
+│    Debug Logging                                                                          false  │
+│    Write verbose LLM/provider debug logs to ~/.openwork/debug.log. Overridden by the O…          │
+│                                                                                                  │
 │    Enable Auto Update                                                                      true  │
 │    Enable automatic updates.                                                                     │
 │                                                                                                  │
@@ -30,9 +33,6 @@ exports[`SettingsDialog > Initial Rendering > should render settings list with v
 │                                                                                                  │
 │    Plan Directory                                                                     undefined  │
 │    The directory where planning artifacts are stored. If not specified, defaults t…              │
-│                                                                                                  │
-│    Plan Model Routing                                                                      true  │
-│    Automatically switch between Pro and Flash models based on Plan Mode status. Uses Pr…         │
 │                                                                                                  │
 │  ▼                                                                                               │
 │                                                                                                  │
@@ -80,6 +80,9 @@ exports[`SettingsDialog > Snapshot Tests > should render 'accessibility settings
 │    Default Approval Mode                                                                Default  │
 │    The default approval mode for tool execution. 'default' prompts for approval, 'au…            │
 │                                                                                                  │
+│    Debug Logging                                                                          false  │
+│    Write verbose LLM/provider debug logs to ~/.openwork/debug.log. Overridden by the O…          │
+│                                                                                                  │
 │    Enable Auto Update                                                                      true  │
 │    Enable automatic updates.                                                                     │
 │                                                                                                  │
@@ -94,9 +97,6 @@ exports[`SettingsDialog > Snapshot Tests > should render 'accessibility settings
 │                                                                                                  │
 │    Plan Directory                                                                     undefined  │
 │    The directory where planning artifacts are stored. If not specified, defaults t…              │
-│                                                                                                  │
-│    Plan Model Routing                                                                      true  │
-│    Automatically switch between Pro and Flash models based on Plan Mode status. Uses Pr…         │
 │                                                                                                  │
 │  ▼                                                                                               │
 │                                                                                                  │
@@ -126,6 +126,9 @@ exports[`SettingsDialog > Snapshot Tests > should render 'all boolean settings d
 │    Default Approval Mode                                                                Default  │
 │    The default approval mode for tool execution. 'default' prompts for approval, 'au…            │
 │                                                                                                  │
+│    Debug Logging                                                                          false  │
+│    Write verbose LLM/provider debug logs to ~/.openwork/debug.log. Overridden by the O…          │
+│                                                                                                  │
 │    Enable Auto Update                                                                     true*  │
 │    Enable automatic updates.                                                                     │
 │                                                                                                  │
@@ -140,9 +143,6 @@ exports[`SettingsDialog > Snapshot Tests > should render 'all boolean settings d
 │                                                                                                  │
 │    Plan Directory                                                                     undefined  │
 │    The directory where planning artifacts are stored. If not specified, defaults t…              │
-│                                                                                                  │
-│    Plan Model Routing                                                                      true  │
-│    Automatically switch between Pro and Flash models based on Plan Mode status. Uses Pr…         │
 │                                                                                                  │
 │  ▼                                                                                               │
 │                                                                                                  │
@@ -172,6 +172,9 @@ exports[`SettingsDialog > Snapshot Tests > should render 'default state' correct
 │    Default Approval Mode                                                                Default  │
 │    The default approval mode for tool execution. 'default' prompts for approval, 'au…            │
 │                                                                                                  │
+│    Debug Logging                                                                          false  │
+│    Write verbose LLM/provider debug logs to ~/.openwork/debug.log. Overridden by the O…          │
+│                                                                                                  │
 │    Enable Auto Update                                                                      true  │
 │    Enable automatic updates.                                                                     │
 │                                                                                                  │
@@ -186,9 +189,6 @@ exports[`SettingsDialog > Snapshot Tests > should render 'default state' correct
 │                                                                                                  │
 │    Plan Directory                                                                     undefined  │
 │    The directory where planning artifacts are stored. If not specified, defaults t…              │
-│                                                                                                  │
-│    Plan Model Routing                                                                      true  │
-│    Automatically switch between Pro and Flash models based on Plan Mode status. Uses Pr…         │
 │                                                                                                  │
 │  ▼                                                                                               │
 │                                                                                                  │
@@ -218,6 +218,9 @@ exports[`SettingsDialog > Snapshot Tests > should render 'file filtering setting
 │    Default Approval Mode                                                                Default  │
 │    The default approval mode for tool execution. 'default' prompts for approval, 'au…            │
 │                                                                                                  │
+│    Debug Logging                                                                          false  │
+│    Write verbose LLM/provider debug logs to ~/.openwork/debug.log. Overridden by the O…          │
+│                                                                                                  │
 │    Enable Auto Update                                                                      true  │
 │    Enable automatic updates.                                                                     │
 │                                                                                                  │
@@ -232,9 +235,6 @@ exports[`SettingsDialog > Snapshot Tests > should render 'file filtering setting
 │                                                                                                  │
 │    Plan Directory                                                                     undefined  │
 │    The directory where planning artifacts are stored. If not specified, defaults t…              │
-│                                                                                                  │
-│    Plan Model Routing                                                                      true  │
-│    Automatically switch between Pro and Flash models based on Plan Mode status. Uses Pr…         │
 │                                                                                                  │
 │  ▼                                                                                               │
 │                                                                                                  │
@@ -264,6 +264,9 @@ exports[`SettingsDialog > Snapshot Tests > should render 'focused on scope selec
 │    Default Approval Mode                                                                Default  │
 │    The default approval mode for tool execution. 'default' prompts for approval, 'au…            │
 │                                                                                                  │
+│    Debug Logging                                                                          false  │
+│    Write verbose LLM/provider debug logs to ~/.openwork/debug.log. Overridden by the O…          │
+│                                                                                                  │
 │    Enable Auto Update                                                                      true  │
 │    Enable automatic updates.                                                                     │
 │                                                                                                  │
@@ -278,9 +281,6 @@ exports[`SettingsDialog > Snapshot Tests > should render 'focused on scope selec
 │                                                                                                  │
 │    Plan Directory                                                                     undefined  │
 │    The directory where planning artifacts are stored. If not specified, defaults t…              │
-│                                                                                                  │
-│    Plan Model Routing                                                                      true  │
-│    Automatically switch between Pro and Flash models based on Plan Mode status. Uses Pr…         │
 │                                                                                                  │
 │  ▼                                                                                               │
 │                                                                                                  │
@@ -310,6 +310,9 @@ exports[`SettingsDialog > Snapshot Tests > should render 'mixed boolean and numb
 │    Default Approval Mode                                                                Default  │
 │    The default approval mode for tool execution. 'default' prompts for approval, 'au…            │
 │                                                                                                  │
+│    Debug Logging                                                                          false  │
+│    Write verbose LLM/provider debug logs to ~/.openwork/debug.log. Overridden by the O…          │
+│                                                                                                  │
 │    Enable Auto Update                                                                    false*  │
 │    Enable automatic updates.                                                                     │
 │                                                                                                  │
@@ -324,9 +327,6 @@ exports[`SettingsDialog > Snapshot Tests > should render 'mixed boolean and numb
 │                                                                                                  │
 │    Plan Directory                                                                     undefined  │
 │    The directory where planning artifacts are stored. If not specified, defaults t…              │
-│                                                                                                  │
-│    Plan Model Routing                                                                      true  │
-│    Automatically switch between Pro and Flash models based on Plan Mode status. Uses Pr…         │
 │                                                                                                  │
 │  ▼                                                                                               │
 │                                                                                                  │
@@ -356,6 +356,9 @@ exports[`SettingsDialog > Snapshot Tests > should render 'tools and security set
 │    Default Approval Mode                                                                Default  │
 │    The default approval mode for tool execution. 'default' prompts for approval, 'au…            │
 │                                                                                                  │
+│    Debug Logging                                                                          false  │
+│    Write verbose LLM/provider debug logs to ~/.openwork/debug.log. Overridden by the O…          │
+│                                                                                                  │
 │    Enable Auto Update                                                                      true  │
 │    Enable automatic updates.                                                                     │
 │                                                                                                  │
@@ -370,9 +373,6 @@ exports[`SettingsDialog > Snapshot Tests > should render 'tools and security set
 │                                                                                                  │
 │    Plan Directory                                                                     undefined  │
 │    The directory where planning artifacts are stored. If not specified, defaults t…              │
-│                                                                                                  │
-│    Plan Model Routing                                                                      true  │
-│    Automatically switch between Pro and Flash models based on Plan Mode status. Uses Pr…         │
 │                                                                                                  │
 │  ▼                                                                                               │
 │                                                                                                  │
@@ -402,6 +402,9 @@ exports[`SettingsDialog > Snapshot Tests > should render 'various boolean settin
 │    Default Approval Mode                                                                Default  │
 │    The default approval mode for tool execution. 'default' prompts for approval, 'au…            │
 │                                                                                                  │
+│    Debug Logging                                                                          false  │
+│    Write verbose LLM/provider debug logs to ~/.openwork/debug.log. Overridden by the O…          │
+│                                                                                                  │
 │    Enable Auto Update                                                                    false*  │
 │    Enable automatic updates.                                                                     │
 │                                                                                                  │
@@ -416,9 +419,6 @@ exports[`SettingsDialog > Snapshot Tests > should render 'various boolean settin
 │                                                                                                  │
 │    Plan Directory                                                                     undefined  │
 │    The directory where planning artifacts are stored. If not specified, defaults t…              │
-│                                                                                                  │
-│    Plan Model Routing                                                                      true  │
-│    Automatically switch between Pro and Flash models based on Plan Mode status. Uses Pr…         │
 │                                                                                                  │
 │  ▼                                                                                               │
 │                                                                                                  │
