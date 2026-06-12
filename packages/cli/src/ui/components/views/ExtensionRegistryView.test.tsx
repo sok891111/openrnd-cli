@@ -7,7 +7,7 @@
 import React from 'react';
 import { renderWithProviders } from '../../../test-utils/render.js';
 import { waitFor } from '../../../test-utils/async.js';
-import { makeFakeConfig } from '@openrnd/core';
+import { makeFakeConfig } from '@openwork/core';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ExtensionRegistryView } from './ExtensionRegistryView.js';
 import { type ExtensionManager } from '../../../config/extension-manager.js';

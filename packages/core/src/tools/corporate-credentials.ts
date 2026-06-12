@@ -11,27 +11,27 @@ import { homedir, GEMINI_DIR } from '../utils/paths.js';
 /**
  * 사내 fetch 핸들러용 API 키(자격증명) 저장소.
  *
- * - 저장 위치: ~/.openrnd/credentials.json (chmod 600, git 범위 밖)
+ * - 저장 위치: ~/.openwork/credentials.json (chmod 600, git 범위 밖)
  * - 형식: { "<시스템id>": "<api key>" }  예: { "jira": "abc123" }
- * - Python 핸들러에는 환경변수 `OPENRND_CRED_<시스템id>` 로 주입됩니다.
+ * - Python 핸들러에는 환경변수 `OPENWORK_CRED_<시스템id>` 로 주입됩니다.
  *   (corporate-fetch.ts 가 디스패처를 spawn 할 때 주입)
  *
  * 키는 manage_credential 툴(프롬프트)로 등록/삭제합니다. 이 파일은 값(시크릿)을
  * 절대 로그로 남기지 않습니다.
  */
 
-/** ~/.openrnd/credentials.json 경로. */
+/** ~/.openwork/credentials.json 경로. */
 export function getCredentialsPath(): string {
   return path.join(homedir(), GEMINI_DIR, 'credentials.json');
 }
 
 /**
  * 시스템 id → 환경변수명. 핸들러가 읽을 변수명과 동일한 규칙이어야 한다.
- * 예: "jira" -> "OPENRND_CRED_JIRA", "wiki-corp" -> "OPENRND_CRED_WIKI_CORP".
+ * 예: "jira" -> "OPENWORK_CRED_JIRA", "wiki-corp" -> "OPENWORK_CRED_WIKI_CORP".
  */
 export function credentialEnvVar(systemId: string): string {
   const sanitized = systemId.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase();
-  return `OPENRND_CRED_${sanitized}`;
+  return `OPENWORK_CRED_${sanitized}`;
 }
 
 /** 저장된 자격증명 전체를 읽는다(없으면 빈 객체). */
@@ -99,7 +99,7 @@ export function listCredentialIds(): string[] {
 }
 
 /**
- * Python 디스패처에 주입할 환경변수 맵: `OPENRND_CRED_<ID>` = value.
+ * Python 디스패처에 주입할 환경변수 맵: `OPENWORK_CRED_<ID>` = value.
  * corporate-fetch.ts 의 spawn env 에 합쳐집니다.
  */
 export function getCredentialEnv(): Record<string, string> {

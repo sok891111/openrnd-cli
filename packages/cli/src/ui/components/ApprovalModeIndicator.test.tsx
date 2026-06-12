@@ -7,7 +7,7 @@
 import { render } from '../../test-utils/render.js';
 import { ApprovalModeIndicator } from './ApprovalModeIndicator.js';
 import { describe, it, expect } from 'vitest';
-import { ApprovalMode } from '@openrnd/core';
+import { ApprovalMode } from '@openwork/core';
 
 describe('ApprovalModeIndicator', () => {
   it('renders correctly for AUTO_EDIT mode', async () => {

@@ -7,7 +7,7 @@
 import { renderWithProviders } from '../../../test-utils/render.js';
 import { UserShellMessage } from './UserShellMessage.js';
 import { describe, it, expect, vi } from 'vitest';
-import { makeFakeConfig } from '@openrnd/core';
+import { makeFakeConfig } from '@openwork/core';
 
 describe('UserShellMessage', () => {
   afterEach(() => {

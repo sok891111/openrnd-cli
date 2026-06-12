@@ -28,7 +28,7 @@ import {
   type CliArgs,
 } from './config/config.js';
 import { loadSandboxConfig } from './config/sandboxConfig.js';
-import { createMockSandboxConfig } from '@openrnd/test-utils';
+import { createMockSandboxConfig } from '@openwork/test-utils';
 import { terminalCapabilityManager } from './ui/utils/terminalCapabilityManager.js';
 import { start_sandbox } from './utils/sandbox.js';
 import { validateNonInteractiveAuth } from './validateNonInterActiveAuth.js';
@@ -50,7 +50,7 @@ import {
   coreEvents,
   AuthType,
   ExitCodes,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { act } from 'react';
 import { type InitializationResult } from './core/initializer.js';
 import { runNonInteractive } from './nonInteractiveCli.js';
@@ -81,8 +81,8 @@ vi.mock('./utils/terminalNotifications.js', () => ({
     terminalNotificationMocks.buildRunEventNotificationContent,
 }));
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     recordSlowRender: vi.fn(),
@@ -389,7 +389,7 @@ describe('initializeOutputListenersAndFlush', () => {
   });
 
   it('should flush backlogs and setup listeners if no listeners exist', async () => {
-    const { coreEvents } = await import('@openrnd/core');
+    const { coreEvents } = await import('@openwork/core');
     const { initializeOutputListenersAndFlush } = await import('./gemini.js');
 
     // Mock listenerCount to return 0
@@ -1080,7 +1080,7 @@ describe('resolveSessionId', () => {
       } as unknown as InstanceType<typeof SessionSelector>;
     });
 
-    const coreModule = await import('@openrnd/core');
+    const coreModule = await import('@openwork/core');
     vi.spyOn(coreModule, 'loadConversationRecord').mockResolvedValueOnce({
       sessionId: 'old-session-id',
       projectHash: 'hash',
@@ -1714,7 +1714,7 @@ describe('startInteractiveUI', () => {
   });
 
   it('should enable mouse events when alternate buffer is enabled', async () => {
-    const { enableMouseEvents } = await import('@openrnd/core');
+    const { enableMouseEvents } = await import('@openwork/core');
     await startTestInteractiveUI(
       mockConfig,
       mockSettings,
@@ -1741,7 +1741,7 @@ describe('startInteractiveUI', () => {
   });
 
   it('should perform all startup tasks in correct order', async () => {
-    const { getVersion } = await import('@openrnd/core');
+    const { getVersion } = await import('@openwork/core');
     const { checkForUpdates } = await import('./ui/utils/updateCheck.js');
     const { registerCleanup } = await import('./utils/cleanup.js');
 
@@ -1770,7 +1770,7 @@ describe('startInteractiveUI', () => {
   });
 
   it('should not recordSlowRender when less than threshold', async () => {
-    const { recordSlowRender } = await import('@openrnd/core');
+    const { recordSlowRender } = await import('@openwork/core');
     performance.now.mockReturnValueOnce(0);
     await startTestInteractiveUI(
       mockConfig,
@@ -1785,7 +1785,7 @@ describe('startInteractiveUI', () => {
   });
 
   it('should call recordSlowRender when more than threshold', async () => {
-    const { recordSlowRender } = await import('@openrnd/core');
+    const { recordSlowRender } = await import('@openwork/core');
     performance.now.mockReturnValueOnce(0);
     performance.now.mockReturnValueOnce(300);
 

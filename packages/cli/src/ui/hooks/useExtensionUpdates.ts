@@ -9,7 +9,7 @@ import {
   checkExhaustive,
   getErrorMessage,
   type GeminiCLIExtension,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   ExtensionUpdateState,
   extensionUpdatesReducer,

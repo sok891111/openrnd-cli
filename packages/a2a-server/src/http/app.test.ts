@@ -9,7 +9,7 @@ import {
   ApprovalMode,
   type Config,
   type ToolCallConfirmationDetails,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type {
   TaskStatusUpdateEvent,
   SendStreamingMessageSuccessResponse,
@@ -36,7 +36,7 @@ import {
   createMockConfig,
 } from '../utils/testing_utils.js';
 // Import MockTool from specific path to avoid vitest dependency in main core bundle
-import { MockTool } from '@openrnd/core/src/test-utils/mock-tool.js';
+import { MockTool } from '@openwork/core/src/test-utils/mock-tool.js';
 import type { Command, CommandContext } from '../commands/types.js';
 
 const mockToolConfirmationFn = async () =>
@@ -94,8 +94,8 @@ vi.mock('../config/config.js', async () => {
 
 // Mock the GeminiClient to avoid actual API calls
 const sendMessageStreamSpy = vi.fn();
-vi.mock('@openrnd/core', async () => {
-  const actual = await vi.importActual('@openrnd/core');
+vi.mock('@openwork/core', async () => {
+  const actual = await vi.importActual('@openwork/core');
   return {
     ...actual,
     GeminiClient: vi.fn().mockImplementation(() => ({

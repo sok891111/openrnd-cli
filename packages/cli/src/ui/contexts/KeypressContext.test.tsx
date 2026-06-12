@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import { act } from 'react';
 import { renderHookWithProviders } from '../../test-utils/render.js';
 import { createMockSettings } from '../../test-utils/settings.js';

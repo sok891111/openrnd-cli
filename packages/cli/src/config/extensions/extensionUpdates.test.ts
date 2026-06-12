@@ -13,7 +13,7 @@ import {
   type ExtensionInstallMetadata,
   type GeminiCLIExtension,
   coreEvents,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { ExtensionManager } from '../extension-manager.js';
 import { createTestMergedSettings } from '../settings.js';
 import { isWorkspaceTrusted } from '../trustedFolders.js';
@@ -42,8 +42,8 @@ vi.mock('node:fs', async (importOriginal) => {
   };
 });
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     KeychainTokenStorage: vi.fn(),

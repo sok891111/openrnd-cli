@@ -16,7 +16,7 @@ import {
   getErrorMessage,
   type GeminiCLIExtension,
   IntegrityDataStatus,
-} from '@openrnd/core';
+} from '@openwork/core';
 import * as fs from 'node:fs';
 import { copyExtension, type ExtensionManager } from '../extension-manager.js';
 import { ExtensionStorage } from './storage.js';

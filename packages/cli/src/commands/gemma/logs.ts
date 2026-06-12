@@ -7,7 +7,7 @@
 import type { CommandModule } from 'yargs';
 import fs from 'node:fs';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import { exitCli } from '../utils.js';
 import { getLogFilePath } from './constants.js';
 

@@ -137,8 +137,8 @@ their corresponding top-level category object in your `settings.json` file.
 
 - **`general.debugLogging`** (boolean):
   - **Description:** Write verbose LLM/provider debug logs to
-    ~/.openrnd/debug.log. Overridden by the OPENRND_DEBUG environment variable
-    when set (OPENRND_DEBUG=true/false).
+    ~/.openwork/debug.log. Overridden by the OPENWORK_DEBUG environment variable
+    when set (OPENWORK_DEBUG=true/false).
   - **Default:** `false`
   - **Requires restart:** Yes
 
@@ -154,7 +154,7 @@ their corresponding top-level category object in your `settings.json` file.
   - **Description:** Custom npm registry URL used only for auto-update version
     checks and installs (e.g. a local registry at http://192.168.0.10:4873/).
     Leave empty to use the default npm registry. Overridden by the
-    OPENRND_UPDATE_REGISTRY environment variable when set.
+    OPENWORK_UPDATE_REGISTRY environment variable when set.
   - **Default:** `""`
 
 - **`general.enableNotifications`** (boolean):
@@ -1482,7 +1482,7 @@ their corresponding top-level category object in your `settings.json` file.
 - **`agents.browser.skipPrivacyConsent`** (boolean):
   - **Description:** Skip the one-time browser privacy consent dialog and
     proceed without prompting. Enabled by default; set to false to restore the
-    consent prompt. The OPENRND_SKIP_BROWSER_CONSENT=true environment variable
+    consent prompt. The OPENWORK_SKIP_BROWSER_CONSENT=true environment variable
     also forces this behavior.
   - **Default:** `true`
   - **Requires restart:** Yes

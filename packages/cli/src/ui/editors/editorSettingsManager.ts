@@ -9,7 +9,7 @@ import {
   hasValidEditorCommand,
   type EditorType,
   EDITOR_DISPLAY_NAMES,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 export interface EditorDisplay {
   name: string;

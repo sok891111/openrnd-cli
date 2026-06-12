@@ -7,7 +7,7 @@
 import { render } from '../../test-utils/render.js';
 import { Tips } from './Tips.js';
 import { describe, it, expect, vi } from 'vitest';
-import type { Config } from '@openrnd/core';
+import type { Config } from '@openwork/core';
 
 describe('Tips', () => {
   it.each([

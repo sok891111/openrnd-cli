@@ -16,7 +16,7 @@ import {
 import yargs, { type Argv } from 'yargs';
 import { addCommand } from './add.js';
 import { loadSettings, SettingScope } from '../../config/settings.js';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 
 vi.mock('../utils.js', () => ({
   exitCli: vi.fn(),

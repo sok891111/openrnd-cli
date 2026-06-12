@@ -13,13 +13,13 @@
  * `prepare`) alongside the prebuilt bundle and runs `npm pack`, producing a
  * tarball that installs with a single command and zero npm-registry access:
  *
- *   npm install -g openrnd-cli-<version>.tgz
+ *   npm install -g openwork-cli-<version>.tgz
  *
  * Native helpers (node-pty, keytar) are intentionally omitted: they are
  * optional and the CLI degrades gracefully without them (child_process shell,
  * file-based credential fallback).
  *
- * Output: release/openrnd-cli-<version>.tgz and release/openrnd-latest.tgz
+ * Output: release/openwork-cli-<version>.tgz and release/openwork-latest.tgz
  */
 
 import { execSync } from 'node:child_process';
@@ -53,7 +53,7 @@ const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
 const version = pkg.version;
 
 // 1. Build the bundle fresh so the tarball matches the current source.
-log(`Building bundle for openrnd v${version}...`);
+log(`Building bundle for openwork v${version}...`);
 run('npm run bundle');
 
 if (!existsSync(path.join(root, 'bundle', 'gemini.js'))) {
@@ -115,16 +115,16 @@ if (!tarball) {
 
 // 6. Publish into release/ with a versioned name and a stable "latest" alias.
 const versionedPath = path.join(releaseDir, tarball);
-const latestPath = path.join(releaseDir, 'openrnd-latest.tgz');
+const latestPath = path.join(releaseDir, 'openwork-latest.tgz');
 copyFileSync(path.join(stagingDir, tarball), versionedPath);
 copyFileSync(path.join(stagingDir, tarball), latestPath);
 rmSync(stagingDir, { recursive: true, force: true });
 
 log('Done.');
 log(`  Versioned: release/${tarball}`);
-log('  Stable:    release/openrnd-latest.tgz');
+log('  Stable:    release/openwork-latest.tgz');
 log('');
 log('Serve it from this machine with:  npm run release:serve');
 log(
-  'Then users install with one line:  npm install -g http://<this-pc-ip>:8723/openrnd-latest.tgz',
+  'Then users install with one line:  npm install -g http://<this-pc-ip>:8723/openwork-latest.tgz',
 );

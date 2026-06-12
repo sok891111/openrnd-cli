@@ -6,7 +6,7 @@
 
 import { createContext, useContext } from 'react';
 import type { QuotaStats } from '../types.js';
-import type { UserTierId } from '@openrnd/core';
+import type { UserTierId } from '@openwork/core';
 import type {
   ProQuotaDialogRequest,
   ValidationDialogRequest,

@@ -5,8 +5,8 @@
  */
 
 import fs from 'node:fs';
-import { debugLogger } from '@openrnd/core';
-import type { GemmaModelRouterSettings } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
+import type { GemmaModelRouterSettings } from '@openwork/core';
 import { getBinaryPath, isServerRunning } from '../commands/gemma/platform.js';
 import { DEFAULT_PORT } from '../commands/gemma/constants.js';
 

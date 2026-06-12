@@ -13,7 +13,7 @@ import {
   FileDiscoveryService,
   type Config,
   type FileSearch,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   MAX_SUGGESTIONS_TO_SHOW,
   type Suggestion,

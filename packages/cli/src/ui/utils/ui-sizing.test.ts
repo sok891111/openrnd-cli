@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { calculateMainAreaWidth } from './ui-sizing.js';
-import type { Config } from '@openrnd/core';
+import type { Config } from '@openwork/core';
 
 describe('ui-sizing', () => {
   describe('calculateMainAreaWidth', () => {

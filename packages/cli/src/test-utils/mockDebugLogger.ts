@@ -43,15 +43,15 @@ export function createMockDebugLogger(options: { stripAnsi?: boolean } = {}) {
 }
 
 /**
- * A helper specifically designed for `vi.mock('@openrnd/core', ...)` to easily
+ * A helper specifically designed for `vi.mock('@openwork/core', ...)` to easily
  * mock both `debugLogger` and `coreEvents.emitConsoleLog`.
  *
  * Example:
  * ```typescript
- * vi.mock('@openrnd/core', async (importOriginal) => {
+ * vi.mock('@openwork/core', async (importOriginal) => {
  *   const { mockCoreDebugLogger } = await import('../../test-utils/mockDebugLogger.js');
  *   return mockCoreDebugLogger(
- *     await importOriginal<typeof import('@openrnd/core')>(),
+ *     await importOriginal<typeof import('@openwork/core')>(),
  *     { stripAnsi: true }
  *   );
  * });

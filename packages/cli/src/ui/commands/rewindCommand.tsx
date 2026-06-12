@@ -23,7 +23,7 @@ import {
   type ChatRecordingService,
   type GeminiClient,
   convertSessionToClientHistory,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 /**
  * Helper function to handle the core logic of rewinding a conversation.

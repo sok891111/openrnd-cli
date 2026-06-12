@@ -10,7 +10,7 @@ import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
 import { RadioButtonSelect } from '../components/shared/RadioButtonSelect.js';
 import { useKeypress } from '../hooks/useKeypress.js';
-import { openBrowserSecurely, shouldLaunchBrowser } from '@openrnd/core';
+import { openBrowserSecurely, shouldLaunchBrowser } from '@openwork/core';
 import { runExitCleanup } from '../../utils/cleanup.js';
 import type { AccountSuspensionInfo } from '../contexts/UIStateContext.js';
 

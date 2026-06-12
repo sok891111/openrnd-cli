@@ -1,6 +1,6 @@
 # Outlook mail integration (Windows desktop, local automation) — READ-ONLY
 
-Read and summarize your **already-signed-in Outlook desktop** mail from openrnd
+Read and summarize your **already-signed-in Outlook desktop** mail from openwork
 — no Azure AD app registration, no Graph API, no extra login. The scripts drive
 the Outlook desktop client through COM, reusing the profile you're already
 logged into on this PC.
@@ -36,7 +36,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Read-Outlook.ps1 -Folder "In
 powershell -NoProfile -ExecutionPolicy Bypass -File Get-OutlookMessage.ps1 -EntryId "00000000ABCD..."
 ```
 
-## Using it from openrnd
+## Using it from openwork
 
 Run the `/outlook` slash command with what you want, e.g.:
 

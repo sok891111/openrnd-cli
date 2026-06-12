@@ -24,8 +24,8 @@ import {
   NoopSandboxManager,
   type ToolRegistry,
   type SandboxManager,
-} from '@openrnd/core';
-import { createMockMessageBus } from '@openrnd/core/src/test-utils/mock-message-bus.js';
+} from '@openwork/core';
+import { createMockMessageBus } from '@openwork/core/src/test-utils/mock-message-bus.js';
 import { expect, vi } from 'vitest';
 
 export function createMockConfig(

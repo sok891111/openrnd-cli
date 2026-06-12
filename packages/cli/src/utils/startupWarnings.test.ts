@@ -7,11 +7,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getStartupWarnings } from './startupWarnings.js';
 import * as fs from 'node:fs/promises';
-import { getErrorMessage } from '@openrnd/core';
+import { getErrorMessage } from '@openwork/core';
 
 vi.mock('node:fs/promises', { spy: true });
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     getErrorMessage: vi.fn(),

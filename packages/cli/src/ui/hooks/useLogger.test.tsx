@@ -8,13 +8,13 @@ import { act } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '../../test-utils/render.js';
 import { useLogger } from './useLogger.js';
-import { Logger, type Storage, type Config } from '@openrnd/core';
+import { Logger, type Storage, type Config } from '@openwork/core';
 
 let deferredInit: { resolve: (val?: unknown) => void };
 
 // Mock Logger
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     Logger: vi.fn().mockImplementation((id: string) => ({

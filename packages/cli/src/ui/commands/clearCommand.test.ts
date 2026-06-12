@@ -10,8 +10,8 @@ import { type CommandContext } from './types.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 
 // Mock the telemetry service
-vi.mock('@openrnd/core', async () => {
-  const actual = await vi.importActual('@openrnd/core');
+vi.mock('@openwork/core', async () => {
+  const actual = await vi.importActual('@openwork/core');
   return {
     ...actual,
     uiTelemetryService: {
@@ -21,7 +21,7 @@ vi.mock('@openrnd/core', async () => {
   };
 });
 
-import { uiTelemetryService, type GeminiClient } from '@openrnd/core';
+import { uiTelemetryService, type GeminiClient } from '@openwork/core';
 
 describe('clearCommand', () => {
   let mockContext: CommandContext;

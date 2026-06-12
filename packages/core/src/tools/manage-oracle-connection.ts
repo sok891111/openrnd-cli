@@ -28,7 +28,7 @@ export const MANAGE_ORACLE_CONNECTION_DISPLAY_NAME = 'Manage Oracle Connection';
 const DESCRIPTION = `Manage Oracle DB connection profiles (TNS 접속 정보).
 
 사용자가 사내 Oracle DB 의 TNS 접속 정보를 등록/조회/삭제/연결테스트 한다.
-등록된 정보는 ~/.openrnd/oracle-connections.json (chmod 600, git 범위 밖)에 저장되며,
+등록된 정보는 ~/.openwork/oracle-connections.json (chmod 600, git 범위 밖)에 저장되며,
 비밀번호는 화면에 마스킹되어 표시된다. 실제 조회는 별도의 'oracle_query' 툴이 한다.
 
 각 접속은 별칭(alias)으로 식별한다. connectString 에는 다음 중 무엇이든 가능:

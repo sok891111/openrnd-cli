@@ -8,7 +8,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { renderWithProviders } from '../../test-utils/render.js';
 import { Footer } from './Footer.js';
 import { createMockSettings } from '../../test-utils/settings.js';
-import { type Config, UserAccountManager, AuthType } from '@openrnd/core';
+import { type Config, UserAccountManager, AuthType } from '@openwork/core';
 import path from 'node:path';
 
 // Normalize paths to POSIX slashes for stable cross-platform snapshots.
@@ -34,8 +34,8 @@ vi.mock('../../utils/installationInfo.js', async (importOriginal) => {
   };
 });
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...original,
     shortenPath: (p: string, len: number) => {

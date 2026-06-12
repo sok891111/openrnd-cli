@@ -13,11 +13,11 @@ import {
   useTextBuffer,
   type TextBuffer,
 } from '../components/shared/text-buffer.js';
-import { clearApiKey } from '@openrnd/core';
+import { clearApiKey } from '@openwork/core';
 
 // Mocks
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     clearApiKey: vi.fn().mockResolvedValue(undefined),

@@ -6,11 +6,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { initializeOutputListenersAndFlush } from './gemini.js';
-import { coreEvents, CoreEvent, type Config } from '@openrnd/core';
+import { coreEvents, CoreEvent, type Config } from '@openwork/core';
 
 // Mock core dependencies
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     writeToStdout: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('@openrnd/core', async (importOriginal) => {
   };
 });
 
-import { writeToStdout, writeToStderr } from '@openrnd/core';
+import { writeToStdout, writeToStderr } from '@openwork/core';
 
 describe('Output Redirection', () => {
   beforeEach(() => {

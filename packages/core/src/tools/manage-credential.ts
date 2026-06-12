@@ -27,9 +27,9 @@ export const MANAGE_CREDENTIAL_DISPLAY_NAME = 'Manage Credential';
 
 const MANAGE_CREDENTIAL_DESCRIPTION = `Manage API keys / credentials for corporate (사내) web fetch handlers.
 
-Keys are stored locally in ~/.openrnd/credentials.json (chmod 600, never committed to git)
+Keys are stored locally in ~/.openwork/credentials.json (chmod 600, never committed to git)
 and injected into the Python fetch handlers at runtime as environment variables
-(OPENRND_CRED_<SYSTEM>). The actual fetch logic lives in
+(OPENWORK_CRED_<SYSTEM>). The actual fetch logic lives in
 packages/core/src/tools/corporate_fetchers/handlers/*.py.
 
 Use this tool when the user says things like:

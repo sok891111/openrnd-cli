@@ -12,7 +12,7 @@ import {
   HookEventName,
   ConfigSource,
   type HookRegistryEntry,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type { CommandContext } from './types.js';
 import { SettingScope } from '../../config/settings.js';
 

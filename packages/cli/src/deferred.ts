@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { ArgumentsCamelCase, CommandModule } from 'yargs';
-import { coreEvents, ExitCodes, getAdminErrorMessage } from '@openrnd/core';
+import { coreEvents, ExitCodes, getAdminErrorMessage } from '@openwork/core';
 import { runExitCleanup } from './utils/cleanup.js';
 import type { MergedSettings } from './config/settings.js';
 import process from 'node:process';

@@ -9,7 +9,7 @@ import { useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
 import { SettingScope, type LoadedSettings } from '../../config/settings.js';
-import { AuthType, type Config } from '@openrnd/core';
+import { AuthType, type Config } from '@openwork/core';
 import { AuthState } from '../types.js';
 
 interface AuthDialogProps {

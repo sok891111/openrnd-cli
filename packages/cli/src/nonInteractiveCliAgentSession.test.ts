@@ -12,7 +12,7 @@ import type {
   AnyDeclarativeTool,
   AnyToolInvocation,
   UserFeedbackPayload,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   ToolErrorType,
   GeminiEventType,
@@ -22,7 +22,7 @@ import {
   CoreEvent,
   CoreToolCallStatus,
   JsonStreamEventType,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type { Part } from '@google/genai';
 import { runNonInteractive } from './nonInteractiveCliAgentSession.js';
 import {
@@ -56,8 +56,8 @@ const mockCoreEvents = vi.hoisted(() => ({
 
 const mockSchedulerSchedule = vi.hoisted(() => vi.fn());
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@openwork/core')>();
 
   class MockChatRecordingService {
     initialize = vi.fn();
@@ -276,7 +276,7 @@ describe('runNonInteractive', () => {
   });
 
   it('should stream the specific stream started by send', async () => {
-    const { LegacyAgentSession } = await import('@openrnd/core');
+    const { LegacyAgentSession } = await import('@openwork/core');
     const streamSpy = vi.spyOn(LegacyAgentSession.prototype, 'stream');
     const events: ServerGeminiStreamEvent[] = [
       { type: GeminiEventType.Content, value: 'Hello again' },
@@ -300,7 +300,7 @@ describe('runNonInteractive', () => {
   });
 
   it('fails fast if the session acknowledges a message send without a stream', async () => {
-    const { LegacyAgentSession } = await import('@openrnd/core');
+    const { LegacyAgentSession } = await import('@openwork/core');
     const sendSpy = vi
       .spyOn(LegacyAgentSession.prototype, 'send')
       .mockResolvedValue({ streamId: null });
@@ -1294,7 +1294,7 @@ describe('runNonInteractive', () => {
 
     // Cancellation will throw FatalCancellationError directly
 
-    const { LegacyAgentSession } = await import('@openrnd/core');
+    const { LegacyAgentSession } = await import('@openwork/core');
     const sendSpy = vi.spyOn(LegacyAgentSession.prototype, 'send');
 
     await expect(
@@ -1989,7 +1989,7 @@ describe('runNonInteractive', () => {
       .mockReturnValue('model-1');
 
     // Mock debugLogger.error
-    const { debugLogger } = await import('@openrnd/core');
+    const { debugLogger } = await import('@openwork/core');
     const debugLoggerErrorSpy = vi
       .spyOn(debugLogger, 'error')
       .mockImplementation(() => {});

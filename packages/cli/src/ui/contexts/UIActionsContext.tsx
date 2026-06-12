@@ -12,7 +12,7 @@ import {
   type AuthType,
   type EditorType,
   type AgentDefinition,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { type LoadableSettingScope } from '../../config/settings.js';
 import type { AuthState } from '../types.js';
 import { type PermissionsDialogProps } from '../components/PermissionsModifyTrustDialog.js';

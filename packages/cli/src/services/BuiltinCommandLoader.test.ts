@@ -52,13 +52,13 @@ vi.mock('../ui/commands/permissionsCommand.js', async () => {
 
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { BuiltinCommandLoader } from './BuiltinCommandLoader.js';
-import { isNightly, type Config } from '@openrnd/core';
+import { isNightly, type Config } from '@openwork/core';
 import { CommandKind } from '../ui/commands/types.js';
 
 import { restoreCommand } from '../ui/commands/restoreCommand.js';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     isNightly: vi.fn().mockResolvedValue(false),
@@ -188,7 +188,7 @@ describe('BuiltinCommandLoader', () => {
   });
 
   it('should include upgrade command when authType is login_with_google', async () => {
-    const { AuthType } = await import('@openrnd/core');
+    const { AuthType } = await import('@openwork/core');
     (mockConfig.getContentGeneratorConfig as Mock).mockReturnValue({
       authType: AuthType.LOGIN_WITH_GOOGLE,
     });

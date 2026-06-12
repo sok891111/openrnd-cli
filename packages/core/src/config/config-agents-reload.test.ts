@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Config, type ConfigParameters } from './config.js';
-import { createTmpDir, cleanupTmpDir } from '@openrnd/test-utils';
+import { createTmpDir, cleanupTmpDir } from '@openwork/test-utils';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 

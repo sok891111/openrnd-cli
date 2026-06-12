@@ -16,7 +16,7 @@ import {
 } from 'vitest';
 import * as fs from 'node:fs';
 import { loadSettings, SettingScope } from '../../config/settings.js';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import { handleMigrateFromClaude } from './migrate.js';
 
 vi.mock('node:fs');

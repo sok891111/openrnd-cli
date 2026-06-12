@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { debugLogger, startMemoryService, type Config } from '@openrnd/core';
+import { debugLogger, startMemoryService, type Config } from '@openwork/core';
 
 export function startAutoMemoryIfEnabled(config: Config): void {
   if (!config.isAutoMemoryEnabled()) {

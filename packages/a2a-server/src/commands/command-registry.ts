@@ -5,7 +5,7 @@
  */
 
 import { MemoryCommand } from './memory.js';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import { ExtensionsCommand } from './extensions.js';
 import { InitCommand } from './init.js';
 import { RestoreCommand } from './restore.js';

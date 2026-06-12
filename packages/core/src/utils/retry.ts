@@ -309,7 +309,7 @@ export async function retryWithBackoff<T>(
       // so it is handled here. A genuine TerminalQuotaError (daily/hard lockout)
       // is deliberately excluded — retrying that every 60s forever is wrong, so it
       // falls through to the terminal/fallback handling below. Tune the window
-      // with OPENRND_RATE_LIMIT_RETRY_SECONDS, or set it to 0 to disable.
+      // with OPENWORK_RATE_LIMIT_RETRY_SECONDS, or set it to 0 to disable.
       const rpmDelayMs = getRateLimitRetryDelayMs();
       if (
         rpmDelayMs > 0 &&
@@ -475,12 +475,12 @@ export const DEFAULT_RATE_LIMIT_RETRY_SECONDS = 60;
  * disabled. ON by default ({@link DEFAULT_RATE_LIMIT_RETRY_SECONDS}) so a 429
  * waits a full RPM window before retrying (instead of the short exponential
  * backoff, which keeps hammering a per-minute quota and looks like a hang).
- * Override the window with `OPENRND_RATE_LIMIT_RETRY_SECONDS` (e.g. 120), or set
+ * Override the window with `OPENWORK_RATE_LIMIT_RETRY_SECONDS` (e.g. 120), or set
  * it to `0` to disable and fall back to exponential backoff. An invalid/negative
  * value falls back to the default rather than silently disabling.
  */
 export function getRateLimitRetryDelayMs(): number {
-  const raw = process.env['OPENRND_RATE_LIMIT_RETRY_SECONDS'];
+  const raw = process.env['OPENWORK_RATE_LIMIT_RETRY_SECONDS'];
   if (raw === undefined || raw.trim() === '') {
     return DEFAULT_RATE_LIMIT_RETRY_SECONDS * 1000;
   }

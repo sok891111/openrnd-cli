@@ -5,16 +5,16 @@
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { coreEvents, getErrorMessage } from '@openrnd/core';
+import { coreEvents, getErrorMessage } from '@openwork/core';
 import { handleList, listCommand } from './list.js';
 import { ExtensionManager } from '../../config/extension-manager.js';
 import { loadSettings, type LoadedSettings } from '../../config/settings.js';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
+vi.mock('@openwork/core', async (importOriginal) => {
   const { mockCoreDebugLogger } = await import(
     '../../test-utils/mockDebugLogger.js'
   );
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   const mocked = mockCoreDebugLogger(actual, { stripAnsi: false });
   return { ...mocked, getErrorMessage: vi.fn() };
 });

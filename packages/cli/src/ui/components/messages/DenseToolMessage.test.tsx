@@ -17,7 +17,7 @@ import {
   type ListDirectoryResult,
   type ReadManyFilesResult,
   makeFakeConfig,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type {
   SerializableConfirmationDetails,
   ToolResultDisplay,

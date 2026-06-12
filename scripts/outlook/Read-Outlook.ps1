@@ -5,7 +5,7 @@
   the Outlook profile already logged in on this PC.
 
 .DESCRIPTION
-  Intended to be invoked by the openrnd agent (or manually) on a Windows PC that
+  Intended to be invoked by the openwork agent (or manually) on a Windows PC that
   has the Outlook desktop client installed and running. Output is a JSON array
   on stdout, UTF-8 encoded (handles Korean subjects/bodies).
 

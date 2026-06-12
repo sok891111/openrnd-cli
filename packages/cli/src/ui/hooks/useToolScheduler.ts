@@ -18,7 +18,7 @@ import {
   type SubagentActivityItem,
   type SubagentActivityMessage,
   AGENT_TOOL_NAME,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 
 // Re-exporting types compatible with hook expectations

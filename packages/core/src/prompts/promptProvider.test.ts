@@ -49,7 +49,7 @@ describe('PromptProvider', () => {
     vi.stubEnv('GEMINI_WRITE_SYSTEM_MD', '');
     // Disable the organization append by default so prompt assertions stay
     // deterministic regardless of any system-append.md on the host.
-    vi.stubEnv('OPENRND_SYSTEM_MD_APPEND', '0');
+    vi.stubEnv('OPENWORK_SYSTEM_MD_APPEND', '0');
 
     const mockToolRegistry = {
       getAllToolNames: vi.fn().mockReturnValue([]),
@@ -167,13 +167,16 @@ describe('PromptProvider', () => {
   });
 
   describe('organization-specific append', () => {
-    it('appends instructions from OPENRND_SYSTEM_MD_APPEND file', () => {
-      const tmpFile = path.join(os.tmpdir(), `openrnd-append-${Date.now()}.md`);
+    it('appends instructions from OPENWORK_SYSTEM_MD_APPEND file', () => {
+      const tmpFile = path.join(
+        os.tmpdir(),
+        `openwork-append-${Date.now()}.md`,
+      );
       fs.writeFileSync(
         tmpFile,
         'COMPANY RULE: always use the internal mirror.',
       );
-      vi.stubEnv('OPENRND_SYSTEM_MD_APPEND', tmpFile);
+      vi.stubEnv('OPENWORK_SYSTEM_MD_APPEND', tmpFile);
       try {
         const provider = new PromptProvider();
         const prompt = provider.getCoreSystemPrompt(mockConfig);
@@ -186,8 +189,8 @@ describe('PromptProvider', () => {
       }
     });
 
-    it('does not append when OPENRND_SYSTEM_MD_APPEND is disabled', () => {
-      vi.stubEnv('OPENRND_SYSTEM_MD_APPEND', '0');
+    it('does not append when OPENWORK_SYSTEM_MD_APPEND is disabled', () => {
+      vi.stubEnv('OPENWORK_SYSTEM_MD_APPEND', '0');
       const provider = new PromptProvider();
       const prompt = provider.getCoreSystemPrompt(mockConfig);
       expect(prompt).not.toContain('# Organization-Specific Instructions');

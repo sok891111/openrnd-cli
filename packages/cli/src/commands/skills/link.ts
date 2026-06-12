@@ -5,7 +5,7 @@
  */
 
 import type { CommandModule } from 'yargs';
-import { debugLogger, getErrorMessage } from '@openrnd/core';
+import { debugLogger, getErrorMessage } from '@openwork/core';
 import chalk from 'chalk';
 
 import { exitCli } from '../utils.js';

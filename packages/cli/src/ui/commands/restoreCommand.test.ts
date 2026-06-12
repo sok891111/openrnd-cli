@@ -11,7 +11,7 @@ import * as path from 'node:path';
 import { restoreCommand } from './restoreCommand.js';
 import { type CommandContext } from './types.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
-import { GEMINI_DIR, type Config, type GitService } from '@openrnd/core';
+import { GEMINI_DIR, type Config, type GitService } from '@openwork/core';
 
 describe('restoreCommand', () => {
   let mockContext: CommandContext;

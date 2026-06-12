@@ -42,8 +42,8 @@ import {
   type OverflowState,
 } from '../ui/contexts/OverflowContext.js';
 
-import { makeFakeConfig } from '@openrnd/core';
-import { type Config } from '@openrnd/core';
+import { makeFakeConfig } from '@openwork/core';
+import { type Config } from '@openwork/core';
 import { FakePersistentState } from './persistentStateFake.js';
 import { AppContext, type AppState } from '../ui/contexts/AppContext.js';
 import { createMockSettings } from './settings.js';

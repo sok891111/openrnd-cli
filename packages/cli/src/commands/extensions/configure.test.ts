@@ -14,13 +14,13 @@ import {
 } from 'vitest';
 import { configureCommand } from './configure.js';
 import yargs from 'yargs';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import {
   updateSetting,
   getScopedEnvContents,
   type ExtensionSetting,
 } from '../../config/extensions/extensionSettings.js';
-import { cleanupTmpDir } from '@openrnd/test-utils';
+import { cleanupTmpDir } from '@openwork/test-utils';
 import prompts from 'prompts';
 import * as fs from 'node:fs';
 import * as os from 'node:os';

@@ -13,7 +13,7 @@ import { homedir, GEMINI_DIR } from '../utils/paths.js';
  *  Oracle DB 접속 정보(TNS) 저장소
  * ============================================================================
  *
- * - 저장 위치: ~/.openrnd/oracle-connections.json (chmod 600, git 범위 밖)
+ * - 저장 위치: ~/.openwork/oracle-connections.json (chmod 600, git 범위 밖)
  * - 사용자가 TNS 정보를 등록하면 그 정보로 DB 에 접속해 **SELECT 조회만** 수행한다.
  * - 비밀번호(secret)는 절대 로그/화면에 그대로 노출하지 않는다(마스킹).
  *
@@ -43,7 +43,7 @@ export interface OracleConnectionProfile {
 
 type ConnectionStore = Record<string, OracleConnectionProfile>;
 
-/** ~/.openrnd/oracle-connections.json 경로. */
+/** ~/.openwork/oracle-connections.json 경로. */
 export function getOracleConnectionsPath(): string {
   return path.join(homedir(), GEMINI_DIR, 'oracle-connections.json');
 }

@@ -21,7 +21,7 @@ import {
   makeFakeConfig,
   coreEvents,
   type GeminiClient,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 const {
   logSlashCommand,
@@ -46,8 +46,8 @@ vi.mock('./useAlternateBuffer.js', () => ({
   useAlternateBuffer: mockUseAlternateBuffer,
 }));
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@openwork/core')>();
 
   return {
     ...original,

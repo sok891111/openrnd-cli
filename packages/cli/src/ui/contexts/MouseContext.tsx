@@ -15,7 +15,7 @@ import {
   useRef,
 } from 'react';
 import { ESC } from '../utils/input.js';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import { appEvents, AppEvent } from '../../utils/events.js';
 import {
   isIncompleteMouseSequence,

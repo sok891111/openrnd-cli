@@ -290,7 +290,7 @@ def main():
     ext = os.path.splitext(path)[1].lower()
     # Set only when the caller (vision configured) wants embedded pictures
     # exported for downstream description; empty/unset disables image export.
-    image_dir = os.environ.get("OPENRND_OFFICE_IMAGE_DIR") or None
+    image_dir = os.environ.get("OPENWORK_OFFICE_IMAGE_DIR") or None
     if not ensure_pywin32():
         sys.stderr.write(
             "WIN32COM_IMPORT_ERROR: pywin32 is required and could not be "
@@ -356,13 +356,13 @@ const OFFICE_VISION_PROGRESS_FEEDBACK_DELAY_MS = 2_000;
  * vision model, so a single read can take minutes. Above this many *distinct*
  * images we auto-skip vision and return text only, leaving a per-image note so
  * the model can re-read with images forced if the user actually needs them.
- * Default 15; override with OPENRND_OFFICE_VISION_MAX_IMAGES (0 disables the
+ * Default 15; override with OPENWORK_OFFICE_VISION_MAX_IMAGES (0 disables the
  * cap entirely).
  */
 const DEFAULT_OFFICE_VISION_MAX_IMAGES = 15;
 
 function officeVisionMaxImages(): number {
-  const raw = process.env['OPENRND_OFFICE_VISION_MAX_IMAGES'];
+  const raw = process.env['OPENWORK_OFFICE_VISION_MAX_IMAGES'];
   if (raw === undefined || raw.trim() === '') {
     return DEFAULT_OFFICE_VISION_MAX_IMAGES;
   }
@@ -574,7 +574,10 @@ export async function readOfficeFile(
   }
 
   const pythonExe = detectPythonExecutable();
-  const tmpScript = path.join(os.tmpdir(), `openrnd_office_${randomUUID()}.py`);
+  const tmpScript = path.join(
+    os.tmpdir(),
+    `openwork_office_${randomUUID()}.py`,
+  );
 
   // Embedded-picture description only runs for PowerPoint, and only when a
   // vision model is configured. When it is, hand the win32com reader a temp dir
@@ -591,7 +594,7 @@ export async function readOfficeFile(
   try {
     if (visionConfig) {
       imageDir = await fs.mkdtemp(
-        path.join(os.tmpdir(), 'openrnd_office_img_'),
+        path.join(os.tmpdir(), 'openwork_office_img_'),
       );
     }
     await fs.writeFile(tmpScript, WIN32COM_EXTRACT_SCRIPT, 'utf-8');
@@ -602,7 +605,7 @@ export async function readOfficeFile(
     const { stdout, stderr, code } = await runPythonScript(
       pythonExe,
       spawnArgs,
-      imageDir ? { OPENRND_OFFICE_IMAGE_DIR: imageDir } : undefined,
+      imageDir ? { OPENWORK_OFFICE_IMAGE_DIR: imageDir } : undefined,
     );
 
     if (code !== 0) {
@@ -745,7 +748,10 @@ export async function renderPptxToImages(
   }
 
   const pythonExe = detectPythonExecutable();
-  const tmpScript = path.join(os.tmpdir(), `openrnd_render_${randomUUID()}.py`);
+  const tmpScript = path.join(
+    os.tmpdir(),
+    `openwork_render_${randomUUID()}.py`,
+  );
 
   try {
     await fs.writeFile(tmpScript, WIN32COM_RENDER_PPT_SCRIPT, 'utf-8');

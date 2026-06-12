@@ -9,8 +9,8 @@ import { ExtensionsCommand, ListExtensionsCommand } from './extensions.js';
 import type { CommandContext } from './types.js';
 
 const mockListExtensions = vi.hoisted(() => vi.fn());
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@openwork/core')>();
 
   return {
     ...original,

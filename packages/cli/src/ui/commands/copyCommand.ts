@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import { copyToClipboard } from '../utils/commandUtils.js';
 import {
   CommandKind,

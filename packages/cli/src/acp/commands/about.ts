@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { IdeClient, UserAccountManager, getVersion } from '@openrnd/core';
+import { IdeClient, UserAccountManager, getVersion } from '@openwork/core';
 import type {
   Command,
   CommandContext,

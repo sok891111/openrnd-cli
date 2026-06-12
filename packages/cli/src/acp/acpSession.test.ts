@@ -30,7 +30,7 @@ import {
   MessageBusType,
   type ToolConfirmationRequest,
   DiscoveredMCPTool,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type { LoadedSettings } from '../config/settings.js';
 import { type Part, FinishReason } from '@google/genai';
 import * as fs from 'node:fs/promises';
@@ -47,8 +47,8 @@ vi.mock('node:path', async (importOriginal) => {
 });
 
 vi.mock(
-  '@openrnd/core',
-  async (importOriginal: () => Promise<typeof import('@openrnd/core')>) => {
+  '@openwork/core',
+  async (importOriginal: () => Promise<typeof import('@openwork/core')>) => {
     const actual = await importOriginal();
     return {
       ...actual,
@@ -573,7 +573,7 @@ describe('Session', () => {
 
   it('should send sessionUpdate when approval mode changes', async () => {
     const { coreEvents, CoreEvent, ApprovalMode } = await import(
-      '@openrnd/core'
+      '@openwork/core'
     );
 
     coreEvents.emit(CoreEvent.ApprovalModeChanged, {

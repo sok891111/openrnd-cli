@@ -9,7 +9,7 @@ import {
   refreshMemory,
   showMemory,
   type Config,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ListMemoryCommand,
@@ -20,8 +20,8 @@ import {
 import type { CommandContext } from './types.js';
 
 // Mock the core functions
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     showMemory: vi.fn(),

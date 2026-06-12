@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ModelSlashCommandEvent, logModelSlashCommand } from '@openrnd/core';
+import { ModelSlashCommandEvent, logModelSlashCommand } from '@openwork/core';
 import {
   type CommandContext,
   CommandKind,

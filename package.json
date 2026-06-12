@@ -1,5 +1,5 @@
 {
-  "name": "@openrnd/cli",
+  "name": "@openwork/cli",
   "version": "0.1.0",
   "engines": {
     "node": ">=20.0.0"
@@ -28,7 +28,7 @@
     "auth:docker": "gcloud auth configure-docker us-west1-docker.pkg.dev",
     "auth": "npm run auth:npm && npm run auth:docker",
     "generate": "node scripts/generate-git-commit-info.js",
-    "predocs:settings": "npm run build --workspace @openrnd/core",
+    "predocs:settings": "npm run build --workspace @openwork/core",
     "schema:settings": "tsx ./scripts/generate-settings-schema.ts",
     "docs:settings": "tsx ./scripts/generate-settings-doc.ts",
     "docs:keybindings": "tsx ./scripts/generate-keybindings-doc.ts",
@@ -40,7 +40,7 @@
     "build:sandbox": "node scripts/build_sandbox.js",
     "build:binary": "node scripts/build_binary.js",
     "prebundle": "node -e \"const fs=require('fs');try{fs.rmSync('bundle',{recursive:true,force:true})}catch(e){}\"",
-    "bundle": "npm run generate && npm run build --workspace=@openrnd/core && npm run build --workspace=@google/gemini-cli-devtools && npm run bundle:browser-mcp -w @openrnd/core && node esbuild.config.js && node scripts/copy_bundle_assets.js",
+    "bundle": "npm run generate && npm run build --workspace=@openwork/core && npm run build --workspace=@google/gemini-cli-devtools && npm run bundle:browser-mcp -w @openwork/core && node esbuild.config.js && node scripts/copy_bundle_assets.js",
     "test": "npm run test --workspaces --if-present && npm run test:sea-launch",
     "test:ci": "npm run test:ci --workspaces --if-present && npm run test:scripts && npm run test:sea-launch",
     "test:scripts": "vitest run --config ./scripts/tests/vitest.config.ts",
@@ -88,7 +88,7 @@
     "cross-spawn": "^7.0.6"
   },
   "bin": {
-    "openrnd": "bundle/gemini.js"
+    "openwork": "bundle/gemini.js"
   },
   "files": [
     "bundle/",

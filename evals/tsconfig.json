@@ -3,7 +3,7 @@
   "compilerOptions": {
     "noEmit": true,
     "paths": {
-      "@openrnd/core": ["../packages/core/index.ts"],
+      "@openwork/core": ["../packages/core/index.ts"],
       "@google/gemini-cli": ["../packages/cli/index.ts"]
     }
   },

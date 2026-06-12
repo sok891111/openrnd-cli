@@ -17,7 +17,7 @@ import {
 } from '../types.js';
 import { disableSkill, enableSkill } from '../../utils/skillSettings.js';
 
-import { getAdminErrorMessage, getErrorMessage } from '@openrnd/core';
+import { getAdminErrorMessage, getErrorMessage } from '@openwork/core';
 import {
   linkSkill,
   renderSkillActionFeedback,

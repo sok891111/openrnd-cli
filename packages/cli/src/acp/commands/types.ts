@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AgentLoopContext, GitService } from '@openrnd/core';
+import type { AgentLoopContext, GitService } from '@openwork/core';
 import type { LoadedSettings } from '../../config/settings.js';
 
 export interface CommandContext {

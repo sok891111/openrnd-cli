@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getPackageJson } from '@openrnd/core';
+import { getPackageJson } from '@openwork/core';
 import commandExists from 'command-exists';
 import * as os from 'node:os';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadSandboxConfig } from './sandboxConfig.js';
 
 // Mock dependencies
-vi.mock('@openrnd/core', async (importOriginal) => {
+vi.mock('@openwork/core', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...(actual as object),

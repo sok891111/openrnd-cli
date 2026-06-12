@@ -18,7 +18,7 @@ import { useUIState, type UIState } from '../contexts/UIStateContext.js';
 import { useIsScreenReaderEnabled } from 'ink';
 import * as fs from 'node:fs/promises';
 import { act } from 'react';
-import { WarningPriority } from '@openrnd/core';
+import { WarningPriority } from '@openwork/core';
 
 // Mock dependencies
 vi.mock('../contexts/AppContext.js');
@@ -60,8 +60,8 @@ vi.mock('node:path', async () => {
   };
 });
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   const MockStorage = vi.fn().mockImplementation(() => ({
     getExtensionsDir: () => '/mock/home/.gemini/extensions',
   }));

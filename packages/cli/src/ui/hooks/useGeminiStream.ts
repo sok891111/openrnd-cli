@@ -45,7 +45,7 @@ import {
   buildToolVisibilityContext,
   UPDATE_TOPIC_TOOL_NAME,
   UPDATE_TOPIC_DISPLAY_NAME,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type {
   Config,
   EditorType,
@@ -59,7 +59,7 @@ import type {
   ToolCallResponseInfo,
   GeminiErrorEventValue,
   RetryAttemptPayload,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { type Part, type PartListUnion, FinishReason } from '@google/genai';
 import type {
   HistoryItem,

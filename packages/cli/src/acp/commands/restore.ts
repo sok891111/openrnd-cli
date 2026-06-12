@@ -9,7 +9,7 @@ import {
   getToolCallDataSchema,
   isNodeError,
   performRestore,
-} from '@openrnd/core';
+} from '@openwork/core';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type {

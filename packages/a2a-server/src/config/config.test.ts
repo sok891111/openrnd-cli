@@ -22,11 +22,11 @@ import {
   ApprovalMode,
   PRIORITY_YOLO_ALLOW_ALL,
   createPolicyEngineConfig,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 // Mock dependencies
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     PRIORITY_YOLO_ALLOW_ALL: 998,

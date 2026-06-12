@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import { execSync } from 'node:child_process';
 import { ProxyAgent } from 'undici';
 

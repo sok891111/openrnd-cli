@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IdeInfo } from '@openrnd/core';
+import type { IdeInfo } from '@openwork/core';
 import { Box, Text } from 'ink';
 import {
   RadioButtonSelect,

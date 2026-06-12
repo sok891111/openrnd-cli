@@ -25,7 +25,7 @@ const TMP_DIR_NAME = 'tmp';
 const BIN_DIR_NAME = 'bin';
 const AGENTS_DIR_NAME = '.agents';
 // Legacy gemini-cli config dir name. The active config dir is GEMINI_DIR
-// ('.openrnd'), but workspaces/users may still keep skills under '.gemini'
+// ('.openwork'), but workspaces/users may still keep skills under '.gemini'
 // (e.g. committed `.gemini/skills/`), so we also read from there.
 const LEGACY_GEMINI_DIR_NAME = '.gemini';
 

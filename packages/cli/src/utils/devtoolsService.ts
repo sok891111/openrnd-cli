@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { debugLogger, type Config } from '@openrnd/core';
+import { debugLogger, type Config } from '@openwork/core';
 import WebSocket from 'ws';
 import {
   initActivityLogger,
@@ -208,7 +208,7 @@ export async function toggleDevToolsPanel(
 
   try {
     const { openBrowserSecurely, shouldLaunchBrowser } = await import(
-      '@openrnd/core'
+      '@openwork/core'
     );
     const url = await startDevToolsServer(config);
     if (shouldLaunchBrowser()) {

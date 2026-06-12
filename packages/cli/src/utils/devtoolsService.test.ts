@@ -5,7 +5,7 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import type { Config } from '@openrnd/core';
+import type { Config } from '@openwork/core';
 
 // --- Mocks (hoisted) ---
 
@@ -75,7 +75,7 @@ const mockOpenBrowserSecurely = vi.hoisted(() =>
   vi.fn(() => Promise.resolve()),
 );
 
-vi.mock('@openrnd/core', () => ({
+vi.mock('@openwork/core', () => ({
   debugLogger: {
     log: vi.fn(),
     debug: vi.fn(),

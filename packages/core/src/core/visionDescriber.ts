@@ -120,15 +120,15 @@ const DEFAULT_VISION_PROMPT =
  * env vars may also be set directly. Returns undefined when not configured.
  */
 export function getVisionConfigFromEnv(): VisionConfig | undefined {
-  const baseUrl = process.env['OPENRND_VISION_BASE_URL']?.trim();
-  const model = process.env['OPENRND_VISION_MODEL']?.trim();
+  const baseUrl = process.env['OPENWORK_VISION_BASE_URL']?.trim();
+  const model = process.env['OPENWORK_VISION_MODEL']?.trim();
   // Both endpoint and model are required; without either there is no vision
   // model to call.
   if (!baseUrl || !model) return undefined;
   const apiKey =
-    process.env['OPENRND_VISION_API_KEY']?.trim() ||
+    process.env['OPENWORK_VISION_API_KEY']?.trim() ||
     // Fall back to the primary key so a single-credential gateway just works.
-    process.env['OPENRND_API_KEY']?.trim() ||
+    process.env['OPENWORK_API_KEY']?.trim() ||
     'vision';
   return { baseUrl, apiKey, model };
 }

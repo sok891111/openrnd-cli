@@ -13,7 +13,7 @@ vi.mock('node:os', () => ({
   homedir: vi.fn(),
 }));
 
-vi.mock('@openrnd/core', () => ({
+vi.mock('@openwork/core', () => ({
   homedir: () => os.homedir(),
 }));
 

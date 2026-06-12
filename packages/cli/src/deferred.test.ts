@@ -18,7 +18,7 @@ import {
   setDeferredCommand,
   type DeferredCommand,
 } from './deferred.js';
-import { ExitCodes } from '@openrnd/core';
+import { ExitCodes } from '@openwork/core';
 import type { ArgumentsCamelCase, CommandModule } from 'yargs';
 import { createMockSettings } from './test-utils/settings.js';
 
@@ -29,8 +29,8 @@ const { mockRunExitCleanup, mockCoreEvents } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@openrnd/core', async () => {
-  const actual = await vi.importActual('@openrnd/core');
+vi.mock('@openwork/core', async () => {
+  const actual = await vi.importActual('@openwork/core');
   return {
     ...actual,
     coreEvents: mockCoreEvents,

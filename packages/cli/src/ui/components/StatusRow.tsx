@@ -7,7 +7,7 @@
 import type React from 'react';
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { Box, Text, ResizeObserver, type DOMElement } from 'ink';
-import { isUserVisibleHook, type ThoughtSummary } from '@openrnd/core';
+import { isUserVisibleHook, type ThoughtSummary } from '@openwork/core';
 import stripAnsi from 'strip-ansi';
 import { type ActiveHook } from '../types.js';
 import { useUIState } from '../contexts/UIStateContext.js';

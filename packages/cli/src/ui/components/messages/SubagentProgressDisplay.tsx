@@ -13,10 +13,10 @@ import {
   type SubagentProgress,
   type SubagentActivityItem,
   SubagentState,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { TOOL_STATUS } from '../../constants.js';
 import { STATUS_INDICATOR_WIDTH } from './ToolShared.js';
-import { safeJsonToMarkdown } from '@openrnd/core';
+import { safeJsonToMarkdown } from '@openwork/core';
 
 export interface SubagentProgressDisplayProps {
   progress: SubagentProgress;

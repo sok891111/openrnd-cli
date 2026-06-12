@@ -10,13 +10,13 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { ExtensionManager } from './extension-manager.js';
 import { createTestMergedSettings } from './settings.js';
-import { cleanupTmpDir } from '@openrnd/test-utils';
-import { loadAgentsFromDirectory, loadSkillsFromDir } from '@openrnd/core';
+import { cleanupTmpDir } from '@openwork/test-utils';
+import { loadAgentsFromDirectory, loadSkillsFromDir } from '@openwork/core';
 
 let currentTempHome = '';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     homedir: () => currentTempHome,

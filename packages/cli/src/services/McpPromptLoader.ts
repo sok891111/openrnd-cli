@@ -8,7 +8,7 @@ import {
   getErrorMessage,
   getMCPServerPrompts,
   type Config,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   CommandKind,
   type CommandContext,

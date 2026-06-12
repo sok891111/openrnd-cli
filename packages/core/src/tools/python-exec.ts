@@ -115,7 +115,7 @@ class PythonExecInvocation extends BaseToolInvocation<
   }: ExecuteOptions): Promise<ToolResult> {
     const timeout = Math.min(this.params.timeout_seconds ?? 60, 300) * 1000;
     const cwd = this.params.working_directory ?? process.cwd();
-    const tmpFile = path.join(os.tmpdir(), `openrnd_py_${randomUUID()}.py`);
+    const tmpFile = path.join(os.tmpdir(), `openwork_py_${randomUUID()}.py`);
 
     try {
       await fs.writeFile(tmpFile, this.params.code, 'utf-8');

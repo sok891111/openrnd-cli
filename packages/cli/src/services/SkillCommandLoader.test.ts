@@ -7,7 +7,7 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { SkillCommandLoader } from './SkillCommandLoader.js';
 import { CommandKind } from '../ui/commands/types.js';
-import { ACTIVATE_SKILL_TOOL_NAME } from '@openrnd/core';
+import { ACTIVATE_SKILL_TOOL_NAME } from '@openwork/core';
 
 describe('SkillCommandLoader', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

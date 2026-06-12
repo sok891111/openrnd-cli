@@ -18,7 +18,7 @@ import {
   isTerminalEditor,
   isValidEditorType,
   resolveEditorTypeFromCommand,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 /**
  * Command name substrings used to guess whether an unknown $VISUAL/$EDITOR

@@ -20,7 +20,7 @@ DEFAULT_URL = "http://iflow.internal/"
 # 사내망 요청 시 사용할 헤더/타임아웃 등 기본 설정.
 DEFAULT_TIMEOUT = 10  # seconds
 DEFAULT_HEADERS = {
-    "User-Agent": "openrnd-iflow-crawler/1.0",
+    "User-Agent": "openwork-iflow-crawler/1.0",
 }
 
 

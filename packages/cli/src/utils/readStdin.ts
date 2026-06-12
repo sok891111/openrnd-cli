@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 
 /**
  * Truncates a string to fit within a UTF-8 byte limit without splitting

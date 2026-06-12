@@ -8,7 +8,7 @@ import { access, cp, mkdir, readdir, writeFile } from 'node:fs/promises';
 import { join, dirname, basename } from 'node:path';
 import type { CommandModule } from 'yargs';
 import { fileURLToPath } from 'node:url';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import { exitCli } from '../utils.js';
 
 interface NewArgs {

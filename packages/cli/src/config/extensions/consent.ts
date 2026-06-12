@@ -6,7 +6,7 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { debugLogger, type SkillDefinition } from '@openrnd/core';
+import { debugLogger, type SkillDefinition } from '@openwork/core';
 import chalk from 'chalk';
 
 import type { ConfirmationRequest } from '../../ui/types.js';

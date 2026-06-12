@@ -16,7 +16,7 @@ import {
   UserAccountManager,
   debugLogger,
   getVersion,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 export const aboutCommand: SlashCommand = {
   name: 'about',

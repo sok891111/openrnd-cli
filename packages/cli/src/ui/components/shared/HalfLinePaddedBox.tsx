@@ -10,7 +10,7 @@ import { Box, Text, useIsScreenReaderEnabled } from 'ink';
 import { useUIState } from '../../contexts/UIStateContext.js';
 import { theme } from '../../semantic-colors.js';
 import { interpolateColor, resolveColor } from '../../themes/color-utils.js';
-import { supportsTrueColor } from '@openrnd/core';
+import { supportsTrueColor } from '@openwork/core';
 
 export interface HalfLinePaddedBoxProps {
   /**

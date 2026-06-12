@@ -21,7 +21,7 @@ import {
   type LoadedTrustedFolders,
 } from '../../config/trustedFolders.js';
 import type { LoadedSettings } from '../../config/settings.js';
-import { coreEvents } from '@openrnd/core';
+import { coreEvents } from '@openwork/core';
 
 // Hoist mocks
 const mockedCwd = vi.hoisted(() => vi.fn().mockReturnValue('/mock/cwd'));

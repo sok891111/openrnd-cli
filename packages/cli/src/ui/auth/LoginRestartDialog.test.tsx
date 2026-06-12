@@ -13,7 +13,7 @@ import {
   RELAUNCH_EXIT_CODE,
   _resetRelaunchStateForTesting,
 } from '../../utils/processUtils.js';
-import { type Config } from '@openrnd/core';
+import { type Config } from '@openwork/core';
 
 // Mocks
 vi.mock('../hooks/useKeypress.js', () => ({

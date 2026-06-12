@@ -8,10 +8,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook } from '../../test-utils/render.js';
 import { useTurnActivityMonitor } from './useTurnActivityMonitor.js';
 import { StreamingState } from '../types.js';
-import { hasRedirection, CoreToolCallStatus } from '@openrnd/core';
+import { hasRedirection, CoreToolCallStatus } from '@openwork/core';
 import { type TrackedToolCall } from './useToolScheduler.js';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
+vi.mock('@openwork/core', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,

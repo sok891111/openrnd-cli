@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { tokenLimit } from '@openrnd/core';
+import { tokenLimit } from '@openwork/core';
 
 export function getContextUsagePercentage(
   promptTokenCount: number,

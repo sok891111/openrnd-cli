@@ -6,7 +6,7 @@
 
 import { renderWithProviders } from '../../test-utils/render.js';
 import { createMockSettings } from '../../test-utils/settings.js';
-import { makeFakeConfig, CoreToolCallStatus } from '@openrnd/core';
+import { makeFakeConfig, CoreToolCallStatus } from '@openwork/core';
 import { waitFor } from '../../test-utils/async.js';
 import { MainContent } from './MainContent.js';
 import { getToolGroupBorderAppearance } from '../utils/borderStyles.js';
@@ -16,8 +16,8 @@ import { act, useState, type JSX } from 'react';
 import { useAlternateBuffer } from '../hooks/useAlternateBuffer.js';
 import { SHELL_COMMAND_NAME } from '../constants.js';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     validatePlanPath: vi
@@ -635,7 +635,7 @@ describe('MainContent', () => {
 
   it('renders a ToolConfirmationQueue without an extra line when preceded by hidden tools', async () => {
     const { ApprovalMode, WRITE_FILE_DISPLAY_NAME } = await import(
-      '@openrnd/core'
+      '@openwork/core'
     );
     const hiddenToolCalls = [
       {
@@ -713,7 +713,7 @@ describe('MainContent', () => {
 
   it('renders a spurious line when a tool group has only hidden tools and borderBottom true', async () => {
     const { ApprovalMode, WRITE_FILE_DISPLAY_NAME } = await import(
-      '@openrnd/core'
+      '@openwork/core'
     );
     const uiState = {
       ...defaultMockUiState,

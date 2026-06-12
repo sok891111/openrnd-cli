@@ -9,8 +9,8 @@ import { useState } from 'react';
 import { renderHook } from '../../test-utils/render.js';
 import { waitFor } from '../../test-utils/async.js';
 import { useAtCompletion } from './useAtCompletion.js';
-import type { Config, AgentDefinition } from '@openrnd/core';
-import { createTmpDir, cleanupTmpDir } from '@openrnd/test-utils';
+import type { Config, AgentDefinition } from '@openwork/core';
+import { createTmpDir, cleanupTmpDir } from '@openwork/test-utils';
 import type { Suggestion } from '../components/SuggestionsDisplay.js';
 import { CommandKind } from '../commands/types.js';
 

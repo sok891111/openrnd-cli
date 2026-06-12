@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ApprovalMode, type PolicyRule } from '@openrnd/core';
+import { ApprovalMode, type PolicyRule } from '@openwork/core';
 import { CommandKind, type SlashCommand } from './types.js';
 import { MessageType } from '../types.js';
 

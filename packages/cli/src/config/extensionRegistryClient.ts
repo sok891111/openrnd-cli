@@ -9,7 +9,7 @@ import {
   fetchWithTimeout,
   resolveToRealPath,
   isPrivateIp,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { AsyncFzf } from 'fzf';
 
 export interface RegistryExtension {

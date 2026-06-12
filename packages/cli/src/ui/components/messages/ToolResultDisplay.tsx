@@ -17,7 +17,7 @@ import {
   type AnsiLine,
   isSubagentProgress,
   isStructuredToolResult,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { useUIState } from '../../contexts/UIStateContext.js';
 import { tryParseJSON } from '../../../utils/jsonoutput.js';
 import { useAlternateBuffer } from '../../hooks/useAlternateBuffer.js';

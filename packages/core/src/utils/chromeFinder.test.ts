@@ -20,7 +20,7 @@ import {
 } from './chromeFinder.js';
 
 const CHROME_ENV_VARS = [
-  'OPENRND_CHROME_PATH',
+  'OPENWORK_CHROME_PATH',
   'PUPPETEER_EXECUTABLE_PATH',
   'CHROME_PATH',
   'GOOGLE_CHROME_BIN',
@@ -48,7 +48,7 @@ describe('resolveChromeExecutablePath', () => {
   });
 
   it('returns the path from an env var when it exists', async () => {
-    process.env['OPENRND_CHROME_PATH'] = '/custom/chrome';
+    process.env['OPENWORK_CHROME_PATH'] = '/custom/chrome';
     existsSyncMock.mockImplementation((p: string) => p === '/custom/chrome');
 
     await expect(resolveChromeExecutablePath()).resolves.toBe('/custom/chrome');

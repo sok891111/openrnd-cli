@@ -7,7 +7,7 @@
 import type React from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
-import { checkExhaustive } from '@openrnd/core';
+import { checkExhaustive } from '@openwork/core';
 
 export type ChecklistStatus =
   | 'pending'

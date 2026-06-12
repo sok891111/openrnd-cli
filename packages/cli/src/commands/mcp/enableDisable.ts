@@ -5,7 +5,7 @@
  */
 
 import type { CommandModule } from 'yargs';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import {
   McpServerEnablementManager,
   canLoadServer,

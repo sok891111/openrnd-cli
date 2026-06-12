@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { listExtensions, type Config, getErrorMessage } from '@openrnd/core';
+import { listExtensions, type Config, getErrorMessage } from '@openwork/core';
 import { SettingScope } from '../../config/settings.js';
 import {
   ExtensionManager,

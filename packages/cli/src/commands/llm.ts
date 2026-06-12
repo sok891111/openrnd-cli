@@ -24,7 +24,7 @@ function printLlmSettings(settings: {
     ? chalk.dim('*'.repeat(Math.min(settings.apiKey.length, 8)) + '…')
     : chalk.dim('(not set)');
 
-  console.log(chalk.bold('\nOpenRND LLM Settings'));
+  console.log(chalk.bold('\nOpenWork LLM Settings'));
   console.log(chalk.dim('─'.repeat(40)));
   console.log(`  Base URL : ${chalk.cyan(url)}`);
   console.log(`  Model    : ${chalk.cyan(model)}`);
@@ -62,7 +62,7 @@ const setCommand: CommandModule = {
         type: 'string',
         choices: ['user', 'workspace'],
         default: 'user',
-        description: '"user" saves to ~/.openrnd/settings.json (default)',
+        description: '"user" saves to ~/.openwork/settings.json (default)',
       })
       .check((argv) => {
         if (!argv['base-url'] && !argv['model'] && !argv['api-key']) {
@@ -105,7 +105,7 @@ const setCommand: CommandModule = {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
       apiKey: newLlm['apiKey'] as string | undefined,
     });
-    console.log(chalk.yellow('\nRestart openrnd to apply the new settings.'));
+    console.log(chalk.yellow('\nRestart openwork to apply the new settings.'));
 
     await exitCli();
   },
@@ -142,7 +142,7 @@ function printVisionSettings(
       (inherited.apiKey ? chalk.dim(' (inherited from LLM)') : '')
     : chalk.dim('(not set)');
 
-  console.log(chalk.bold('\nOpenRND Vision Model Settings'));
+  console.log(chalk.bold('\nOpenWork Vision Model Settings'));
   console.log(chalk.dim('─'.repeat(40)));
   console.log(`  Base URL : ${url}`);
   console.log(`  Model    : ${model}`);
@@ -180,7 +180,7 @@ const visionSetCommand: CommandModule = {
         type: 'string',
         choices: ['user', 'workspace'],
         default: 'user',
-        description: '"user" saves to ~/.openrnd/settings.json (default)',
+        description: '"user" saves to ~/.openwork/settings.json (default)',
       })
       .check((argv) => {
         if (!argv['model'] && !argv['base-url'] && !argv['api-key']) {
@@ -212,8 +212,8 @@ const visionSetCommand: CommandModule = {
     // just the model. We persist the resolved value rather than relying on a
     // runtime fallback because the base URL has no such fallback at call time.
     const primaryBaseUrl =
-      currentLlm.baseUrl ?? process.env['OPENRND_BASE_URL'];
-    const primaryApiKey = currentLlm.apiKey ?? process.env['OPENRND_API_KEY'];
+      currentLlm.baseUrl ?? process.env['OPENWORK_BASE_URL'];
+    const primaryApiKey = currentLlm.apiKey ?? process.env['OPENWORK_API_KEY'];
 
     const resolvedBaseUrl = baseUrl ?? currentVision.baseUrl ?? primaryBaseUrl;
     const resolvedApiKey = apiKey ?? currentVision.apiKey ?? primaryApiKey;
@@ -249,11 +249,11 @@ const visionSetCommand: CommandModule = {
     if (!newVision.baseUrl) {
       console.log(
         chalk.yellow(
-          '\n⚠  No base URL available. Configure the primary LLM first (openrnd llm set) or pass --base-url.',
+          '\n⚠  No base URL available. Configure the primary LLM first (openwork llm set) or pass --base-url.',
         ),
       );
     }
-    console.log(chalk.yellow('\nRestart openrnd to apply the new settings.'));
+    console.log(chalk.yellow('\nRestart openwork to apply the new settings.'));
 
     await exitCli();
   },
@@ -271,29 +271,29 @@ const visionShowCommand: CommandModule = {
     const vision = llm?.vision ?? {};
 
     const baseUrl =
-      process.env['OPENRND_VISION_BASE_URL'] ??
+      process.env['OPENWORK_VISION_BASE_URL'] ??
       vision.baseUrl ??
-      process.env['OPENRND_BASE_URL'] ??
+      process.env['OPENWORK_BASE_URL'] ??
       llm?.baseUrl;
-    const model = process.env['OPENRND_VISION_MODEL'] ?? vision.model;
+    const model = process.env['OPENWORK_VISION_MODEL'] ?? vision.model;
     const apiKey =
-      process.env['OPENRND_VISION_API_KEY'] ??
+      process.env['OPENWORK_VISION_API_KEY'] ??
       vision.apiKey ??
-      process.env['OPENRND_API_KEY'] ??
+      process.env['OPENWORK_API_KEY'] ??
       llm?.apiKey;
 
     printVisionSettings(
       { baseUrl, model, apiKey },
       {
-        baseUrl: !vision.baseUrl && !process.env['OPENRND_VISION_BASE_URL'],
-        apiKey: !vision.apiKey && !process.env['OPENRND_VISION_API_KEY'],
+        baseUrl: !vision.baseUrl && !process.env['OPENWORK_VISION_BASE_URL'],
+        apiKey: !vision.apiKey && !process.env['OPENWORK_VISION_API_KEY'],
       },
     );
 
     if (!model) {
       console.log(
         chalk.yellow(
-          '\n⚠  No vision model configured. Run: openrnd vision set --model <model>',
+          '\n⚠  No vision model configured. Run: openwork vision set --model <model>',
         ),
       );
     }
@@ -311,7 +311,7 @@ export const visionCommand: CommandModule = {
     yargs
       .command(visionSetCommand)
       .command(visionShowCommand)
-      .demandCommand(1, 'Use: openrnd vision set | show')
+      .demandCommand(1, 'Use: openwork vision set | show')
       .version(false),
   handler: () => {},
 };
@@ -329,9 +329,9 @@ const showCommand: CommandModule = {
       | undefined;
 
     const effective = {
-      baseUrl: process.env['OPENRND_BASE_URL'] ?? llm?.baseUrl,
-      model: process.env['OPENRND_MODEL'] ?? llm?.model,
-      apiKey: process.env['OPENRND_API_KEY'] ?? llm?.apiKey,
+      baseUrl: process.env['OPENWORK_BASE_URL'] ?? llm?.baseUrl,
+      model: process.env['OPENWORK_MODEL'] ?? llm?.model,
+      apiKey: process.env['OPENWORK_API_KEY'] ?? llm?.apiKey,
     };
 
     printLlmSettings(effective);
@@ -339,7 +339,7 @@ const showCommand: CommandModule = {
     if (!effective.baseUrl) {
       console.log(
         chalk.yellow(
-          '\n⚠  No LLM configured. Run: openrnd llm set --base-url <url> --model <model> --api-key <key>',
+          '\n⚠  No LLM configured. Run: openwork llm set --base-url <url> --model <model> --api-key <key>',
         ),
       );
     }
@@ -360,14 +360,14 @@ const testCommand: CommandModule = {
       | { baseUrl?: string; model?: string; apiKey?: string }
       | undefined;
 
-    const baseUrl = process.env['OPENRND_BASE_URL'] ?? llm?.baseUrl;
-    const model = process.env['OPENRND_MODEL'] ?? llm?.model ?? 'llama3.2';
-    const apiKey = process.env['OPENRND_API_KEY'] ?? llm?.apiKey ?? 'ollama';
+    const baseUrl = process.env['OPENWORK_BASE_URL'] ?? llm?.baseUrl;
+    const model = process.env['OPENWORK_MODEL'] ?? llm?.model ?? 'llama3.2';
+    const apiKey = process.env['OPENWORK_API_KEY'] ?? llm?.apiKey ?? 'ollama';
 
     if (!baseUrl) {
       console.error(
         chalk.red(
-          '✗ No base URL configured. Run: openrnd llm set --base-url <url>',
+          '✗ No base URL configured. Run: openwork llm set --base-url <url>',
         ),
       );
       await exitCli(1);
@@ -433,7 +433,7 @@ export const llmCommand: CommandModule = {
       .command(setCommand)
       .command(showCommand)
       .command(testCommand)
-      .demandCommand(1, 'Use: openrnd llm set | show | test')
+      .demandCommand(1, 'Use: openwork llm set | show | test')
       .version(false),
   handler: () => {},
 };

@@ -19,7 +19,7 @@ const debugLogger = vi.hoisted(() => ({
   debug: vi.fn(),
 }));
 
-vi.mock('@openrnd/core', () => ({
+vi.mock('@openwork/core', () => ({
   writeToStdout,
   debugLogger,
 }));

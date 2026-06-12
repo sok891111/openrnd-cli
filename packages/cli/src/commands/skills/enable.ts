@@ -6,7 +6,7 @@
 
 import type { CommandModule } from 'yargs';
 import { loadSettings } from '../../config/settings.js';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import { exitCli } from '../utils.js';
 import { enableSkill } from '../../utils/skillSettings.js';
 import { renderSkillActionFeedback } from '../../utils/skillUtils.js';

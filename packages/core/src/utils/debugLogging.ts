@@ -9,7 +9,7 @@
 // ---------------------------------------------------------------------------
 // Disabled by default. Enable via either:
 //   - settings.json:  { "general": { "debugLogging": true } }
-//   - env override:   OPENRND_DEBUG=true  (or =false to force-disable)
+//   - env override:   OPENWORK_DEBUG=true  (or =false to force-disable)
 // The env var, when set, always wins over the settings.json value.
 //
 // Consumers that want to surface *informational* diagnostics in the terminal
@@ -24,15 +24,15 @@ import { Storage } from '../config/storage.js';
 
 // Resolved once per process (debug logging rarely toggles mid-session, and a
 // per-call file read would be wasteful). Changing the setting takes effect on
-// the next openrnd start.
+// the next openwork start.
 let cachedDebugEnabled: boolean | undefined;
 
-/** Whether debug logging is enabled (settings.general.debugLogging / OPENRND_DEBUG). */
+/** Whether debug logging is enabled (settings.general.debugLogging / OPENWORK_DEBUG). */
 export function isDebugLoggingEnabled(): boolean {
   if (cachedDebugEnabled !== undefined) return cachedDebugEnabled;
 
   // 1) Explicit env override always wins.
-  const env = process.env['OPENRND_DEBUG'];
+  const env = process.env['OPENWORK_DEBUG'];
   if (env !== undefined) {
     cachedDebugEnabled = env === 'true' || env === '1';
     return cachedDebugEnabled;

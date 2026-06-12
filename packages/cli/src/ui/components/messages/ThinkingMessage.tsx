@@ -7,7 +7,7 @@
 import type React from 'react';
 import { useMemo } from 'react';
 import { Box, Text } from 'ink';
-import type { ThoughtSummary } from '@openrnd/core';
+import type { ThoughtSummary } from '@openwork/core';
 import { theme } from '../../semantic-colors.js';
 import { normalizeEscapedNewlines } from '../../utils/textUtils.js';
 

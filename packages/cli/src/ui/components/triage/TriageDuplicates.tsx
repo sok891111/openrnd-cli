@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
-import { debugLogger, spawnAsync, LlmRole, type Config } from '@openrnd/core';
+import { debugLogger, spawnAsync, LlmRole, type Config } from '@openwork/core';
 import { useKeypress } from '../../hooks/useKeypress.js';
 import { Command } from '../../key/keyMatchers.js';
 import { useKeyMatchers } from '../../hooks/useKeyMatchers.js';

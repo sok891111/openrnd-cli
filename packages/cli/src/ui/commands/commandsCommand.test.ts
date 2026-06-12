@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Storage, type Config } from '@openrnd/core';
+import { Storage, type Config } from '@openwork/core';
 import { commandsCommand } from './commandsCommand.js';
 import { MessageType } from '../types.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
@@ -14,9 +14,9 @@ import { FileCommandLoader } from '../../services/FileCommandLoader.js';
 
 vi.mock('../../services/FileCommandLoader.js');
 
-vi.mock('@openrnd/core', async () => {
+vi.mock('@openwork/core', async () => {
   const actual =
-    await vi.importActual<typeof import('@openrnd/core')>('@openrnd/core');
+    await vi.importActual<typeof import('@openwork/core')>('@openwork/core');
   return {
     ...actual,
     Storage: class extends actual.Storage {

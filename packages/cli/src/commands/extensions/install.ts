@@ -12,7 +12,7 @@ import {
   FolderTrustDiscoveryService,
   getRealPath,
   getErrorMessage,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   INSTALL_WARNING_MESSAGE,
   promptForConsentNonInteractive,

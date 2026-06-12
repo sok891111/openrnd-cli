@@ -6,7 +6,7 @@
 
 import type React from 'react';
 import { createContext, useContext, useMemo } from 'react';
-import type { Question } from '@openrnd/core';
+import type { Question } from '@openwork/core';
 
 export interface AskUserState {
   questions: Question[];

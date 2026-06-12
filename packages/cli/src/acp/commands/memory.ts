@@ -11,7 +11,7 @@ import {
   listMemoryFiles,
   refreshMemory,
   showMemory,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type {
   Command,
   CommandContext,

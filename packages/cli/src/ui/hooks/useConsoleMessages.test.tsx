@@ -12,9 +12,9 @@ import {
   useErrorCount,
   initializeConsoleStore,
 } from './useConsoleMessages.js';
-import { coreEvents } from '@openrnd/core';
+import { coreEvents } from '@openwork/core';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
+vi.mock('@openwork/core', async (importOriginal) => {
   const actual = await importOriginal();
   const handlers = new Map<string, (payload: unknown) => void>();
 

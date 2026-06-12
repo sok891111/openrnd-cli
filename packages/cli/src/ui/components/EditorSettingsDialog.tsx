@@ -22,7 +22,7 @@ import {
   type EditorType,
   isEditorAvailable,
   EDITOR_DISPLAY_NAMES,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { useKeypress } from '../hooks/useKeypress.js';
 
 interface EditorDialogProps {

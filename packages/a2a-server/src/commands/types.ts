@@ -5,7 +5,7 @@
  */
 
 import type { ExecutionEventBus, AgentExecutor } from '@a2a-js/sdk/server';
-import type { Config, GitService } from '@openrnd/core';
+import type { Config, GitService } from '@openwork/core';
 
 export interface CommandContext {
   config: Config;

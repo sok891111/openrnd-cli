@@ -12,7 +12,7 @@ const getPackageJson = vi.hoisted(() => vi.fn());
 const debugLogger = vi.hoisted(() => ({
   warn: vi.fn(),
 }));
-vi.mock('@openrnd/core', () => ({
+vi.mock('@openwork/core', () => ({
   getPackageJson,
   debugLogger,
   ReleaseChannel: {
@@ -130,9 +130,9 @@ describe('checkForUpdates', () => {
     });
   });
 
-  it('should prefer OPENRND_UPDATE_REGISTRY over the setting', async () => {
+  it('should prefer OPENWORK_UPDATE_REGISTRY over the setting', async () => {
     mockSettings.merged.general.updateRegistry = 'http://from-settings/';
-    process.env['OPENRND_UPDATE_REGISTRY'] = 'http://from-env/';
+    process.env['OPENWORK_UPDATE_REGISTRY'] = 'http://from-env/';
     getPackageJson.mockResolvedValue({
       name: 'test-package',
       version: '1.0.0',
@@ -144,7 +144,7 @@ describe('checkForUpdates', () => {
     expect(latestVersion).toHaveBeenCalledWith('test-package', {
       registryUrl: 'http://from-env/',
     });
-    delete process.env['OPENRND_UPDATE_REGISTRY'];
+    delete process.env['OPENWORK_UPDATE_REGISTRY'];
   });
 
   it('should pass registryUrl undefined when no custom registry is set', async () => {

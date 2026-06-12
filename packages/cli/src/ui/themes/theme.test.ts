@@ -13,7 +13,7 @@ import {
   type Theme,
 } from './theme.js';
 import { themeManager } from './theme-manager.js';
-import type { CustomTheme } from '@openrnd/core';
+import type { CustomTheme } from '@openwork/core';
 
 describe('createCustomTheme', () => {
   const baseTheme: CustomTheme = {

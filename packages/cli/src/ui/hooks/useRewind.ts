@@ -5,7 +5,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { ConversationRecord, MessageRecord } from '@openrnd/core';
+import type { ConversationRecord, MessageRecord } from '@openwork/core';
 import {
   calculateTurnStats,
   calculateRewindImpact,

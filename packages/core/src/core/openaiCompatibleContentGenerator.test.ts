@@ -140,7 +140,7 @@ describe('OpenAICompatibleContentGenerator streaming usage', () => {
   });
 
   it('times out when the stream stays open without chunks', async () => {
-    vi.stubEnv('OPENRND_STREAM_IDLE_TIMEOUT_MS', '1');
+    vi.stubEnv('OPENWORK_STREAM_IDLE_TIMEOUT_MS', '1');
     mockedFetch.mockResolvedValue(hangingSseResponse());
 
     const gen = new OpenAICompatibleContentGenerator(

@@ -5,8 +5,8 @@
  */
 
 import { vi } from 'vitest';
-import { NoopSandboxManager } from '@openrnd/core';
-import type { Config } from '@openrnd/core';
+import { NoopSandboxManager } from '@openwork/core';
+import type { Config } from '@openwork/core';
 import {
   createTestMergedSettings,
   type LoadedSettings,

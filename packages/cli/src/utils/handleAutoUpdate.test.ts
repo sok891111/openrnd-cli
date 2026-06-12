@@ -362,7 +362,7 @@ describe('handleAutoUpdate', () => {
     (mockSettings.merged.general as any).updateRegistry =
       'http://192.168.0.10:4873/';
     mockGetInstallationInfo.mockReturnValue({
-      updateCommand: 'npm install -g @openrnd/cli@latest',
+      updateCommand: 'npm install -g @openwork/cli@latest',
       updateMessage: 'This is an additional message.',
       isGlobal: true,
       packageManager: PackageManager.NPM,
@@ -371,7 +371,7 @@ describe('handleAutoUpdate', () => {
     handleAutoUpdate(mockUpdateInfo, mockSettings, '/root', false, mockSpawn);
 
     expect(mockSpawn).toHaveBeenCalledWith(
-      'npm install -g @openrnd/cli@2.0.0 --registry http://192.168.0.10:4873/',
+      'npm install -g @openwork/cli@2.0.0 --registry http://192.168.0.10:4873/',
       {
         shell: true,
         stdio: 'ignore',

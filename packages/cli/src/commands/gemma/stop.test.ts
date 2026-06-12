@@ -15,12 +15,12 @@ const mockReadServerPid = vi.hoisted(() => vi.fn());
 const mockReadServerProcessInfo = vi.hoisted(() => vi.fn());
 const mockResolveGemmaConfig = vi.hoisted(() => vi.fn());
 
-vi.mock('@openrnd/core', async (importOriginal) => {
+vi.mock('@openwork/core', async (importOriginal) => {
   const { mockCoreDebugLogger } = await import(
     '../../test-utils/mockDebugLogger.js'
   );
   return mockCoreDebugLogger(
-    await importOriginal<typeof import('@openrnd/core')>(),
+    await importOriginal<typeof import('@openwork/core')>(),
     {
       stripAnsi: false,
     },

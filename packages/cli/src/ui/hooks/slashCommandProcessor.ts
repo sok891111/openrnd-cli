@@ -20,7 +20,7 @@ import type {
   ExtensionsStoppingEvent,
   ToolCallConfirmationDetails,
   AgentDefinition,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   GitService,
   Logger,
@@ -35,7 +35,7 @@ import {
   removeMCPStatusChangeListener,
   MCPDiscoveryState,
   CoreToolCallStatus,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { useSessionStats } from '../contexts/SessionContext.js';
 import type {
   Message,

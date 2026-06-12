@@ -8,7 +8,7 @@ import { describe, it, afterEach, expect } from 'vitest';
 import { AppRig } from './AppRig.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

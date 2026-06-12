@@ -15,7 +15,7 @@ import {
   startupProfiler,
   debugLogger,
   AuthType,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { type LoadedSettings } from '../config/settings.js';
 import { performInitialAuth } from './auth.js';
 import { validateTheme } from './theme.js';

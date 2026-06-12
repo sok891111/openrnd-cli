@@ -12,13 +12,13 @@ import {
   getToolCallDataSchema,
   isNodeError,
   performRestore,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type { CommandContext } from './types.js';
 import type { Mock } from 'vitest';
 
 vi.mock('node:fs/promises');
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     getCheckpointInfoList: vi.fn(),

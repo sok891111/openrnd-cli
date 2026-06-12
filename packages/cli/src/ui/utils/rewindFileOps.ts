@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ConversationRecord, MessageRecord } from '@openrnd/core';
+import type { ConversationRecord, MessageRecord } from '@openwork/core';
 import fs from 'node:fs/promises';
 import * as Diff from 'diff';
 import {
@@ -12,7 +12,7 @@ import {
   debugLogger,
   getFileDiffFromResultDisplay,
   computeModelAddedAndRemovedLines,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 export interface FileChangeDetail {
   fileName: string;

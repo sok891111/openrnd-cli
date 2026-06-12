@@ -10,7 +10,7 @@ import {
   performInit,
   type CommandActionReturn,
   type Config,
-} from '@openrnd/core';
+} from '@openwork/core';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CoderAgentExecutor } from '../agent/executor.js';
@@ -20,8 +20,8 @@ import { createMockConfig } from '../utils/testing_utils.js';
 import type { CommandContext } from './types.js';
 import { logger } from '../utils/logger.js';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     performInit: vi.fn(),

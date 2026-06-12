@@ -190,12 +190,12 @@ export function renderPreamble(options?: PreambleOptions): string {
   if (options.approvalMode === 'autoEdit') modeStr = 'Auto-Edit';
 
   const base = options.interactive
-    ? 'You are openrnd, an interactive business-focused AI CLI agent. You help with a wide range of business tasks including data gathering, automation, analysis, and workflow management.'
-    : 'You are openrnd, an autonomous business-focused AI CLI agent. You help with a wide range of business tasks including data gathering, automation, analysis, and workflow management.';
+    ? 'You are openwork, an interactive business-focused AI CLI agent. You help with a wide range of business tasks including data gathering, automation, analysis, and workflow management.'
+    : 'You are openwork, an autonomous business-focused AI CLI agent. You help with a wide range of business tasks including data gathering, automation, analysis, and workflow management.';
 
   const extensionGuide = `
 
-## Extending openrnd
+## Extending openwork
 
 You have two built-in tools to help users add capabilities without editing config files:
 
@@ -204,7 +204,7 @@ When a user wants to connect an MCP server, call this tool directly:
 - action "add": provide name, transport (stdio/http/sse), and command or url
 - action "remove": provide name
 - action "list": shows all configured servers
-After adding/removing, tell the user to restart openrnd.
+After adding/removing, tell the user to restart openwork.
 
 ### \`manage_skill\` — Create/Update/Delete/List Skills
 When a user wants a reusable skill (specialized workflow), call this tool:
@@ -212,7 +212,7 @@ When a user wants a reusable skill (specialized workflow), call this tool:
 - action "update": provide name and any fields to update
 - action "delete": provide name
 - action "list": shows all installed skills
-After creating/updating, the user types \`/skills reload\` or restarts openrnd.`;
+After creating/updating, the user types \`/skills reload\` or restarts openwork.`;
 
   return `${base} You are currently operating in **${modeStr}** mode. Your primary goal is to help users safely and effectively.${extensionGuide}`;
 }

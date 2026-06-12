@@ -6,7 +6,7 @@
 
 import type React from 'react';
 import { Box, Text } from 'ink';
-import { CoreToolCallStatus } from '@openrnd/core';
+import { CoreToolCallStatus } from '@openwork/core';
 import type {
   HistoryItem,
   HistoryItemWithoutId,

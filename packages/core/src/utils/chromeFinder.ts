@@ -23,7 +23,7 @@ export class ChromeNotFoundError extends Error {
 
 /** Environment variables (in priority order) that may name a Chrome binary. */
 const CHROME_ENV_VARS = [
-  'OPENRND_CHROME_PATH',
+  'OPENWORK_CHROME_PATH',
   'PUPPETEER_EXECUTABLE_PATH',
   'CHROME_PATH',
   'GOOGLE_CHROME_BIN',
@@ -147,7 +147,7 @@ export async function resolveChromeExecutablePath(): Promise<string> {
   throw new ChromeNotFoundError(
     'Chrome/Chromium 실행 파일을 찾지 못했습니다. HTML→PPTX 변환은 헤드리스 Chrome으로 ' +
       '슬라이드를 렌더링합니다. Google Chrome을 설치하거나, 설치된 브라우저 경로를 ' +
-      '환경변수 OPENRND_CHROME_PATH (또는 PUPPETEER_EXECUTABLE_PATH / CHROME_PATH)로 ' +
+      '환경변수 OPENWORK_CHROME_PATH (또는 PUPPETEER_EXECUTABLE_PATH / CHROME_PATH)로 ' +
       '지정해 주세요.',
   );
 }

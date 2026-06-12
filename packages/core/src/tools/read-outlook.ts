@@ -351,7 +351,7 @@ class ReadOutlookInvocation extends BaseToolInvocation<
 
     const scriptPath = path.join(
       os.tmpdir(),
-      `openrnd-outlook-${crypto.randomBytes(6).toString('hex')}.ps1`,
+      `openwork-outlook-${crypto.randomBytes(6).toString('hex')}.ps1`,
     );
 
     try {

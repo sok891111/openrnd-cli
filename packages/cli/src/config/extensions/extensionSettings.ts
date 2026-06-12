@@ -13,7 +13,7 @@ import { ExtensionStorage } from './storage.js';
 import type { ExtensionConfig } from '../extension.js';
 
 import prompts from 'prompts';
-import { debugLogger, KeychainTokenStorage } from '@openrnd/core';
+import { debugLogger, KeychainTokenStorage } from '@openwork/core';
 import { EXTENSION_SETTINGS_FILENAME } from './variables.js';
 
 export enum ExtensionSettingScope {

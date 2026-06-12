@@ -22,12 +22,12 @@ import {
   CoreToolCallStatus,
   type WaitingToolCall,
   SubagentState,
-} from '@openrnd/core';
-import { createMockMessageBus } from '@openrnd/core/src/test-utils/mock-message-bus.js';
+} from '@openwork/core';
+import { createMockMessageBus } from '@openwork/core/src/test-utils/mock-message-bus.js';
 
 // Mock Core Scheduler
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     Scheduler: vi.fn().mockImplementation(() => ({
@@ -274,7 +274,7 @@ describe('useToolScheduler', () => {
     };
 
     // Mock the specific return value for this test
-    const { Scheduler } = await import('@openrnd/core');
+    const { Scheduler } = await import('@openwork/core');
     vi.mocked(Scheduler).mockImplementation(
       () =>
         ({

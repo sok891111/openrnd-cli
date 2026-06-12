@@ -11,7 +11,7 @@ import { initializeOutputListenersAndFlush } from '../gemini.js';
 export const hooksCommand: CommandModule = {
   command: 'hooks <command>',
   aliases: ['hook'],
-  describe: 'Manage openrnd hooks.',
+  describe: 'Manage openwork hooks.',
   builder: (yargs) =>
     yargs
       .middleware((argv) => {

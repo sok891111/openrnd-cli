@@ -6,7 +6,7 @@
 
 import fs from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GemmaModelRouterSettings } from '@openrnd/core';
+import type { GemmaModelRouterSettings } from '@openwork/core';
 
 const mockGetBinaryPath = vi.hoisted(() => vi.fn());
 const mockIsServerRunning = vi.hoisted(() => vi.fn());

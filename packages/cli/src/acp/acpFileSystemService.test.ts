@@ -15,7 +15,7 @@ import {
 } from 'vitest';
 import { AcpFileSystemService } from './acpFileSystemService.js';
 import type { AgentSideConnection } from '@agentclientprotocol/sdk';
-import type { FileSystemService } from '@openrnd/core';
+import type { FileSystemService } from '@openwork/core';
 import os from 'node:os';
 
 vi.mock('node:os', () => ({

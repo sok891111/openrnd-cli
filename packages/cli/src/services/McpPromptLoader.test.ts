@@ -5,11 +5,11 @@
  */
 
 import { McpPromptLoader } from './McpPromptLoader.js';
-import type { Config } from '@openrnd/core';
+import type { Config } from '@openwork/core';
 import type { PromptArgument } from '@modelcontextprotocol/sdk/types.js';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CommandKind, type CommandContext } from '../ui/commands/types.js';
-import * as cliCore from '@openrnd/core';
+import * as cliCore from '@openwork/core';
 
 // Define the mock prompt data at a higher scope
 const mockPrompt = {

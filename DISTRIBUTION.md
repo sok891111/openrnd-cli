@@ -1,6 +1,6 @@
 # 배포 가이드 (내 PC = 정적 서버)
 
-`@openrnd/cli`를 **공용 npm 레지스트리 없이**, 내 PC를 정적 파일 서버로 써서
+`@openwork/cli`를 **공용 npm 레지스트리 없이**, 내 PC를 정적 파일 서버로 써서
 사용자에게 한 줄 명령으로 배포하는 방법입니다.
 
 ## 동작 원리
@@ -21,8 +21,8 @@ npm run release:pack
 
 - `bundle/`을 새로 빌드하고, 의존성 없는 slim `package.json`으로 패킹합니다.
 - 결과물:
-  - `release/openrnd-cli-<version>.tgz` (버전 고정)
-  - `release/openrnd-latest.tgz` (항상 최신 별칭)
+  - `release/openwork-cli-<version>.tgz` (버전 고정)
+  - `release/openwork-latest.tgz` (항상 최신 별칭)
 
 ### 2. 내 PC에서 서빙
 
@@ -30,12 +30,12 @@ npm run release:pack
 npm run release:serve
 ```
 
-- `release/` 폴더를 HTTP로 제공합니다(기본 포트 8723, `OPENRND_RELEASE_PORT`로
+- `release/` 폴더를 HTTP로 제공합니다(기본 포트 8723, `OPENWORK_RELEASE_PORT`로
   변경).
 - 실행하면 사내망 IP별 설치 명령을 그대로 출력해줍니다, 예:
 
   ```
-  npm install -g http://192.168.0.105:8723/openrnd-latest.tgz
+  npm install -g http://192.168.0.105:8723/openwork-latest.tgz
   ```
 
 > 이 PC가 켜져 있고 같은 네트워크에서 접근 가능해야 합니다. 방화벽에서 해당
@@ -46,25 +46,25 @@ npm run release:serve
 전제: **Node.js 20 이상**이 설치되어 있어야 합니다.
 
 ```bash
-npm install -g http://<배포PC-IP>:8723/openrnd-latest.tgz
+npm install -g http://<배포PC-IP>:8723/openwork-latest.tgz
 ```
 
 설치 후:
 
 ```bash
-openrnd --version
-openrnd
+openwork --version
+openwork
 ```
 
 ### 업데이트
 
-배포자가 `release:pack`을 다시 돌리면 `openrnd-latest.tgz`가 갱신됩니다.
+배포자가 `release:pack`을 다시 돌리면 `openwork-latest.tgz`가 갱신됩니다.
 사용자는 같은 설치 명령을 다시 실행하면 최신 버전으로 덮어쓰기됩니다.
 
 ### 제거
 
 ```bash
-npm uninstall -g @openrnd/cli
+npm uninstall -g @openwork/cli
 ```
 
 ## 참고: 네이티브 모듈 / Windows

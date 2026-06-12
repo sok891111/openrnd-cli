@@ -29,7 +29,7 @@ import {
   createMockSettings,
   type MockSettingsFile,
 } from '../../test-utils/settings.js';
-import { makeFakeConfig } from '@openrnd/core';
+import { makeFakeConfig } from '@openwork/core';
 import { act } from 'react';
 import { TEST_ONLY } from '../../utils/settingsUtils.js';
 import {

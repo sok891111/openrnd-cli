@@ -5,7 +5,11 @@
  */
 
 import { useState, useEffect } from 'react';
-import { ApprovalMode, type Config, getAdminErrorMessage } from '@openrnd/core';
+import {
+  ApprovalMode,
+  type Config,
+  getAdminErrorMessage,
+} from '@openwork/core';
 import { useKeypress } from './useKeypress.js';
 import { Command } from '../key/keyMatchers.js';
 import { useKeyMatchers } from './useKeyMatchers.js';

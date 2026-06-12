@@ -43,7 +43,7 @@ import {
   applyInboxMemoryPatch,
   dismissInboxMemoryPatch,
   isProjectSkillPatchTarget,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 type Phase =
   | 'list'

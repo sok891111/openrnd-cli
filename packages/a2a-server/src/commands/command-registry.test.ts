@@ -120,7 +120,7 @@ describe('CommandRegistry', () => {
   });
 
   it('register() should not enter an infinite loop with a cyclic command', async () => {
-    const { debugLogger } = await import('@openrnd/core');
+    const { debugLogger } = await import('@openwork/core');
     const warnSpy = vi.spyOn(debugLogger, 'warn').mockImplementation(() => {});
     const mockCommand: Command = {
       name: 'cyclic-command',

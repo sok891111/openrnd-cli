@@ -5,8 +5,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { coreEvents, convertSessionToClientHistory } from '@openrnd/core';
-import type { HistoryTurn, Config, ResumedSessionData } from '@openrnd/core';
+import { coreEvents, convertSessionToClientHistory } from '@openwork/core';
+import type { HistoryTurn, Config, ResumedSessionData } from '@openwork/core';
 import type { HistoryItemWithoutId } from '../types.js';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 import { convertSessionToHistoryFormats } from './useSessionBrowser.js';

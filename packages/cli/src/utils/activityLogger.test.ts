@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ActivityLogger, type NetworkLog } from './activityLogger.js';
-import type { ConsoleLogPayload } from '@openrnd/core';
+import type { ConsoleLogPayload } from '@openwork/core';
 
 describe('ActivityLogger', () => {
   let logger: ActivityLogger;

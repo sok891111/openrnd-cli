@@ -12,8 +12,8 @@ import {
   convertSessionToClientHistory,
   uiTelemetryService,
   loadConversationRecord,
-} from '@openrnd/core';
-import type { HistoryTurn, Config, ResumedSessionData } from '@openrnd/core';
+} from '@openwork/core';
+import type { HistoryTurn, Config, ResumedSessionData } from '@openwork/core';
 import {
   convertSessionToHistoryFormats,
   type SessionInfo,

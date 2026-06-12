@@ -47,10 +47,10 @@ const MAX_CONTENT_LENGTH = 250000;
 const MAX_EXPERIMENTAL_FETCH_SIZE = 10 * 1024 * 1024; // 10MB
 // Responses at or below this size (bytes) are treated as a likely SSO/login
 // stub even on HTTP 200 — corporate IdPs often serve a tiny (~1KB) bootstrap
-// page instead of a redirect. Tunable via OPENRND_WEBFETCH_MIN_CONTENT_LENGTH.
+// page instead of a redirect. Tunable via OPENWORK_WEBFETCH_MIN_CONTENT_LENGTH.
 const DEFAULT_SSO_STUB_THRESHOLD = 10000;
 // How long to wait after navigation before extracting page text, so SPA /
-// detail pages have time to render. Tunable via OPENRND_WEBFETCH_BROWSER_WAIT_MS.
+// detail pages have time to render. Tunable via OPENWORK_WEBFETCH_BROWSER_WAIT_MS.
 const DEFAULT_BROWSER_SETTLE_MS = 5000;
 
 // Shown when the browser fallback can't open / drive the page. The browser
@@ -396,11 +396,11 @@ class WebFetchToolInvocation extends BaseToolInvocation<
    * Whether to fall back to the user's signed-in browser session when a direct
    * fetch hits an SSO/auth wall or fails. Enabled by default — corporate
    * intranet URLs are usually behind SSO that a server-side fetch cannot pass.
-   * Disable with OPENRND_WEBFETCH_BROWSER_FALLBACK=0 (or false/off).
+   * Disable with OPENWORK_WEBFETCH_BROWSER_FALLBACK=0 (or false/off).
    */
   private shouldUseBrowserFetch(): boolean {
     const v = (
-      process.env['OPENRND_WEBFETCH_BROWSER_FALLBACK'] ?? ''
+      process.env['OPENWORK_WEBFETCH_BROWSER_FALLBACK'] ?? ''
     ).toLowerCase();
     return v !== '0' && v !== 'false' && v !== 'off';
   }
@@ -458,10 +458,10 @@ class WebFetchToolInvocation extends BaseToolInvocation<
 
   /**
    * Size (bytes) at/under which a 200 response is treated as an SSO stub.
-   * Tunable via OPENRND_WEBFETCH_MIN_CONTENT_LENGTH; set to 0 to disable.
+   * Tunable via OPENWORK_WEBFETCH_MIN_CONTENT_LENGTH; set to 0 to disable.
    */
   private getSsoStubThreshold(): number {
-    const raw = process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'];
+    const raw = process.env['OPENWORK_WEBFETCH_MIN_CONTENT_LENGTH'];
     if (raw !== undefined) {
       const n = Number.parseInt(raw, 10);
       if (Number.isFinite(n) && n >= 0) {
@@ -685,10 +685,10 @@ class WebFetchToolInvocation extends BaseToolInvocation<
   /**
    * Milliseconds to wait after navigation before reading page text, giving
    * SPA / detail pages time to render. Tunable via
-   * OPENRND_WEBFETCH_BROWSER_WAIT_MS; 0 disables the wait.
+   * OPENWORK_WEBFETCH_BROWSER_WAIT_MS; 0 disables the wait.
    */
   private getBrowserSettleMs(): number {
-    const raw = process.env['OPENRND_WEBFETCH_BROWSER_WAIT_MS'];
+    const raw = process.env['OPENWORK_WEBFETCH_BROWSER_WAIT_MS'];
     if (raw !== undefined) {
       const n = Number.parseInt(raw, 10);
       if (Number.isFinite(n) && n >= 0) {
@@ -1391,7 +1391,7 @@ Response: ${rawResponseText}`;
     // When the browser fallback is enabled (default), fetch the URL(s) directly
     // over HTTP instead of via the Gemini "web-fetch" grounded model.
     //
-    // Why: that grounded model needs Google's backend/auth (removed in openrnd)
+    // Why: that grounded model needs Google's backend/auth (removed in openwork)
     // and does NOT actually fetch URLs under a local LLM — it returns a normal
     // completion with no error. So the old browser logic, which only ran when
     // the primary path *failed*, was never reached for intranet URLs. Routing

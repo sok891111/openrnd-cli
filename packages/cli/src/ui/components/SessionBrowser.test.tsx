@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { render } from '../../test-utils/render.js';
 import { waitFor } from '../../test-utils/async.js';
-import { type Config } from '@openrnd/core';
+import { type Config } from '@openwork/core';
 import { SessionBrowser, type SessionBrowserProps } from './SessionBrowser.js';
 import { type SessionInfo } from '../../utils/sessionUtils.js';
 

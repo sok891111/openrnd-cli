@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as path from 'node:path';
 import { loadCliConfig, type CliArgs } from './config.js';
 import { createTestMergedSettings } from './settings.js';
-import * as ServerConfig from '@openrnd/core';
+import * as ServerConfig from '@openwork/core';
 import { isWorkspaceTrusted } from './trustedFolders.js';
 import * as Policy from './policy.js';
 
@@ -20,8 +20,8 @@ vi.mock('./trustedFolders.js', () => ({
 const mockCheckIntegrity = vi.fn();
 const mockAcceptIntegrity = vi.fn();
 
-vi.mock('@openrnd/core', async () => {
-  const actual = await vi.importActual<typeof ServerConfig>('@openrnd/core');
+vi.mock('@openwork/core', async () => {
+  const actual = await vi.importActual<typeof ServerConfig>('@openwork/core');
   return {
     ...actual,
     createPolicyEngineConfig: vi.fn().mockResolvedValue({

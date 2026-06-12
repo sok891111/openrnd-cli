@@ -17,8 +17,8 @@ import {
   debugLogger,
   applyAdminAllowlist,
   getAdminBlockedMcpServersMessage,
-} from '@openrnd/core';
-import type { MCPServerConfig } from '@openrnd/core';
+} from '@openwork/core';
+import type { MCPServerConfig } from '@openwork/core';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { ExtensionManager } from '../../config/extension-manager.js';
 import {

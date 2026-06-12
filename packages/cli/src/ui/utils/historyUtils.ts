@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { type ToolVisibilityContext } from '@openrnd/core';
+import { type ToolVisibilityContext } from '@openwork/core';
 import { CoreToolCallStatus } from '../types.js';
 import type {
   HistoryItem,

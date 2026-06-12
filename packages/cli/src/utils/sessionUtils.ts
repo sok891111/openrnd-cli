@@ -13,7 +13,7 @@ import {
   type ConversationRecord,
   type MessageRecord,
   loadConversationRecord,
-} from '@openrnd/core';
+} from '@openwork/core';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { stripUnsafeCharacters } from '../ui/utils/textUtils.js';

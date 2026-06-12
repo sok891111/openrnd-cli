@@ -12,7 +12,7 @@ import {
   type ConversationRecord,
   type MessageRecord,
   partToString,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { BaseSelectionList } from './shared/BaseSelectionList.js';
 import { theme } from '../semantic-colors.js';
 import { useKeypress } from '../hooks/useKeypress.js';

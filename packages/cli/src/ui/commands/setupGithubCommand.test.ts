@@ -17,7 +17,7 @@ import {
 } from './setupGithubCommand.js';
 import type { CommandContext } from './types.js';
 import * as commandUtils from '../utils/commandUtils.js';
-import { debugLogger, type ToolActionReturn } from '@openrnd/core';
+import { debugLogger, type ToolActionReturn } from '@openwork/core';
 
 vi.mock('child_process');
 

@@ -26,13 +26,13 @@ import {
   type EditorType,
   hasValidEditorCommand,
   allowEditorTypeInSandbox,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 
 import { SettingPaths } from '../../config/settingPaths.js';
 
-vi.mock('@openrnd/core', async () => {
-  const actual = await vi.importActual('@openrnd/core');
+vi.mock('@openwork/core', async () => {
+  const actual = await vi.importActual('@openwork/core');
   return {
     ...actual,
     hasValidEditorCommand: vi.fn(() => true),

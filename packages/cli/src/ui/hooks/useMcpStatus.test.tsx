@@ -13,7 +13,7 @@ import {
   type Config,
   CoreEvent,
   coreEvents,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 describe('useMcpStatus', () => {
   let mockConfig: Config;

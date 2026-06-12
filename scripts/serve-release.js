@@ -8,10 +8,10 @@
  * Serves the release/ directory over plain HTTP so users on the same network
  * can install the CLI with a single command:
  *
- *   npm install -g http://<this-pc-ip>:8723/openrnd-latest.tgz
+ *   npm install -g http://<this-pc-ip>:8723/openwork-latest.tgz
  *
  * Read-only static file server, no auth (intended for a trusted internal LAN).
- * Port is configurable via OPENRND_RELEASE_PORT (default 8723).
+ * Port is configurable via OPENWORK_RELEASE_PORT (default 8723).
  */
 
 import { createServer } from 'node:http';
@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const releaseDir = path.join(root, 'release');
-const port = Number.parseInt(process.env.OPENRND_RELEASE_PORT ?? '8723', 10);
+const port = Number.parseInt(process.env.OPENWORK_RELEASE_PORT ?? '8723', 10);
 
 function lanAddresses() {
   const addrs = [];
@@ -55,7 +55,7 @@ const server = createServer((req, res) => {
     const files = readdirSync(releaseDir).filter((f) => f.endsWith('.tgz'));
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     res.end(
-      `openrnd release server\n\nAvailable tarballs:\n${files
+      `openwork release server\n\nAvailable tarballs:\n${files
         .map((f) => `  /${f}`)
         .join('\n')}\n`,
     );
@@ -91,13 +91,13 @@ server.listen(port, () => {
   const hosts = lanAddresses();
   if (hosts.length === 0) {
     process.stdout.write(
-      `[serve] Install:  npm install -g http://localhost:${port}/openrnd-latest.tgz\n`,
+      `[serve] Install:  npm install -g http://localhost:${port}/openwork-latest.tgz\n`,
     );
   } else {
     process.stdout.write('[serve] Users on your network install with:\n');
     for (const host of hosts) {
       process.stdout.write(
-        `[serve]   npm install -g http://${host}:${port}/openrnd-latest.tgz\n`,
+        `[serve]   npm install -g http://${host}:${port}/openwork-latest.tgz\n`,
       );
     }
   }

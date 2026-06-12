@@ -10,7 +10,7 @@ import type {
   ShellExecutionResult,
   ShellOutputEvent,
   ShellExecutionConfig,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 export interface MockShellCommand {
   command: string | RegExp;

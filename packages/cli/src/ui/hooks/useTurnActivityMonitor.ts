@@ -10,7 +10,7 @@ import {
   hasRedirection,
   type CoreToolCallStatus,
   type ToolCallRequestInfo,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 export interface MinimalTrackedToolCall {
   status: CoreToolCallStatus;

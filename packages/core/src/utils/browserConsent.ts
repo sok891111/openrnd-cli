@@ -25,7 +25,7 @@ const BROWSER_PROFILE_DIR = 'cli-browser-profile';
  *
  * @param skipConsent When `true`, bypass the dialog entirely and proceed as if
  *   consent was granted. Sourced from the `agents.browser.skipPrivacyConsent`
- *   setting; the `OPENRND_SKIP_BROWSER_CONSENT=true` environment variable also
+ *   setting; the `OPENWORK_SKIP_BROWSER_CONSENT=true` environment variable also
  *   forces this behavior.
  * @returns `true` if consent was already given or the user accepted,
  *          `false` if the user declined.
@@ -34,7 +34,7 @@ export async function getBrowserConsentIfNeeded(
   skipConsent = false,
 ): Promise<boolean> {
   // Explicit opt-out via setting or environment variable: never prompt.
-  if (skipConsent || process.env['OPENRND_SKIP_BROWSER_CONSENT'] === 'true') {
+  if (skipConsent || process.env['OPENWORK_SKIP_BROWSER_CONSENT'] === 'true') {
     return true;
   }
 

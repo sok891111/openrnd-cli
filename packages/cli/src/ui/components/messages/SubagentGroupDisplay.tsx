@@ -14,7 +14,7 @@ import {
   checkExhaustive,
   type SubagentActivityItem,
   SubagentState,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   SubagentProgressDisplay,
   formatToolArgs,

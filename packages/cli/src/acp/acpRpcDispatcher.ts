@@ -9,7 +9,7 @@ import {
   AuthType,
   clearCachedCredentialFile,
   getVersion,
-} from '@openrnd/core';
+} from '@openwork/core';
 import * as acp from '@agentclientprotocol/sdk';
 import { z } from 'zod';
 import { SettingScope, type LoadedSettings } from '../config/settings.js';

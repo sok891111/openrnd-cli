@@ -15,10 +15,10 @@ import {
 } from 'vitest';
 import { ideCommand } from './ideCommand.js';
 import { type CommandContext } from './types.js';
-import { IDE_DEFINITIONS } from '@openrnd/core';
-import * as core from '@openrnd/core';
+import { IDE_DEFINITIONS } from '@openwork/core';
+import * as core from '@openwork/core';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
+vi.mock('@openwork/core', async (importOriginal) => {
   const original = await importOriginal<typeof core>();
   return {
     ...original,

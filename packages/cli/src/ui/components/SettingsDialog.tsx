@@ -39,7 +39,7 @@ import {
   type SettingsValue,
   TOGGLE_TYPES,
 } from '../../config/settingsSchema.js';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 
 import { useSearchBuffer } from '../hooks/useSearchBuffer.js';
 import {

@@ -29,7 +29,7 @@ import {
   writeToStdout,
   getVersion,
   debugLogger,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type { InitializationResult } from './core/initializer.js';
 import type { LoadedSettings } from './config/settings.js';
 import { checkForUpdates } from './ui/utils/updateCheck.js';

@@ -8,7 +8,7 @@ import type React from 'react';
 import { useMemo, useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
-import { type Config, UserAccountManager, AuthType } from '@openrnd/core';
+import { type Config, UserAccountManager, AuthType } from '@openwork/core';
 import { isUltraTier } from '../../utils/tierUtils.js';
 
 interface UserIdentityProps {

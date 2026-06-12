@@ -6,7 +6,7 @@
 
 import * as path from 'node:path';
 import { type VariableSchema, VARIABLE_SCHEMA } from './variableSchema.js';
-import { GEMINI_DIR } from '@openrnd/core';
+import { GEMINI_DIR } from '@openwork/core';
 
 /**
  * Represents a set of keys that will be considered invalid while unmarshalling

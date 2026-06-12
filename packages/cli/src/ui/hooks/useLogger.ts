@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Logger, type Config } from '@openrnd/core';
+import { Logger, type Config } from '@openwork/core';
 
 /**
  * Hook to manage the logger instance.

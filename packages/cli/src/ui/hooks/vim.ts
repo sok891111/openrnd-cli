@@ -8,7 +8,7 @@ import { useCallback, useReducer, useEffect, useRef } from 'react';
 import type { Key } from './useKeypress.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import { useVimMode } from '../contexts/VimModeContext.js';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import { Command } from '../key/keyMatchers.js';
 import { useKeyMatchers } from './useKeyMatchers.js';
 import { toCodePoints } from '../utils/textUtils.js';

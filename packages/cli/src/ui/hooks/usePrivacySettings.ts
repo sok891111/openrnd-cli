@@ -11,7 +11,7 @@ import {
   UserTierId,
   getCodeAssistServer,
   debugLogger,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 export interface PrivacyState {
   isLoading: boolean;

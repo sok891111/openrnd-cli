@@ -7,7 +7,7 @@
 import { render } from '../../../test-utils/render.js';
 import { describe, it, expect } from 'vitest';
 import { SkillsList } from './SkillsList.js';
-import { type SkillDefinition } from '@openrnd/core';
+import { type SkillDefinition } from '@openwork/core';
 import { SKILLS_DOCS_URL } from '../../constants.js';
 
 describe('SkillsList Component', () => {

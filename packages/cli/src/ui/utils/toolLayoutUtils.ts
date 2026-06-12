@@ -8,7 +8,7 @@ import {
   ACTIVE_SHELL_MAX_LINES,
   COMPLETED_SHELL_MAX_LINES,
 } from '../constants.js';
-import { CoreToolCallStatus } from '@openrnd/core';
+import { CoreToolCallStatus } from '@openwork/core';
 
 /**
  * Constants used for calculating available height for tool results.

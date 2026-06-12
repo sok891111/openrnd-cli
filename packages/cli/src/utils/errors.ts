@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Config } from '@openrnd/core';
+import type { Config } from '@openwork/core';
 import {
   OutputFormat,
   JsonFormatter,
@@ -20,7 +20,7 @@ import {
   coreEvents,
   getErrorType,
   getErrorMessage,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { runSyncCleanup } from './cleanup.js';
 
 interface ErrorWithCode extends Error {

@@ -10,7 +10,7 @@ import {
   getSpawnConfig,
   getScriptArgs,
 } from './processUtils.js';
-import { writeToStderr, type AdminControlsSettings } from '@openrnd/core';
+import { writeToStderr, type AdminControlsSettings } from '@openwork/core';
 
 export async function relaunchOnExitCode(runner: () => Promise<number>) {
   while (true) {

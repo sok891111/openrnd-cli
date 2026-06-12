@@ -14,7 +14,7 @@ import {
 import * as path from 'node:path';
 import { cleanupBackgroundLogs } from './logCleanup.js';
 
-vi.mock('@openrnd/core', () => ({
+vi.mock('@openwork/core', () => ({
   ShellExecutionService: {
     getLogDir: vi.fn().mockReturnValue('/tmp/gemini/tmp/background-processes'),
   },

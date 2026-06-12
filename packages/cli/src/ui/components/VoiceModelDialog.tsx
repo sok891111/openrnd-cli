@@ -12,8 +12,8 @@ import { DescriptiveRadioButtonSelect } from './shared/DescriptiveRadioButtonSel
 import { useSettingsStore } from '../contexts/SettingsContext.js';
 import { SettingScope } from '../../config/settings.js';
 import { useKeypress, type Key } from '../hooks/useKeypress.js';
-import { isBinaryAvailable } from '@openrnd/core';
-import { WhisperModelManager, type WhisperModelProgress } from '@openrnd/core';
+import { isBinaryAvailable } from '@openwork/core';
+import { WhisperModelManager, type WhisperModelProgress } from '@openwork/core';
 import { CliSpinner } from './CliSpinner.js';
 import { WarningMessage } from './messages/WarningMessage.js';
 

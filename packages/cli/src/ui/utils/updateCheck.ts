@@ -11,7 +11,7 @@ import {
   debugLogger,
   getChannelFromVersion,
   RELEASE_CHANNEL_STABILITY,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type { LoadedSettings } from '../../config/settings.js';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -37,14 +37,14 @@ export interface UpdateObject {
 
 /**
  * Resolves the npm registry URL to use for auto-update version checks and
- * installs. The OPENRND_UPDATE_REGISTRY environment variable takes precedence
+ * installs. The OPENWORK_UPDATE_REGISTRY environment variable takes precedence
  * over the `general.updateRegistry` setting. Returns undefined to use the
  * default npm registry.
  */
 export function getUpdateRegistry(
   settings: LoadedSettings,
 ): string | undefined {
-  const fromEnv = process.env['OPENRND_UPDATE_REGISTRY']?.trim();
+  const fromEnv = process.env['OPENWORK_UPDATE_REGISTRY']?.trim();
   if (fromEnv) {
     return fromEnv;
   }

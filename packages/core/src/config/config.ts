@@ -392,7 +392,7 @@ export interface BrowserAgentCustomConfig {
   blockFileUploads?: boolean;
   /**
    * Skip the one-time browser privacy consent dialog and proceed without
-   * prompting. Can also be forced via the OPENRND_SKIP_BROWSER_CONSENT=true
+   * prompting. Can also be forced via the OPENWORK_SKIP_BROWSER_CONSENT=true
    * environment variable. Default: true (the dialog is suppressed unless this
    * is explicitly set to false).
    */

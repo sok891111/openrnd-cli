@@ -9,7 +9,7 @@ import {
   isLoadableSettingScope,
   type LoadedSettings,
 } from '../config/settings.js';
-import { getErrorMessage } from '@openrnd/core';
+import { getErrorMessage } from '@openwork/core';
 import type { ModifiedScope } from './skillSettings.js';
 
 export type HookActionStatus = 'success' | 'no-op' | 'error';

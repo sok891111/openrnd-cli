@@ -11,7 +11,7 @@ import {
   PolicyIntegrityManager,
   type Config,
   type PolicyUpdateConfirmationRequest,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { theme } from '../semantic-colors.js';
 import {
   RadioButtonSelect,

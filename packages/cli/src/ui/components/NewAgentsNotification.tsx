@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { Box, Text } from 'ink';
-import { type AgentDefinition } from '@openrnd/core';
+import { type AgentDefinition } from '@openwork/core';
 import { theme } from '../semantic-colors.js';
 import {
   RadioButtonSelect,

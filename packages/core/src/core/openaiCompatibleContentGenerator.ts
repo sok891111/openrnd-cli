@@ -48,13 +48,13 @@ export interface SkipImagesProvider {
 // ---------------------------------------------------------------------------
 // Disabled by default. Enable via either:
 //   - settings.json:  { "general": { "debugLogging": true } }
-//   - env override:   OPENRND_DEBUG=true  (or =false to force-disable)
+//   - env override:   OPENWORK_DEBUG=true  (or =false to force-disable)
 // The env var, when set, always wins over the settings.json value.
-// Writes to ~/.openrnd/debug.log and stderr simultaneously.
+// Writes to ~/.openwork/debug.log and stderr simultaneously.
 // ---------------------------------------------------------------------------
 
 function getLogPath(): string {
-  return path.join(os.homedir(), '.openrnd', 'debug.log');
+  return path.join(os.homedir(), '.openwork', 'debug.log');
 }
 
 // Single source of truth for the debug-logging toggle lives in
@@ -103,7 +103,7 @@ function debugLog(
     fs.appendFileSync(logPath, line, 'utf8');
   } catch (e) {
     process.stderr.write(
-      `[openrnd] Failed to write log to ${logPath}: ${String(e)}\n`,
+      `[openwork] Failed to write log to ${logPath}: ${String(e)}\n`,
     );
   }
 }
@@ -250,7 +250,7 @@ function makeGenerateContentResponse(
 }
 
 function getStreamIdleTimeoutMs(): number {
-  const raw = process.env['OPENRND_STREAM_IDLE_TIMEOUT_MS'];
+  const raw = process.env['OPENWORK_STREAM_IDLE_TIMEOUT_MS'];
   if (raw === undefined || raw.trim() === '') {
     return DEFAULT_STREAM_IDLE_TIMEOUT_MS;
   }
@@ -506,22 +506,24 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
     skipImagesProvider?: SkipImagesProvider,
   ) {
     this.baseUrl =
-      baseUrl ?? process.env['OPENRND_BASE_URL'] ?? 'http://localhost:11434/v1';
-    this.apiKey = apiKey ?? process.env['OPENRND_API_KEY'] ?? 'ollama';
-    this.model = model ?? process.env['OPENRND_MODEL'] ?? 'llama3.2';
+      baseUrl ??
+      process.env['OPENWORK_BASE_URL'] ??
+      'http://localhost:11434/v1';
+    this.apiKey = apiKey ?? process.env['OPENWORK_API_KEY'] ?? 'ollama';
+    this.model = model ?? process.env['OPENWORK_MODEL'] ?? 'llama3.2';
     this.skipImagesProvider = skipImagesProvider;
 
     debugLog('INFO', 'OpenAICompatibleContentGenerator initialized', {
       baseUrl: this.baseUrl,
       model: this.model,
       apiKeySet: this.apiKey !== 'ollama' ? '(custom)' : '(default: ollama)',
-      debugLogPath: process.env['OPENRND_DEBUG'] ? getLogPath() : '(disabled)',
+      debugLogPath: process.env['OPENWORK_DEBUG'] ? getLogPath() : '(disabled)',
     });
   }
 
   /**
    * The primary text model cannot read images. When a vision model is
-   * configured (settings.json `llm.vision.*` -> OPENRND_VISION_* env vars) and
+   * configured (settings.json `llm.vision.*` -> OPENWORK_VISION_* env vars) and
    * the request contains image parts, send the images to the vision model and
    * rewrite them into text descriptions before forwarding to the text model.
    *
@@ -554,7 +556,7 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
       debugLog(
         'WARN',
         'Request contains images but no vision model is configured ' +
-          '(set llm.vision in settings.json or OPENRND_VISION_* env vars). ' +
+          '(set llm.vision in settings.json or OPENWORK_VISION_* env vars). ' +
           'Images will be dropped before sending to the text model.',
       );
       coreEvents.emitFeedback(
@@ -827,7 +829,7 @@ export class OpenAICompatibleContentGenerator implements ContentGenerator {
             if (totalContentLength === 0) {
               coreEvents.emitFeedback(
                 'warning',
-                `[LLM] Stream ended with 0 parsed content (raw network chunks: ${rawChunkCount}). The server's response format may not match SSE parsing — check ~/.openrnd/debug.log for the RAW lines.`,
+                `[LLM] Stream ended with 0 parsed content (raw network chunks: ${rawChunkCount}). The server's response format may not match SSE parsing — check ~/.openwork/debug.log for the RAW lines.`,
               );
             }
             break;

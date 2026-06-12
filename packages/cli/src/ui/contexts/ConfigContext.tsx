@@ -5,7 +5,7 @@
  */
 
 import React, { useContext } from 'react';
-import { type Config } from '@openrnd/core';
+import { type Config } from '@openwork/core';
 
 export const ConfigContext = React.createContext<Config | undefined>(undefined);
 

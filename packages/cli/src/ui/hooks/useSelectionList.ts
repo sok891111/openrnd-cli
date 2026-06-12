@@ -7,7 +7,7 @@
 import { useReducer, useRef, useEffect, useCallback } from 'react';
 import { useKeypress, type Key } from './useKeypress.js';
 import { Command } from '../key/keyMatchers.js';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import { useKeyMatchers } from './useKeyMatchers.js';
 
 export interface SelectionListItem<T> {

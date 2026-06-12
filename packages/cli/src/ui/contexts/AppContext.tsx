@@ -5,7 +5,7 @@
  */
 
 import { createContext, useContext } from 'react';
-import type { StartupWarning } from '@openrnd/core';
+import type { StartupWarning } from '@openwork/core';
 
 export interface AppState {
   version: string;

@@ -7,7 +7,7 @@
 import type React from 'react';
 import { Text, Box } from 'ink';
 import { theme } from '../../semantic-colors.js';
-import { getDisplayString } from '@openrnd/core';
+import { getDisplayString } from '@openwork/core';
 
 interface ModelMessageProps {
   model: string;

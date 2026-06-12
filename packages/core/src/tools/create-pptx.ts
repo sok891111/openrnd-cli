@@ -42,7 +42,7 @@ export const CREATE_PPTX_TOOL_NAME = 'create_pptx';
 export const CREATE_PPTX_DISPLAY_NAME = 'Create PowerPoint';
 
 /** Default subdirectory (under the target dir) for generated decks. */
-const DEFAULT_OUTPUT_DIR = 'openrnd-ppt';
+const DEFAULT_OUTPUT_DIR = 'openwork-ppt';
 
 /** Default CSS selector that marks each slide element in the HTML deck. */
 const DEFAULT_SLIDE_SELECTOR = '.slide';
@@ -79,7 +79,7 @@ export interface CreatePptxParams {
   width_px?: number;
   /** Override the render height in CSS pixels (advanced). */
   height_px?: number;
-  /** Output .pptx path. Default: <workspace>/openrnd-ppt/<name>-<ts>.pptx. */
+  /** Output .pptx path. Default: <workspace>/openwork-ppt/<name>-<ts>.pptx. */
   output_path?: string;
   /** Open the generated deck when done. Default true. */
   open?: boolean;
@@ -123,7 +123,7 @@ interface SlideDimensions {
 }
 
 function buildSlideViewerInjection(dims: SlideDimensions): string {
-  return `<style id="openrnd-slide-viewer-style">
+  return `<style id="openwork-slide-viewer-style">
 @media screen {
   html, body {
     width: 100%;
@@ -131,19 +131,19 @@ function buildSlideViewerInjection(dims: SlideDimensions): string {
     margin: 0;
   }
   html { background: #111318; }
-  body.openrnd-slide-viewer {
+  body.openwork-slide-viewer {
     margin: 0;
     background: #111318;
     overflow: hidden;
   }
-  body.openrnd-slide-viewer .slide {
+  body.openwork-slide-viewer .slide {
     width: ${dims.widthPx}px;
     height: ${dims.heightPx}px;
     box-sizing: border-box;
     overflow: hidden;
     margin: 0;
   }
-  .openrnd-slide-stage {
+  .openwork-slide-stage {
     position: fixed;
     inset: 0;
     display: grid;
@@ -154,16 +154,16 @@ function buildSlideViewerInjection(dims: SlideDimensions): string {
       radial-gradient(circle at bottom right, rgba(26, 203, 135, 0.12), transparent 28%),
       linear-gradient(180deg, #171a22 0%, #0f1117 100%);
   }
-  .openrnd-slide-stage .slide {
+  .openwork-slide-stage .slide {
     display: none;
     box-shadow:
       0 28px 72px rgba(0, 0, 0, 0.42),
       0 0 0 1px rgba(255, 255, 255, 0.08);
   }
-  .openrnd-slide-stage .slide.openrnd-slide-visible {
+  .openwork-slide-stage .slide.openwork-slide-visible {
     display: block;
   }
-  .openrnd-slide-controls {
+  .openwork-slide-controls {
     position: fixed;
     left: 50%;
     bottom: 18px;
@@ -180,7 +180,7 @@ function buildSlideViewerInjection(dims: SlideDimensions): string {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
     backdrop-filter: blur(8px);
   }
-  .openrnd-slide-controls button {
+  .openwork-slide-controls button {
     width: 32px;
     height: 28px;
     border: 0;
@@ -190,41 +190,41 @@ function buildSlideViewerInjection(dims: SlideDimensions): string {
     cursor: pointer;
     font: inherit;
   }
-  .openrnd-slide-controls button:hover {
+  .openwork-slide-controls button:hover {
     background: rgba(255, 255, 255, 0.24);
   }
-  .openrnd-slide-counter {
+  .openwork-slide-counter {
     min-width: 54px;
     text-align: center;
     font-variant-numeric: tabular-nums;
   }
 }
 </style>
-<script id="openrnd-slide-viewer-script">
+<script id="openwork-slide-viewer-script">
 (() => {
   const init = () => {
     const slides = Array.from(document.querySelectorAll('.slide'));
-    if (slides.length === 0 || document.querySelector('.openrnd-slide-controls')) return;
-    document.body.classList.add('openrnd-slide-viewer');
+    if (slides.length === 0 || document.querySelector('.openwork-slide-controls')) return;
+    document.body.classList.add('openwork-slide-viewer');
     const stage = document.createElement('div');
-    stage.className = 'openrnd-slide-stage';
+    stage.className = 'openwork-slide-stage';
     slides.forEach((slide) => stage.appendChild(slide));
     document.body.appendChild(stage);
     const controls = document.createElement('div');
-    controls.className = 'openrnd-slide-controls';
-    controls.innerHTML = '<button type="button" data-openrnd-prev aria-label="Previous slide">&lt;</button><span class="openrnd-slide-counter"></span><button type="button" data-openrnd-next aria-label="Next slide">&gt;</button>';
+    controls.className = 'openwork-slide-controls';
+    controls.innerHTML = '<button type="button" data-openwork-prev aria-label="Previous slide">&lt;</button><span class="openwork-slide-counter"></span><button type="button" data-openwork-next aria-label="Next slide">&gt;</button>';
     document.body.appendChild(controls);
-    const counter = controls.querySelector('.openrnd-slide-counter');
+    const counter = controls.querySelector('.openwork-slide-counter');
     let index = 0;
     const show = (next) => {
       index = Math.max(0, Math.min(slides.length - 1, next));
       slides.forEach((slide, slideIndex) => {
-        slide.classList.toggle('openrnd-slide-visible', slideIndex === index);
+        slide.classList.toggle('openwork-slide-visible', slideIndex === index);
       });
       counter.textContent = String(index + 1) + ' / ' + String(slides.length);
     };
-    controls.querySelector('[data-openrnd-prev]').addEventListener('click', () => show(index - 1));
-    controls.querySelector('[data-openrnd-next]').addEventListener('click', () => show(index + 1));
+    controls.querySelector('[data-openwork-prev]').addEventListener('click', () => show(index - 1));
+    controls.querySelector('[data-openwork-next]').addEventListener('click', () => show(index + 1));
     window.addEventListener('keydown', (event) => {
       if (event.key === 'ArrowDown' || event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') show(index + 1);
       if (event.key === 'ArrowUp' || event.key === 'ArrowLeft' || event.key === 'PageUp') show(index - 1);
@@ -267,7 +267,7 @@ function enhanceInlineHtmlForSlideViewing(
   html: string,
   dims: SlideDimensions,
 ): string {
-  if (html.includes('id="openrnd-slide-viewer-style"')) {
+  if (html.includes('id="openwork-slide-viewer-style"')) {
     return html;
   }
   const injection = buildSlideViewerInjection(dims);
@@ -340,7 +340,7 @@ class CreatePptxInvocation extends BaseToolInvocation<
     return `Render an HTML deck (${src}) to a PowerPoint file`;
   }
 
-  /** Resolves the output .pptx path, defaulting under <targetDir>/openrnd-ppt/. */
+  /** Resolves the output .pptx path, defaulting under <targetDir>/openwork-ppt/. */
   private resolveOutputPath(): string {
     const { output_path } = this.params;
     if (output_path && output_path.trim()) {
@@ -401,7 +401,7 @@ class CreatePptxInvocation extends BaseToolInvocation<
     }
 
     const dims = resolveDimensions(this.params);
-    const renderDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openrnd_tpl_'));
+    const renderDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwork_tpl_'));
     try {
       const rendered = await renderPptxToImages(resolved, renderDir, {
         widthPx: dims.widthPx,
@@ -606,7 +606,7 @@ class CreatePptxInvocation extends BaseToolInvocation<
     );
     const selector =
       this.params.slide_selector?.trim() || DEFAULT_SLIDE_SELECTOR;
-    const tmpDir = path.join(os.tmpdir(), `openrnd_pptx_${randomUUID()}`);
+    const tmpDir = path.join(os.tmpdir(), `openwork_pptx_${randomUUID()}`);
 
     let browser: Browser | undefined;
     const onAbort = () => {
@@ -638,11 +638,11 @@ class CreatePptxInvocation extends BaseToolInvocation<
         .addStyleTag({
           content:
             'html{word-break:keep-all;overflow-wrap:break-word;line-break:strict;}' +
-            `html.openrnd-pptx-capture,html.openrnd-pptx-capture body{margin:0!important;padding:0!important;width:${dims.widthPx}px!important;height:${dims.heightPx}px!important;overflow:hidden!important;}` +
-            `html.openrnd-pptx-capture .openrnd-pptx-slide{box-sizing:border-box!important;width:${dims.widthPx}px!important;height:${dims.heightPx}px!important;max-width:none!important;max-height:none!important;margin:0!important;overflow:hidden!important;}` +
-            'html.openrnd-pptx-capture .openrnd-pptx-active{display:block!important;visibility:visible!important;position:fixed!important;inset:0 auto auto 0!important;transform:none!important;opacity:1!important;z-index:1!important;}' +
-            'html.openrnd-pptx-capture .openrnd-pptx-hidden{display:none!important;visibility:hidden!important;}' +
-            'html.openrnd-pptx-capture .openrnd-slide-controls{display:none!important;}',
+            `html.openwork-pptx-capture,html.openwork-pptx-capture body{margin:0!important;padding:0!important;width:${dims.widthPx}px!important;height:${dims.heightPx}px!important;overflow:hidden!important;}` +
+            `html.openwork-pptx-capture .openwork-pptx-slide{box-sizing:border-box!important;width:${dims.widthPx}px!important;height:${dims.heightPx}px!important;max-width:none!important;max-height:none!important;margin:0!important;overflow:hidden!important;}` +
+            'html.openwork-pptx-capture .openwork-pptx-active{display:block!important;visibility:visible!important;position:fixed!important;inset:0 auto auto 0!important;transform:none!important;opacity:1!important;z-index:1!important;}' +
+            'html.openwork-pptx-capture .openwork-pptx-hidden{display:none!important;visibility:hidden!important;}' +
+            'html.openwork-pptx-capture .openwork-slide-controls{display:none!important;}',
         })
         .catch(() => {});
       // Make sure web fonts are ready before snapshotting.
@@ -671,11 +671,11 @@ class CreatePptxInvocation extends BaseToolInvocation<
         pngPaths.push(png);
       } else {
         await page.evaluate((sel) => {
-          document.documentElement.classList.add('openrnd-pptx-capture');
-          document.body?.classList.remove('openrnd-slide-viewer');
+          document.documentElement.classList.add('openwork-pptx-capture');
+          document.body?.classList.remove('openwork-slide-viewer');
           const els = Array.from(document.querySelectorAll<HTMLElement>(sel));
           els.forEach((e) => {
-            e.classList.add('openrnd-pptx-slide');
+            e.classList.add('openwork-pptx-slide');
           });
         }, selector);
 
@@ -688,8 +688,8 @@ class CreatePptxInvocation extends BaseToolInvocation<
                 document.querySelectorAll<HTMLElement>(sel),
               );
               els.forEach((e, j) => {
-                e.classList.toggle('openrnd-pptx-active', j === idx);
-                e.classList.toggle('openrnd-pptx-hidden', j !== idx);
+                e.classList.toggle('openwork-pptx-active', j === idx);
+                e.classList.toggle('openwork-pptx-hidden', j !== idx);
               });
               window.scrollTo(0, 0);
             },
@@ -708,11 +708,11 @@ class CreatePptxInvocation extends BaseToolInvocation<
       // Pack the rendered slides into a .pptx, one full-bleed image per slide.
       const pres = new PptxGen();
       pres.defineLayout({
-        name: 'OPENRND',
+        name: 'OPENWORK',
         width: dims.widthIn,
         height: dims.heightIn,
       });
-      pres.layout = 'OPENRND';
+      pres.layout = 'OPENWORK';
       for (const png of pngPaths) {
         const slide = pres.addSlide();
         slide.addImage({
@@ -829,7 +829,7 @@ export class CreatePptxTool extends BaseDeclarativeTool<
         'renders the sample’s slides to images, analyzes them with the vision model, and returns a concrete VISUAL STYLE GUIDE (palette, typography, layout grid, ' +
         'header/footer, recurring cards/charts/icons, density). THEN author the HTML deck so it closely follows that style guide, and call this tool again with that ' +
         'HTML. If no sample deck is given, just author a strong generic deck as usual.\n\n' +
-        'The .pptx is saved (default under <workspace>/openrnd-ppt/) and opened, and the original ' +
+        'The .pptx is saved (default under <workspace>/openwork-ppt/) and opened, and the original ' +
         'HTML is saved next to it (same name, .html) — both paths are reported so the user can ' +
         're-edit the HTML and regenerate.',
       Kind.Other,
@@ -876,7 +876,7 @@ export class CreatePptxTool extends BaseDeclarativeTool<
             type: 'string',
             description:
               'Output .pptx path. Relative paths resolve against the workspace. Default: ' +
-              '<workspace>/openrnd-ppt/<name>-<timestamp>.pptx.',
+              '<workspace>/openwork-ppt/<name>-<timestamp>.pptx.',
           },
           open: {
             type: 'boolean',

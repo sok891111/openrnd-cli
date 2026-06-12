@@ -8,7 +8,7 @@ import { render } from '../../test-utils/render.js';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BackgroundTaskDisplay } from './BackgroundTaskDisplay.js';
 import { type BackgroundTask } from '../hooks/useExecutionLifecycle.js';
-import { ShellExecutionService } from '@openrnd/core';
+import { ShellExecutionService } from '@openwork/core';
 import { act } from 'react';
 import { type Key, type KeypressHandler } from '../contexts/KeypressContext.js';
 import { ScrollProvider } from '../contexts/ScrollProvider.js';
@@ -27,8 +27,8 @@ vi.mock('../contexts/UIActionsContext.js', () => ({
   }),
 }));
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     ShellExecutionService: {

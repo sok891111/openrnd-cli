@@ -6,7 +6,7 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { Storage, coreEvents } from '@openrnd/core';
+import { Storage, coreEvents } from '@openwork/core';
 
 /**
  * Stored in JSON file - represents persistent enablement state.

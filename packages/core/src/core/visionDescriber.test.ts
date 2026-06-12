@@ -43,19 +43,19 @@ describe('getVisionConfigFromEnv', () => {
   });
 
   it('returns undefined when baseUrl or model is missing', () => {
-    delete process.env['OPENRND_VISION_BASE_URL'];
-    delete process.env['OPENRND_VISION_MODEL'];
+    delete process.env['OPENWORK_VISION_BASE_URL'];
+    delete process.env['OPENWORK_VISION_MODEL'];
     expect(getVisionConfigFromEnv()).toBeUndefined();
 
-    process.env['OPENRND_VISION_BASE_URL'] = 'http://v/v1';
+    process.env['OPENWORK_VISION_BASE_URL'] = 'http://v/v1';
     expect(getVisionConfigFromEnv()).toBeUndefined();
   });
 
   it('reads config and falls back to the primary key', () => {
-    process.env['OPENRND_VISION_BASE_URL'] = 'http://v/v1';
-    process.env['OPENRND_VISION_MODEL'] = 'llava';
-    delete process.env['OPENRND_VISION_API_KEY'];
-    process.env['OPENRND_API_KEY'] = 'primary-key';
+    process.env['OPENWORK_VISION_BASE_URL'] = 'http://v/v1';
+    process.env['OPENWORK_VISION_MODEL'] = 'llava';
+    delete process.env['OPENWORK_VISION_API_KEY'];
+    process.env['OPENWORK_API_KEY'] = 'primary-key';
 
     expect(getVisionConfigFromEnv()).toEqual({
       baseUrl: 'http://v/v1',

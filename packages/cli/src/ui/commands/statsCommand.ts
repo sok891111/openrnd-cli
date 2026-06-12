@@ -11,7 +11,7 @@ import type {
 } from '../types.js';
 import { MessageType } from '../types.js';
 import { formatDuration } from '../utils/formatters.js';
-import { UserAccountManager, getG1CreditBalance } from '@openrnd/core';
+import { UserAccountManager, getG1CreditBalance } from '@openwork/core';
 import {
   type CommandContext,
   type SlashCommand,

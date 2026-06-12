@@ -26,9 +26,9 @@ const execFileAsync = promisify(execFile);
 export const MANAGE_SKILL_TOOL_NAME = 'manage_skill';
 export const MANAGE_SKILL_DISPLAY_NAME = 'Manage Skill';
 
-const MANAGE_SKILL_DESCRIPTION = `Create, install, list, or delete openrnd skills.
+const MANAGE_SKILL_DESCRIPTION = `Create, install, list, or delete openwork skills.
 Skills are markdown files that give the model specialized knowledge and workflows.
-They live in ~/.openrnd/skills/<name>/SKILL.md and are auto-loaded on startup.
+They live in ~/.openwork/skills/<name>/SKILL.md and are auto-loaded on startup.
 
 Use this tool when the user says things like:
 - "스킬 만들어줘 — 웹 크롤링 자동화"
@@ -43,7 +43,7 @@ For installing from a git repository (including internal Bitbucket/GitHub over
 ssh:// or git@ URLs), use action "install" with the "repository" field. The repo
 is cloned via the system \`git\` (so existing SSH keys / known_hosts are used).
 
-After creating or deleting a skill, it takes effect on the NEXT openrnd session start.
+After creating or deleting a skill, it takes effect on the NEXT openwork session start.
 In an active interactive session the user can type /skills reload to apply immediately.
 
 Skill body guidelines:
@@ -100,7 +100,7 @@ const MANAGE_SKILL_SCHEMA = {
       type: 'string',
       enum: ['user', 'workspace'],
       description:
-        '"user" stores in ~/.openrnd/skills/ (default, available in all projects). "workspace" stores in .openrnd/skills/ (current project only).',
+        '"user" stores in ~/.openwork/skills/ (default, available in all projects). "workspace" stores in .openwork/skills/ (current project only).',
     },
   },
   required: ['action'],
@@ -112,7 +112,7 @@ const MANAGE_SKILL_SCHEMA = {
 
 function getSkillsDir(scope: 'user' | 'workspace'): string {
   if (scope === 'workspace') {
-    return path.join(process.cwd(), '.openrnd', 'skills');
+    return path.join(process.cwd(), '.openwork', 'skills');
   }
   return Storage.getUserSkillsDir();
 }
@@ -239,14 +239,14 @@ class ManageSkillInvocation extends BaseToolInvocation<
               skills.push({
                 name: parsed?.name ?? entry.name,
                 description: parsed?.description ?? '',
-                path: `~/.openrnd/skills/${entry.name}`,
+                path: `~/.openwork/skills/${entry.name}`,
               });
             }
           }
         }
 
         // Workspace skills
-        const wsDir = path.join(process.cwd(), '.openrnd', 'skills');
+        const wsDir = path.join(process.cwd(), '.openwork', 'skills');
         if (fs.existsSync(wsDir)) {
           for (const entry of fs.readdirSync(wsDir, { withFileTypes: true })) {
             if (!entry.isDirectory()) continue;
@@ -256,7 +256,7 @@ class ManageSkillInvocation extends BaseToolInvocation<
               skills.push({
                 name: parsed?.name ?? entry.name,
                 description: parsed?.description ?? '',
-                path: `.openrnd/skills/${entry.name}`,
+                path: `.openwork/skills/${entry.name}`,
               });
             }
           }
@@ -342,7 +342,7 @@ class ManageSkillInvocation extends BaseToolInvocation<
 
         const verb = exists ? 'updated' : 'created';
         const reloadHint =
-          'Type `/skills reload` in interactive mode, or restart openrnd to activate.';
+          'Type `/skills reload` in interactive mode, or restart openwork to activate.';
         const msg = `✅ Skill **${skillName}** ${verb} at \`${skillFile}\`.\n\n${reloadHint}`;
         return { llmContent: msg, returnDisplay: msg };
       }
@@ -409,7 +409,7 @@ class ManageSkillInvocation extends BaseToolInvocation<
         };
 
         const tmpRepoDir = fs.mkdtempSync(
-          path.join(os.tmpdir(), `openrnd-skill-${skillName}-`),
+          path.join(os.tmpdir(), `openwork-skill-${skillName}-`),
         );
 
         try {
@@ -470,7 +470,7 @@ class ManageSkillInvocation extends BaseToolInvocation<
         }
 
         const reloadHint =
-          'Type `/skills reload` in interactive mode, or restart openrnd to activate.';
+          'Type `/skills reload` in interactive mode, or restart openwork to activate.';
         const msg = `✅ Skill **${skillName}** installed from \`${repoUrl}\` into \`${skillDir}\`.\n\n${reloadHint}`;
         return { llmContent: msg, returnDisplay: msg };
       }
@@ -494,7 +494,7 @@ class ManageSkillInvocation extends BaseToolInvocation<
         }
 
         fs.rmSync(skillDir, { recursive: true, force: true });
-        const msg = `✅ Skill **${skillName}** deleted from ${scope} skills.\n\nType \`/skills reload\` or restart openrnd to apply.`;
+        const msg = `✅ Skill **${skillName}** deleted from ${scope} skills.\n\nType \`/skills reload\` or restart openwork to apply.`;
         return { llmContent: msg, returnDisplay: msg };
       }
       default: {

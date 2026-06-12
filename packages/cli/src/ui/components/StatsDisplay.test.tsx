@@ -9,7 +9,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { StatsDisplay } from './StatsDisplay.js';
 import * as SessionContext from '../contexts/SessionContext.js';
 import { type SessionMetrics } from '../contexts/SessionContext.js';
-import { ToolCallDecision, LlmRole } from '@openrnd/core';
+import { ToolCallDecision, LlmRole } from '@openwork/core';
 
 // Mock the context to provide controlled data for testing
 vi.mock('../contexts/SessionContext.js', async (importOriginal) => {

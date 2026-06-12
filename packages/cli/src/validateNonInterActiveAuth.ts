@@ -11,7 +11,7 @@ import {
   getAuthTypeFromEnv,
   AuthType,
   type Config,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { type LoadedSettings } from './config/settings.js';
 import { validateAuthMethod } from './config/auth.js';
 import { handleError } from './utils/errors.js';

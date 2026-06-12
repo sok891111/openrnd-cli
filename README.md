@@ -1,4 +1,4 @@
-# openrnd
+# openwork
 
 업무용 AI CLI — OpenAI-compatible LLM에 연결하는 터미널 에이전트.
 
@@ -46,8 +46,8 @@ cd openrnd
 
 ```bash
 npm install
-npm run build --workspace=@openrnd/core
-npm run build --workspace=@openrnd/cli
+npm run build --workspace=@openwork/core
+npm run build --workspace=@openwork/cli
 node esbuild.config.js
 node scripts/copy_bundle_assets.js
 ```
@@ -61,7 +61,7 @@ npm link
 설치 확인:
 
 ```bash
-openrnd --version
+openwork --version
 # 0.1.0
 ```
 
@@ -72,20 +72,20 @@ openrnd --version
 ### 빠른 설정
 
 ```bash
-openrnd llm set \
+openwork llm set \
   --base-url "https://your-api.com/v1" \
   --model   "your-model-name" \
   --api-key "your-api-key"
 ```
 
-설정은 `~/.openrnd/settings.json`에 저장됩니다. 이후 `openrnd`만 실행하면
+설정은 `~/.openwork/settings.json`에 저장됩니다. 이후 `openwork`만 실행하면
 자동으로 연결됩니다.
 
 ### 연결 확인
 
 ```bash
-openrnd llm test   # ping 테스트
-openrnd llm show   # 현재 설정 확인
+openwork llm test   # ping 테스트
+openwork llm show   # 현재 설정 확인
 ```
 
 ### 서비스별 설정 예시
@@ -93,7 +93,7 @@ openrnd llm show   # 현재 설정 확인
 **Ollama (로컬)**
 
 ```bash
-openrnd llm set \
+openwork llm set \
   --base-url "http://localhost:11434/v1" \
   --model   "llama3.2" \
   --api-key "ollama"
@@ -102,7 +102,7 @@ openrnd llm set \
 **LM Studio (로컬)**
 
 ```bash
-openrnd llm set \
+openwork llm set \
   --base-url "http://localhost:1234/v1" \
   --model   "lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF" \
   --api-key "lm-studio"
@@ -111,7 +111,7 @@ openrnd llm set \
 **OpenAI**
 
 ```bash
-openrnd llm set \
+openwork llm set \
   --base-url "https://api.openai.com/v1" \
   --model   "gpt-4o" \
   --api-key "sk-..."
@@ -120,7 +120,7 @@ openrnd llm set \
 **기타 OpenAI-compatible 서비스** (vLLM, llama.cpp server, Azure OpenAI 등)
 
 ```bash
-openrnd llm set \
+openwork llm set \
   --base-url "https://your-endpoint/v1" \
   --model   "model-name" \
   --api-key "api-key"
@@ -132,32 +132,32 @@ openrnd llm set \
 우선합니다.
 
 ```bash
-export OPENRND_BASE_URL="https://your-api.com/v1"
-export OPENRND_MODEL="your-model-name"
-export OPENRND_API_KEY="your-api-key"
+export OPENWORK_BASE_URL="https://your-api.com/v1"
+export OPENWORK_MODEL="your-model-name"
+export OPENWORK_API_KEY="your-api-key"
 ```
 
 ### 디버그 로깅 (연결 문제 진단)
 
-응답이 오지 않거나 연결 오류가 의심될 때 `OPENRND_DEBUG=true`를 설정하면 상세
-로그가 stderr와 `~/.openrnd/debug.log`에 동시 기록됩니다.
+응답이 오지 않거나 연결 오류가 의심될 때 `OPENWORK_DEBUG=true`를 설정하면 상세
+로그가 stderr와 `~/.openwork/debug.log`에 동시 기록됩니다.
 
 ```bash
-OPENRND_DEBUG=true \
-OPENRND_BASE_URL="http://your-llm-server/v1" \
-OPENRND_MODEL="your-model" \
-OPENRND_TRUST_WORKSPACE=true \
-openrnd
+OPENWORK_DEBUG=true \
+OPENWORK_BASE_URL="http://your-llm-server/v1" \
+OPENWORK_MODEL="your-model" \
+OPENWORK_TRUST_WORKSPACE=true \
+openwork
 ```
 
 로그 확인:
 
 ```bash
 # 실시간
-tail -f ~/.openrnd/debug.log
+tail -f ~/.openwork/debug.log
 
 # 전체 덤프
-cat ~/.openrnd/debug.log
+cat ~/.openwork/debug.log
 ```
 
 | 로그 항목           | 내용                             |
@@ -176,21 +176,21 @@ cat ~/.openrnd/debug.log
 ### 대화형 모드
 
 ```bash
-openrnd
+openwork
 ```
 
 ### 단일 프롬프트 (헤드리스)
 
 ```bash
-openrnd -p "이 디렉터리의 Python 파일 목록을 보여줘"
+openwork -p "이 디렉터리의 Python 파일 목록을 보여줘"
 ```
 
 ### 신뢰 워크스페이스 설정 (헤드리스 실행 시 필요)
 
 ```bash
-OPENRND_TRUST_WORKSPACE=true openrnd -p "..."
+OPENWORK_TRUST_WORKSPACE=true openwork -p "..."
 # 또는
-openrnd --skip-trust -p "..."
+openwork --skip-trust -p "..."
 ```
 
 ---
@@ -219,13 +219,13 @@ openrnd --skip-trust -p "..."
 
 ```bash
 # stdio (로컬 명령 실행)
-openrnd mcp add filesystem npx -- -y @modelcontextprotocol/server-filesystem /home/work
+openwork mcp add filesystem npx -- -y @modelcontextprotocol/server-filesystem /home/work
 
 # HTTP/SSE
-openrnd mcp add my-server https://my-mcp-server.com/sse --transport sse
+openwork mcp add my-server https://my-mcp-server.com/sse --transport sse
 
 # 목록 확인
-openrnd mcp list
+openwork mcp list
 ```
 
 ### Skill 관리 (`manage_skill`)
@@ -241,18 +241,18 @@ BeautifulSoup 기반으로 하고, robots.txt 준수하도록 해줘
 
 ```bash
 # 설치 (git 저장소 또는 로컬 경로)
-openrnd skills install https://github.com/user/my-skill
-openrnd skills install ./my-skill.skill
+openwork skills install https://github.com/user/my-skill
+openwork skills install ./my-skill.skill
 
 # 목록 확인
-openrnd skills list
+openwork skills list
 
 # 대화 중 활성화
-openrnd
+openwork
 > /skills reload   # 새 skill 반영
 ```
 
-Skill 파일 위치: `~/.openrnd/skills/<name>/SKILL.md`
+Skill 파일 위치: `~/.openwork/skills/<name>/SKILL.md`
 
 ---
 
@@ -285,7 +285,7 @@ tns=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=db.corp)(PORT=1521))(CONNECT_DATA=
 - **net service name**: `MYDB` (환경변수 `TNS_ADMIN` 으로 tnsnames.ora 위치 지정
   시)
 
-등록 정보는 `~/.openrnd/oracle-connections.json` (chmod 600, git 범위 밖)에
+등록 정보는 `~/.openwork/oracle-connections.json` (chmod 600, git 범위 밖)에
 저장되며, 비밀번호는 화면에 마스킹되어 표시됩니다.
 
 ```
@@ -315,7 +315,7 @@ tns=(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=db.corp)(PORT=1521))(CONNECT_DATA=
 
 ## 웹 페이지 수집 (`web_fetch`) 과 사내 fetch 커스터마이징
 
-URL 콘텐츠를 가져올 때 openrnd는 다음 **3단계 폴백 체인**으로 동작합니다. 앞
+URL 콘텐츠를 가져올 때 openwork는 다음 **3단계 폴백 체인**으로 동작합니다. 앞
 단계가 실패하거나 SSO/인증 벽에 막히면 다음 단계로 넘어갑니다.
 
 ```
@@ -362,7 +362,7 @@ import requests
 
 # 시스템 메타데이터(선택). manage_credential 의 'list' 가 이 정보로 사용자에게
 # "어떤 시스템에 키가 필요한지" 안내합니다. id 가 자격증명 키이자 환경변수
-# (OPENRND_CRED_<ID>)의 기준이 됩니다 → id "jira" ⇒ OPENRND_CRED_JIRA.
+# (OPENWORK_CRED_<ID>)의 기준이 됩니다 → id "jira" ⇒ OPENWORK_CRED_JIRA.
 SYSTEM = {
     "id": "jira",
     "name": "사내 Jira",
@@ -376,7 +376,7 @@ def can_handle(url: str) -> bool:
 
 def fetch(url: str) -> str:
     print(f"사내 Jira 조회: {url}", file=sys.stderr)        # 로그는 stderr 로
-    token = os.environ.get("OPENRND_CRED_JIRA")            # 등록된 키가 주입됨
+    token = os.environ.get("OPENWORK_CRED_JIRA")            # 등록된 키가 주입됨
     res = requests.get(url, timeout=15,
                        headers={"Authorization": f"Bearer {token}"})
     res.raise_for_status()
@@ -417,26 +417,26 @@ def fetch(url: str) -> str:
 
 1. **시스템 식별**: 각 핸들러의 `SYSTEM["id"]`(예: `jira`)가 키의 식별자입니다.
    `list` 는 `handlers/` 의 `SYSTEM` 메타데이터를 읽어 사용자에게 안내합니다.
-2. **저장**: 키는 `~/.openrnd/credentials.json` 에 `chmod 600` 으로 저장됩니다
+2. **저장**: 키는 `~/.openwork/credentials.json` 에 `chmod 600` 으로 저장됩니다
    (git 범위 밖, 평문 — 공유 PC 에서는 주의). 값은 화면에 다시 노출되지
    않습니다.
-3. **주입**: fetch 실행 시 등록된 키가 환경변수 `OPENRND_CRED_<ID>` 로 핸들러에
-   주입됩니다. id `jira` ⇒ `OPENRND_CRED_JIRA`, `wiki-corp` ⇒
-   `OPENRND_CRED_WIKI_CORP` (영숫자 외 문자는 `_`, 전부 대문자).
+3. **주입**: fetch 실행 시 등록된 키가 환경변수 `OPENWORK_CRED_<ID>` 로 핸들러에
+   주입됩니다. id `jira` ⇒ `OPENWORK_CRED_JIRA`, `wiki-corp` ⇒
+   `OPENWORK_CRED_WIKI_CORP` (영숫자 외 문자는 `_`, 전부 대문자).
 
 핸들러는 그 환경변수를 **읽기만** 하면 됩니다:
 
 ```python
-token = os.environ.get("OPENRND_CRED_JIRA")
+token = os.environ.get("OPENWORK_CRED_JIRA")
 ```
 
 ### 규약 / 팁
 
 - **stdout = 본문 전용.** 본문 외의 출력을 stdout 으로 내보내지 마세요.
-- **로그는 `print(..., file=sys.stderr)`.** stderr 한 줄이 openrnd 대화 터미널에
-  `🐍` 접두로 바로 표시됩니다(디버깅·감사 로그용).
+- **로그는 `print(..., file=sys.stderr)`.** stderr 한 줄이 openwork 대화
+  터미널에 `🐍` 접두로 바로 표시됩니다(디버깅·감사 로그용).
 - **API 키는 `manage_credential` 로 등록** →
-  `os.environ.get("OPENRND_CRED_<ID>")` 로 읽기. 키를 핸들러 코드/깃에
+  `os.environ.get("OPENWORK_CRED_<ID>")` 로 읽기. 키를 핸들러 코드/깃에
   하드코딩하지 마세요.
 - **의존성**: `requests` 등은 시스템 Python 3(`python3`/Windows `python`)에 미리
   설치돼 있어야 합니다. (`run_python` 도구와 동일 전제)
@@ -452,17 +452,17 @@ Python 핸들러는 빌드 시 `bundle/corporate_fetchers/` 로 복사됩니다.
 
 ### 관련 환경변수 (선택)
 
-| 환경변수                              | 기본값 | 설명                                                          |
-| ------------------------------------- | ------ | ------------------------------------------------------------- |
-| `OPENRND_WEBFETCH_BROWSER_FALLBACK`   | 켜짐   | `0`/`false`/`off` 로 설정 시 2·3단계 폴백을 끄고 1단계만 사용 |
-| `OPENRND_WEBFETCH_MIN_CONTENT_LENGTH` | `5000` | 이 크기(byte) 이하 200 응답을 SSO 로그인 스텁으로 간주        |
-| `OPENRND_WEBFETCH_BROWSER_WAIT_MS`    | `5000` | 브라우저로 열 때 페이지 렌더링 대기 시간(ms)                  |
+| 환경변수                               | 기본값 | 설명                                                          |
+| -------------------------------------- | ------ | ------------------------------------------------------------- |
+| `OPENWORK_WEBFETCH_BROWSER_FALLBACK`   | 켜짐   | `0`/`false`/`off` 로 설정 시 2·3단계 폴백을 끄고 1단계만 사용 |
+| `OPENWORK_WEBFETCH_MIN_CONTENT_LENGTH` | `5000` | 이 크기(byte) 이하 200 응답을 SSO 로그인 스텁으로 간주        |
+| `OPENWORK_WEBFETCH_BROWSER_WAIT_MS`    | `5000` | 브라우저로 열 때 페이지 렌더링 대기 시간(ms)                  |
 
 ---
 
 ## 설정 파일
 
-`~/.openrnd/settings.json` — 사용자 전역 설정
+`~/.openwork/settings.json` — 사용자 전역 설정
 
 ```json
 {
@@ -480,11 +480,11 @@ Python 핸들러는 빌드 시 `bundle/corporate_fetchers/` 로 복사됩니다.
 }
 ```
 
-`.openrnd/settings.json` — 프로젝트별 설정 (워크스페이스 스코프)
+`.openwork/settings.json` — 프로젝트별 설정 (워크스페이스 스코프)
 
-`~/.openrnd/skills/` — 사용자 Skill 저장 위치
+`~/.openwork/skills/` — 사용자 Skill 저장 위치
 
-`~/.openrnd/credentials.json` — 사내 fetch API 키 (chmod 600,
+`~/.openwork/credentials.json` — 사내 fetch API 키 (chmod 600,
 `manage_credential` 도구가 관리, git 범위 밖)
 
 ---
@@ -505,7 +505,7 @@ Python 핸들러는 빌드 시 `bundle/corporate_fetchers/` 로 복사됩니다.
 ## 빌드 스크립트
 
 소스(`packages/**`)를 수정한 뒤에는 **반드시 재빌드**해야 반영됩니다. 실행
-바이너리(`openrnd`)는 `bundle/` 디렉터리의 번들 파일을 실행하기 때문입니다.
+바이너리(`openwork`)는 `bundle/` 디렉터리의 번들 파일을 실행하기 때문입니다.
 
 ```bash
 # 이것 하나로 충분 (prebundle이 bundle/ 자동 정리 → core 빌드 → 번들링)
@@ -516,14 +516,14 @@ npm run bundle
 
 1. `prebundle` — `bundle/` 디렉터리 정리 (Node `fs.rmSync`, Windows 호환)
 2. `generate` — git 커밋 정보 생성
-3. **`build --workspace=@openrnd/core` — core를 `tsc`로 `dist/`에 컴파일
+3. **`build --workspace=@openwork/core` — core를 `tsc`로 `dist/`에 컴파일
    (필수)**
 4. `build` (devtools) — 클라이언트 에셋 빌드
 5. `bundle:browser-mcp` — browser MCP 번들
 6. `esbuild.config.js` — CLI(`packages/cli`) 번들링 → `bundle/`
 7. `copy_bundle_assets.js` — 정책·문서·Skill 파일 복사
 
-> **중요:** esbuild는 CLI 진입점만 소스에서 직접 번들링하고, `@openrnd/core`는
+> **중요:** esbuild는 CLI 진입점만 소스에서 직접 번들링하고, `@openwork/core`는
 > 패키지(`dist/index.js`)로 해석합니다. 그래서 `packages/core/**`를 수정하면
 > 반드시 core를 먼저 `tsc`로 빌드해야 반영됩니다. 위 3번 단계가 이를 처리하므로
 > `npm run bundle`만 실행하면 됩니다. (예전엔 이 단계가 빠져 있어서 core 소스를
@@ -534,7 +534,7 @@ npm run bundle
 ## 프로젝트 구조
 
 ```
-openrnd/
+openwork/
 ├── packages/
 │   ├── core/                    # 핵심 로직 (TypeScript)
 │   │   └── src/
@@ -546,7 +546,7 @@ openrnd/
 │   │           ├── manage-skill.ts     # Skill 관리 도구
 │   │           ├── web-fetch.ts            # URL 수집 + 3단계 폴백 체인
 │   │           ├── corporate-fetch.ts      # 사내 fetch → Python 디스패처 브리지
-│   │           ├── corporate-credentials.ts # API 키 저장(~/.openrnd/credentials.json)
+│   │           ├── corporate-credentials.ts # API 키 저장(~/.openwork/credentials.json)
 │   │           ├── manage-credential.ts    # manage_credential 도구(프롬프트 등록)
 │   │           └── corporate_fetchers/     # ★ 사내 URL별 Python 핸들러
 │   │               ├── dispatch.py

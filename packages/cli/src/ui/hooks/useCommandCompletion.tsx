@@ -20,7 +20,7 @@ import {
   PROMPT_COMPLETION_MIN_LENGTH,
   type PromptCompletion,
 } from './usePromptCompletion.js';
-import type { Config } from '@openrnd/core';
+import type { Config } from '@openwork/core';
 import { useCompletion } from './useCompletion.js';
 
 export enum CompletionMode {

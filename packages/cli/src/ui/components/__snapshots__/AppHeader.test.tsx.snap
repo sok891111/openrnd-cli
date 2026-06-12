@@ -10,7 +10,7 @@ exports[`<AppHeader /> > renders the OpenWork logo and AI 알파 TF signature, n
  ╚██████╔╝██║     ███████╗██║ ╚████║╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗
   ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝ ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
 
- ✦ AI 알파 TF ✦                                          openrnd v1.0.0
+ ✦ AI 알파 TF ✦                                         openwork v1.0.0
 "
 `;
 
@@ -24,7 +24,7 @@ exports[`<AppHeader /> > should not render the banner when no flags are set 1`] 
  ╚██████╔╝██║     ███████╗██║ ╚████║╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗
   ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝ ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
 
- ✦ AI 알파 TF ✦                                          openrnd v1.0.0
+ ✦ AI 알파 TF ✦                                         openwork v1.0.0
 
 
 Tips for getting started:
@@ -45,7 +45,7 @@ exports[`<AppHeader /> > should not render the default banner if shown count is 
  ╚██████╔╝██║     ███████╗██║ ╚████║╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗
   ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝ ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
 
- ✦ AI 알파 TF ✦                                          openrnd v1.0.0
+ ✦ AI 알파 TF ✦                                         openwork v1.0.0
 
 
 Tips for getting started:
@@ -66,7 +66,7 @@ exports[`<AppHeader /> > should render the banner with default text 1`] = `
  ╚██████╔╝██║     ███████╗██║ ╚████║╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗
   ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝ ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
 
- ✦ AI 알파 TF ✦                                          openrnd v1.0.0
+ ✦ AI 알파 TF ✦                                         openwork v1.0.0
 
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ This is the default banner                                                                       │
@@ -90,7 +90,7 @@ exports[`<AppHeader /> > should render the banner with warning text 1`] = `
  ╚██████╔╝██║     ███████╗██║ ╚████║╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗
   ╚═════╝ ╚═╝     ╚══════╝╚═╝  ╚═══╝ ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
 
- ✦ AI 알파 TF ✦                                          openrnd v1.0.0
+ ✦ AI 알파 TF ✦                                         openwork v1.0.0
 
 ╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ There are capacity issues                                                                        │

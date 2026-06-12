@@ -6,7 +6,7 @@
 
 import { useState, useCallback } from 'react';
 import type { LoadedSettings } from '../../config/settings.js';
-import { AuthType, type Config, debugLogger } from '@openrnd/core';
+import { AuthType, type Config, debugLogger } from '@openwork/core';
 import { AuthState } from '../types.js';
 import type { AccountSuspensionInfo } from '../contexts/UIStateContext.js';
 

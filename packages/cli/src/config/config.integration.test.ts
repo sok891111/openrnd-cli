@@ -17,8 +17,8 @@ import {
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { tmpdir } from 'node:os';
-import type { ConfigParameters } from '@openrnd/core';
-import { Config, DEFAULT_FILE_FILTERING_OPTIONS } from '@openrnd/core';
+import type { ConfigParameters } from '@openwork/core';
+import { Config, DEFAULT_FILE_FILTERING_OPTIONS } from '@openwork/core';
 import { createTestMergedSettings } from './settings.js';
 import { http, HttpResponse } from 'msw';
 
@@ -42,8 +42,8 @@ afterAll(() => {
 const CLEARCUT_URL = 'https://play.googleapis.com/log';
 
 // Mock file discovery service and tool registry
-vi.mock('@openrnd/core', async () => {
-  const actual = await vi.importActual('@openrnd/core');
+vi.mock('@openwork/core', async () => {
+  const actual = await vi.importActual('@openwork/core');
   return {
     ...actual,
     FileDiscoveryService: vi.fn().mockImplementation(() => ({

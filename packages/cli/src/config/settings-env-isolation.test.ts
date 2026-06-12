@@ -16,8 +16,8 @@ vi.mock('node:os', async (importOriginal) => {
   };
 });
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     homedir: vi.fn(() => path.resolve('/mock/home')),
@@ -28,7 +28,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { loadEnvironment, type Settings } from './settings.js';
-import { GEMINI_DIR, homedir as coreHomedir } from '@openrnd/core';
+import { GEMINI_DIR, homedir as coreHomedir } from '@openwork/core';
 
 vi.mock('node:fs');
 

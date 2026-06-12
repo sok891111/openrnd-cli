@@ -8,7 +8,7 @@ import { render } from '../../../test-utils/render.js';
 import { describe, it, expect } from 'vitest';
 import { Box } from 'ink';
 import { TodoTray } from './Todo.js';
-import { CoreToolCallStatus, type Todo } from '@openrnd/core';
+import { CoreToolCallStatus, type Todo } from '@openwork/core';
 import { UIStateContext, type UIState } from '../../contexts/UIStateContext.js';
 import { type HistoryItem } from '../../types.js';
 

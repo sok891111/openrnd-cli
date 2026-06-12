@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { REFERENCE_CONTENT_START, REFERENCE_CONTENT_END } from '@openrnd/core';
+import { REFERENCE_CONTENT_START, REFERENCE_CONTENT_END } from '@openwork/core';
 
 export const formatBytes = (bytes: number): string => {
   const gb = bytes / (1024 * 1024 * 1024);

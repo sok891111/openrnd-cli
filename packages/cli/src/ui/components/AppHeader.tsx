@@ -56,7 +56,7 @@ export const AppHeader = ({ version, showDetails = true }: AppHeaderProps) => {
 
   const versionMeta = showDetails && (
     <Box>
-      <Text color={theme.text.secondary}>openrnd v{version}</Text>
+      <Text color={theme.text.secondary}>openwork v{version}</Text>
       {updateInfo?.isUpdating && (
         <Box marginLeft={2}>
           <Text color={theme.text.secondary}>

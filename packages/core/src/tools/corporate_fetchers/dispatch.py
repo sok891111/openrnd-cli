@@ -10,7 +10,7 @@ corporate_fetchers 디스패처 — TS 브리지(corporate-fetch.ts)가 실행�
 
 규약:
   - **stdout = 본문 전용.** 본문 외의 것을 stdout 으로 출력하지 마세요.
-  - **로그는 stderr 로.** stderr 한 줄은 openrnd 대화 터미널에 그대로 표시됩니다.
+  - **로그는 stderr 로.** stderr 한 줄은 openwork 대화 터미널에 그대로 표시됩니다.
 
 이 파일은 거의 손댈 일이 없습니다. 핸들러는 handlers/ 에 추가하세요.
 """
@@ -28,7 +28,7 @@ HANDLERS_DIR = Path(__file__).parent / "handlers"
 
 def credential_env_var(system_id: str) -> str:
     """시스템 id -> 환경변수명. TS(corporate-credentials.ts)와 규칙이 같아야 함."""
-    return "OPENRND_CRED_" + re.sub(r"[^A-Za-z0-9]", "_", system_id).upper()
+    return "OPENWORK_CRED_" + re.sub(r"[^A-Za-z0-9]", "_", system_id).upper()
 
 
 def _log(msg: str) -> None:

@@ -21,8 +21,8 @@ import {
   debugLogger,
   ExitCodes,
   coreEvents,
-} from '@openrnd/core';
-import type { Config } from '@openrnd/core';
+} from '@openwork/core';
+import type { Config } from '@openwork/core';
 import * as auth from './config/auth.js';
 import { type LoadedSettings } from './config/settings.js';
 

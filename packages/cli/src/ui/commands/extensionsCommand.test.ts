@@ -6,7 +6,7 @@
 
 import { type ReactElement } from 'react';
 
-import type { ExtensionLoader, GeminiCLIExtension } from '@openrnd/core';
+import type { ExtensionLoader, GeminiCLIExtension } from '@openwork/core';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 import { MessageType } from '../types.js';
 import {

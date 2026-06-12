@@ -9,7 +9,7 @@ import { waitFor } from '../../../test-utils/async.js';
 import { createMockSettings } from '../../../test-utils/settings.js';
 import { ToolResultDisplay } from './ToolResultDisplay.js';
 import { describe, it, expect, vi } from 'vitest';
-import { makeFakeConfig, type AnsiOutput } from '@openrnd/core';
+import { makeFakeConfig, type AnsiOutput } from '@openwork/core';
 
 describe('ToolResultDisplay', () => {
   beforeEach(() => {

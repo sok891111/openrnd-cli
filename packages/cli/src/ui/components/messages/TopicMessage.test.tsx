@@ -13,7 +13,7 @@ import {
   TOPIC_PARAM_STRATEGIC_INTENT,
   CoreToolCallStatus,
   UPDATE_TOPIC_TOOL_NAME,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 describe('<TopicMessage />', () => {
   const baseArgs = {

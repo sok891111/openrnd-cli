@@ -10,7 +10,7 @@ import { StreamingState } from '../../types.js';
 import { StreamingContext } from '../../contexts/StreamingContext.js';
 import { renderWithProviders } from '../../../test-utils/render.js';
 import { createMockSettings } from '../../../test-utils/settings.js';
-import { CoreToolCallStatus, makeFakeConfig } from '@openrnd/core';
+import { CoreToolCallStatus, makeFakeConfig } from '@openwork/core';
 
 describe('<ToolMessage /> - Raw Markdown Display Snapshots', () => {
   const baseProps: ToolMessageProps = {

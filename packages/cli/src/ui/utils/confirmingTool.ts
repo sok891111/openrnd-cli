@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CoreToolCallStatus, belongsInConfirmationQueue } from '@openrnd/core';
+import { CoreToolCallStatus, belongsInConfirmationQueue } from '@openwork/core';
 import {
   type HistoryItemWithoutId,
   type IndividualToolCallDisplay,

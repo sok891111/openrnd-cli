@@ -23,7 +23,7 @@ import {
   MCPServerStatus,
   type McpClient,
   coreEvents,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { Text } from 'ink';
 
 // Mock GeminiSpinner

@@ -6,7 +6,7 @@
 
 import { render, cleanup } from '../../../test-utils/render.js';
 import { SubagentProgressDisplay } from './SubagentProgressDisplay.js';
-import { type SubagentProgress, SubagentState } from '@openrnd/core';
+import { type SubagentProgress, SubagentState } from '@openwork/core';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 describe('<SubagentProgressDisplay />', () => {

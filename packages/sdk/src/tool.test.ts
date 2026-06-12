@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import { SdkTool, tool, ModelVisibleError } from './tool.js';
-import type { MessageBus } from '@openrnd/core';
+import type { MessageBus } from '@openwork/core';
 
 // Mock MessageBus
 const mockMessageBus = {} as unknown as MessageBus;

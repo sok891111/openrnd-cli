@@ -326,16 +326,16 @@ export class PromptProvider {
    * prompt (additive — the base prompt is never replaced).
    *
    * Sources, concatenated in this order when present:
-   *   1. Global:  ~/.openrnd/system-append.md
-   *   2. Project: <cwd>/.openrnd/system-append.md
+   *   1. Global:  ~/.openwork/system-append.md
+   *   2. Project: <cwd>/.openwork/system-append.md
    *
-   * Override with the OPENRND_SYSTEM_MD_APPEND env var:
+   * Override with the OPENWORK_SYSTEM_MD_APPEND env var:
    *   - a file path  -> use that file instead of the defaults
    *   - 0/false      -> disable the append entirely
    */
   private resolveSystemPromptAppend(): string {
     const resolution = resolvePathFromEnv(
-      process.env['OPENRND_SYSTEM_MD_APPEND'],
+      process.env['OPENWORK_SYSTEM_MD_APPEND'],
     );
     if (resolution.isDisabled) {
       return '';

@@ -9,7 +9,7 @@
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
-import { GEMINI_DIR } from '@openrnd/core';
+import { GEMINI_DIR } from '@openwork/core';
 
 const projectRoot = join(import.meta.dirname, '..');
 

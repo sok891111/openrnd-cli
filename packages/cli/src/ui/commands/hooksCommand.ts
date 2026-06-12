@@ -11,8 +11,8 @@ import type {
   OpenCustomDialogActionReturn,
 } from './types.js';
 import { CommandKind } from './types.js';
-import type { HookRegistryEntry, MessageActionReturn } from '@openrnd/core';
-import { getErrorMessage } from '@openrnd/core';
+import type { HookRegistryEntry, MessageActionReturn } from '@openwork/core';
+import { getErrorMessage } from '@openwork/core';
 import { SettingScope, isLoadableSettingScope } from '../../config/settings.js';
 import { enableHook, disableHook } from '../../utils/hookSettings.js';
 import { renderHookActionFeedback } from '../../utils/hookUtils.js';

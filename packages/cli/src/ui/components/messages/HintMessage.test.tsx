@@ -7,7 +7,7 @@
 import { renderWithProviders } from '../../../test-utils/render.js';
 import { HintMessage } from './HintMessage.js';
 import { describe, it, expect, vi } from 'vitest';
-import { makeFakeConfig } from '@openrnd/core';
+import { makeFakeConfig } from '@openwork/core';
 
 describe('HintMessage', () => {
   afterEach(() => {

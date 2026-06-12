@@ -38,7 +38,7 @@ import {
   processRestorableToolCalls,
   MessageBusType,
   type ToolCallsUpdateMessage,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   type ExecutionEventBus,
   type RequestContext,

@@ -38,8 +38,8 @@ if (process.env.CI) {
   execSync('npm run build --workspaces', { stdio: 'inherit', cwd: root });
 } else {
   // Build core first because everyone depends on it
-  console.log('Building @openrnd/core...');
-  execSync('npm run build -w @openrnd/core', {
+  console.log('Building @openwork/core...');
+  execSync('npm run build -w @openwork/core', {
     stdio: 'inherit',
     cwd: root,
   });
@@ -51,7 +51,7 @@ if (process.env.CI) {
   );
   const parallelWorkspaces = workspaceInfo
     .map((w) => w.name)
-    .filter((name) => name !== '@openrnd/core');
+    .filter((name) => name !== '@openwork/core');
 
   execSync(
     `npx npm-run-all --parallel ${parallelWorkspaces.map((w) => `"build -w ${w}"`).join(' ')}`,

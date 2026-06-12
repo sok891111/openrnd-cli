@@ -12,7 +12,7 @@
  * Bundling it into `npm install` means users don't have to `pip install pywin32`
  * as a separate step.
  *
- * On Windows, this also replaces npm's generated openrnd.ps1 shim with one that
+ * On Windows, this also replaces npm's generated openwork.ps1 shim with one that
  * launches Node through .NET ProcessStartInfo instead of PowerShell's native
  * command invocation operator. That avoids PSReadLine/PowerShell surfacing
  * "Program 'node.exe' failed to run ... NativeCommandFailed" after TUI exit.
@@ -28,7 +28,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 function log(message) {
-  process.stderr.write(`[openrnd-postinstall] ${message}\n`);
+  process.stderr.write(`[openwork-postinstall] ${message}\n`);
 }
 
 function quotePowerShellString(value) {
@@ -56,12 +56,12 @@ function getPowerShellShimCandidates({
   const candidates = new Set();
 
   if (prefix) {
-    candidates.add(path.join(prefix, 'openrnd.ps1'));
+    candidates.add(path.join(prefix, 'openwork.ps1'));
   }
 
   const nodeModulesRoot = findNodeModulesRoot(packageRoot);
   if (nodeModulesRoot) {
-    candidates.add(path.join(nodeModulesRoot, '.bin', 'openrnd.ps1'));
+    candidates.add(path.join(nodeModulesRoot, '.bin', 'openwork.ps1'));
   }
 
   return [...candidates];
@@ -69,7 +69,7 @@ function getPowerShellShimCandidates({
 
 function buildPowerShellShim({ nodePath, targetPath }) {
   return `#!/usr/bin/env pwsh
-# openrnd managed ProcessStartInfo shim.
+# openwork managed ProcessStartInfo shim.
 # npm's default PowerShell shim invokes node.exe with "& node.exe ...".
 # In classic Windows PowerShell/conhost, that path can surface a PSReadLine
 # IndexOutOfRangeException as NativeCommandFailed after an interactive TUI exits.
@@ -162,9 +162,9 @@ function patchPowerShellShim() {
     return;
   }
 
-  if (process.env.OPENRND_SKIP_POWERSHELL_SHIM_PATCH === '1') {
+  if (process.env.OPENWORK_SKIP_POWERSHELL_SHIM_PATCH === '1') {
     log(
-      'OPENRND_SKIP_POWERSHELL_SHIM_PATCH=1 set. Skipping PowerShell shim patch.',
+      'OPENWORK_SKIP_POWERSHELL_SHIM_PATCH=1 set. Skipping PowerShell shim patch.',
     );
     return;
   }
@@ -254,8 +254,8 @@ function main() {
   patchPowerShellShim();
 
   // Honor the standard opt-out used by Office automation environments / CI.
-  if (process.env.OPENRND_SKIP_PYWIN32_INSTALL === '1') {
-    log('OPENRND_SKIP_PYWIN32_INSTALL=1 set. Skipping pywin32 install.');
+  if (process.env.OPENWORK_SKIP_PYWIN32_INSTALL === '1') {
+    log('OPENWORK_SKIP_PYWIN32_INSTALL=1 set. Skipping pywin32 install.');
     return;
   }
 

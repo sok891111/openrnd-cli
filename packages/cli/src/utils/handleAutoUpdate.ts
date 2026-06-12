@@ -18,7 +18,7 @@ import {
   debugLogger,
   getChannelFromVersion,
   RELEASE_CHANNEL_STABILITY,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 let _updateInProgress = false;
 

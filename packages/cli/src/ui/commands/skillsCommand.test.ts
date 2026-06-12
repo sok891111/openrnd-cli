@@ -9,7 +9,7 @@ import { skillsCommand } from './skillsCommand.js';
 import { MessageType, type HistoryItemSkillsList } from '../types.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 import type { CommandContext } from './types.js';
-import type { Config, SkillDefinition } from '@openrnd/core';
+import type { Config, SkillDefinition } from '@openwork/core';
 import {
   SettingScope,
   type LoadedSettings,

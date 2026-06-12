@@ -14,7 +14,7 @@ import {
   type StartupWarning,
   isHeadlessMode,
   FatalUntrustedWorkspaceError,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type { Settings } from '../config/settingsSchema.js';
 import {
   isFolderTrustEnabled,

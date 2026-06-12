@@ -61,11 +61,11 @@ export const openWorkLogoTiny = `
 export const openWorkSignature = '✦ AI 알파 TF ✦';
 
 export const shortAsciiLogoCompactText = `
-openrnd
+openwork
 `;
 
 export const longAsciiLogoCompactText = `
-openrnd - Business AI CLI
+openwork - Business AI CLI
 `;
 
 export const tinyAsciiLogoCompactText = `

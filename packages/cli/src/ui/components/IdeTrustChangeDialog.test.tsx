@@ -9,7 +9,7 @@ import { act } from 'react';
 import * as processUtils from '../../utils/processUtils.js';
 import { renderWithProviders } from '../../test-utils/render.js';
 import { IdeTrustChangeDialog } from './IdeTrustChangeDialog.js';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 
 describe('IdeTrustChangeDialog', () => {
   beforeEach(() => {

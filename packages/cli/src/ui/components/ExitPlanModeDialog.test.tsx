@@ -17,7 +17,7 @@ import {
   validatePlanContent,
   processSingleFileContent,
   type FileSystemService,
-} from '@openrnd/core';
+} from '@openwork/core';
 import * as fs from 'node:fs';
 import { useKeyMatchers } from '../hooks/useKeyMatchers.js';
 
@@ -25,8 +25,8 @@ vi.mock('../utils/editorUtils.js', () => ({
   openFileInEditor: vi.fn(),
 }));
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     validatePlanPath: vi.fn(async () => null),
@@ -168,7 +168,7 @@ Implement a comprehensive authentication system with multiple providers.
           }),
           getUseAlternateBuffer: () => useAlternateBuffer,
           getUseTerminalBuffer: () => false,
-        } as unknown as import('@openrnd/core').Config,
+        } as unknown as import('@openwork/core').Config,
         settings: createMockSettings({ ui: { useAlternateBuffer } }),
         inputState: {
           buffer: { text: '' } as never,
@@ -476,7 +476,7 @@ Implement a comprehensive authentication system with multiple providers.
                 }),
                 getUseAlternateBuffer: () => useAlternateBuffer ?? true,
                 getUseTerminalBuffer: () => false,
-              } as unknown as import('@openrnd/core').Config,
+              } as unknown as import('@openwork/core').Config,
               settings: createMockSettings({
                 ui: { useAlternateBuffer: useAlternateBuffer ?? true },
               }),

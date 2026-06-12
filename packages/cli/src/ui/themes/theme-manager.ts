@@ -42,7 +42,7 @@ import { ANSI } from './builtin/dark/ansi-dark.js';
 import { ANSILight } from './builtin/light/ansi-light.js';
 import { NoColorTheme } from './builtin/no-color.js';
 import process from 'node:process';
-import { debugLogger, homedir } from '@openrnd/core';
+import { debugLogger, homedir } from '@openwork/core';
 
 export interface ThemeDisplay {
   name: string;

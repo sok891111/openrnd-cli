@@ -21,14 +21,14 @@ import {
   Config,
   ApprovalMode,
   type Config as ActualConfigType,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { useKeypress, type Key } from './useKeypress.js';
 import { MessageType } from '../types.js';
 
 vi.mock('./useKeypress.js');
 
-vi.mock('@openrnd/core', async () => {
-  const actualServerModule = await vi.importActual('@openrnd/core');
+vi.mock('@openwork/core', async () => {
+  const actualServerModule = await vi.importActual('@openwork/core');
   return {
     ...actualServerModule,
     Config: vi.fn(),

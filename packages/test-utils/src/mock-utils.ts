@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { SandboxConfig } from '@openrnd/core';
+import type { SandboxConfig } from '@openwork/core';
 
 export function createMockSandboxConfig(
   overrides?: Partial<SandboxConfig>,

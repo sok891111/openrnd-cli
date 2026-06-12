@@ -21,7 +21,7 @@ import {
   MaxSizedBox,
   MINIMUM_MAX_HEIGHT,
 } from '../components/shared/MaxSizedBox.js';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import type { LoadedSettings } from '../../config/settings.js';
 
 // Configure theming and parsing utilities.

@@ -39,9 +39,9 @@ const mockConfig = {
 // Mock scheduleAgentTools at module level so tests can override it
 const mockScheduleAgentTools = vi.fn().mockResolvedValue([]);
 
-// Mock @openrnd/core to avoid heavy filesystem/auth/telemetry setup
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+// Mock @openwork/core to avoid heavy filesystem/auth/telemetry setup
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     Config: vi.fn().mockImplementation(() => mockConfig),
@@ -224,7 +224,7 @@ describe.skip('GeminiCliSession sendStream()', () => {
   });
 
   it('executes tool call loop and sends function response back to model', async () => {
-    const { GeminiEventType } = await import('@openrnd/core');
+    const { GeminiEventType } = await import('@openwork/core');
 
     // First call: yield a ToolCallRequest, then end
     // Second call: empty stream (model is done after tool result)

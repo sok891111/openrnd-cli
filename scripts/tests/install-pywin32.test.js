@@ -18,19 +18,19 @@ const {
 
 describe('install-pywin32 postinstall helpers', () => {
   it('escapes PowerShell single quoted strings', () => {
-    expect(quotePowerShellString("C:\\Users\\O'Brien\\openrnd")).toBe(
-      "'C:\\Users\\O''Brien\\openrnd'",
+    expect(quotePowerShellString("C:\\Users\\O'Brien\\openwork")).toBe(
+      "'C:\\Users\\O''Brien\\openwork'",
     );
   });
 
   it('finds the nearest node_modules directory', () => {
-    const packageRoot = path.join('/repo', 'node_modules', '@openrnd', 'cli');
+    const packageRoot = path.join('/repo', 'node_modules', '@openwork', 'cli');
 
     expect(findNodeModulesRoot(packageRoot)).toBe('/repo/node_modules');
   });
 
   it('returns global and local PowerShell shim candidates', () => {
-    const packageRoot = path.join('/repo', 'node_modules', '@openrnd', 'cli');
+    const packageRoot = path.join('/repo', 'node_modules', '@openwork', 'cli');
 
     expect(
       getPowerShellShimCandidates({
@@ -38,8 +38,8 @@ describe('install-pywin32 postinstall helpers', () => {
         prefix: '/global/npm',
       }),
     ).toEqual([
-      path.join('/global/npm', 'openrnd.ps1'),
-      path.join('/repo', 'node_modules', '.bin', 'openrnd.ps1'),
+      path.join('/global/npm', 'openwork.ps1'),
+      path.join('/repo', 'node_modules', '.bin', 'openwork.ps1'),
     ]);
   });
 
@@ -47,7 +47,7 @@ describe('install-pywin32 postinstall helpers', () => {
     const shim = buildPowerShellShim({
       nodePath: 'C:\\Program Files\\nodejs\\node.exe',
       targetPath:
-        'C:\\Users\\me\\AppData\\Roaming\\npm\\node_modules\\@openrnd\\cli\\bundle\\gemini.js',
+        'C:\\Users\\me\\AppData\\Roaming\\npm\\node_modules\\@openwork\\cli\\bundle\\gemini.js',
     });
 
     expect(shim).toContain('System.Diagnostics.ProcessStartInfo');

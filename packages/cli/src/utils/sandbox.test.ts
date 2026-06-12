@@ -11,8 +11,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { start_sandbox } from './sandbox.js';
-import { FatalSandboxError, homedir, type SandboxConfig } from '@openrnd/core';
-import { createMockSandboxConfig } from '@openrnd/test-utils';
+import { FatalSandboxError, homedir, type SandboxConfig } from '@openwork/core';
+import { createMockSandboxConfig } from '@openwork/test-utils';
 import { EventEmitter } from 'node:events';
 
 const { mockedHomedir, mockedGetContainerPath, mockedExecCommands } =
@@ -81,8 +81,8 @@ vi.mock('node:util', async (importOriginal) => {
   };
 });
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     debugLogger: {

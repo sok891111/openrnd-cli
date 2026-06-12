@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends openrnd CLI's capabilities with specialized knowledge, workflows, or tool integrations.
+description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends openwork CLI's capabilities with specialized knowledge, workflows, or tool integrations.
 ---
 
 # Skill Creator
@@ -359,11 +359,11 @@ If the user agrees to an installation, perform it immediately using the `run_she
 
 - **Locally (workspace scope)**:
   ```bash
-  openrnd skills install <path/to/skill-name.skill> --scope workspace
+  openwork skills install <path/to/skill-name.skill> --scope workspace
   ```
 - **User level (user scope)**:
   ```bash
-  openrnd skills install <path/to/skill-name.skill> --scope user
+  openwork skills install <path/to/skill-name.skill> --scope user
   ```
 
 **Important:** After the installation is complete, notify the user that they MUST manually execute the `/skills reload` command in their interactive Gemini CLI session to enable the new skill. They can then verify the installation by running `/skills list`.

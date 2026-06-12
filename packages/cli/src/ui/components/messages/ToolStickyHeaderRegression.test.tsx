@@ -15,7 +15,7 @@ import { Box, Text } from 'ink';
 import { act, useRef, useEffect } from 'react';
 import { waitFor } from '../../../test-utils/async.js';
 import { SHELL_COMMAND_NAME } from '../../constants.js';
-import { CoreToolCallStatus } from '@openrnd/core';
+import { CoreToolCallStatus } from '@openwork/core';
 
 // Mock child components that might be complex
 vi.mock('../TerminalOutput.js', () => ({

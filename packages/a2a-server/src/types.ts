@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { MCPServerStatus, ToolConfirmationOutcome } from '@openrnd/core';
+import type { MCPServerStatus, ToolConfirmationOutcome } from '@openwork/core';
 import type { TaskState } from '@a2a-js/sdk';
 
 // Interfaces and enums for the CoderAgent protocol.

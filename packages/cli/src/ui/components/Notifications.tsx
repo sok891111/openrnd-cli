@@ -15,7 +15,7 @@ import { persistentState } from '../../utils/persistentState.js';
 import { useKeypress } from '../hooks/useKeypress.js';
 import { KeypressPriority } from '../contexts/KeypressContext.js';
 
-import { GEMINI_DIR, Storage, homedir, WarningPriority } from '@openrnd/core';
+import { GEMINI_DIR, Storage, homedir, WarningPriority } from '@openwork/core';
 
 import * as fs from 'node:fs/promises';
 import path from 'node:path';

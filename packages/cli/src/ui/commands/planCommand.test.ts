@@ -15,11 +15,11 @@ import {
   processSingleFileContent,
   type ProcessedFileReadResult,
   readFileWithEncoding,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { copyToClipboard } from '../utils/commandUtils.js';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     coreEvents: {

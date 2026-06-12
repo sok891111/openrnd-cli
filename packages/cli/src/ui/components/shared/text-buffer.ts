@@ -16,7 +16,7 @@ import {
   getErrorMessage,
   unescapePath,
   type EditorType,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   toCodePoints,
   cpLen,

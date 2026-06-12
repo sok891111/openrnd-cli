@@ -104,8 +104,8 @@
         },
         "debugLogging": {
           "title": "Debug Logging",
-          "description": "Write verbose LLM/provider debug logs to ~/.openrnd/debug.log. Overridden by the OPENRND_DEBUG environment variable when set (OPENRND_DEBUG=true/false).",
-          "markdownDescription": "Write verbose LLM/provider debug logs to ~/.openrnd/debug.log. Overridden by the OPENRND_DEBUG environment variable when set (OPENRND_DEBUG=true/false).\n\n- Category: `General`\n- Requires restart: `yes`\n- Default: `false`",
+          "description": "Write verbose LLM/provider debug logs to ~/.openwork/debug.log. Overridden by the OPENWORK_DEBUG environment variable when set (OPENWORK_DEBUG=true/false).",
+          "markdownDescription": "Write verbose LLM/provider debug logs to ~/.openwork/debug.log. Overridden by the OPENWORK_DEBUG environment variable when set (OPENWORK_DEBUG=true/false).\n\n- Category: `General`\n- Requires restart: `yes`\n- Default: `false`",
           "default": false,
           "type": "boolean"
         },
@@ -125,8 +125,8 @@
         },
         "updateRegistry": {
           "title": "Update Registry URL",
-          "description": "Custom npm registry URL used only for auto-update version checks and installs (e.g. a local registry at http://192.168.0.10:4873/). Leave empty to use the default npm registry. Overridden by the OPENRND_UPDATE_REGISTRY environment variable when set.",
-          "markdownDescription": "Custom npm registry URL used only for auto-update version checks and installs (e.g. a local registry at http://192.168.0.10:4873/). Leave empty to use the default npm registry. Overridden by the OPENRND_UPDATE_REGISTRY environment variable when set.\n\n- Category: `General`\n- Requires restart: `no`\n- Default: ``",
+          "description": "Custom npm registry URL used only for auto-update version checks and installs (e.g. a local registry at http://192.168.0.10:4873/). Leave empty to use the default npm registry. Overridden by the OPENWORK_UPDATE_REGISTRY environment variable when set.",
+          "markdownDescription": "Custom npm registry URL used only for auto-update version checks and installs (e.g. a local registry at http://192.168.0.10:4873/). Leave empty to use the default npm registry. Overridden by the OPENWORK_UPDATE_REGISTRY environment variable when set.\n\n- Category: `General`\n- Requires restart: `no`\n- Default: ``",
           "default": "",
           "type": "string"
         },
@@ -2614,8 +2614,8 @@
             },
             "skipPrivacyConsent": {
               "title": "Skip Browser Privacy Consent",
-              "description": "Skip the one-time browser privacy consent dialog and proceed without prompting. Enabled by default; set to false to restore the consent prompt. The OPENRND_SKIP_BROWSER_CONSENT=true environment variable also forces this behavior.",
-              "markdownDescription": "Skip the one-time browser privacy consent dialog and proceed without prompting. Enabled by default; set to false to restore the consent prompt. The OPENRND_SKIP_BROWSER_CONSENT=true environment variable also forces this behavior.\n\n- Category: `Advanced`\n- Requires restart: `yes`\n- Default: `true`",
+              "description": "Skip the one-time browser privacy consent dialog and proceed without prompting. Enabled by default; set to false to restore the consent prompt. The OPENWORK_SKIP_BROWSER_CONSENT=true environment variable also forces this behavior.",
+              "markdownDescription": "Skip the one-time browser privacy consent dialog and proceed without prompting. Enabled by default; set to false to restore the consent prompt. The OPENWORK_SKIP_BROWSER_CONSENT=true environment variable also forces this behavior.\n\n- Category: `Advanced`\n- Requires restart: `yes`\n- Default: `true`",
               "default": true,
               "type": "boolean"
             }
@@ -3822,8 +3822,8 @@
     },
     "llm": {
       "title": "LLM Connection",
-      "description": "OpenAI-compatible LLM connection settings for openrnd.",
-      "markdownDescription": "OpenAI-compatible LLM connection settings for openrnd.\n\n- Category: `LLM`\n- Requires restart: `yes`\n- Default: `{}`",
+      "description": "OpenAI-compatible LLM connection settings for openwork.",
+      "markdownDescription": "OpenAI-compatible LLM connection settings for openwork.\n\n- Category: `LLM`\n- Requires restart: `yes`\n- Default: `{}`",
       "default": {},
       "type": "object",
       "properties": {

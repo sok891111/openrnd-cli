@@ -7,7 +7,7 @@ import { renderWithProviders } from '../../../test-utils/render.js';
 import { HalfLinePaddedBox } from './HalfLinePaddedBox.js';
 import { Text, useIsScreenReaderEnabled } from 'ink';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { supportsTrueColor } from '@openrnd/core';
+import { supportsTrueColor } from '@openwork/core';
 
 vi.mock('ink', async () => {
   const actual = await vi.importActual('ink');
@@ -17,8 +17,8 @@ vi.mock('ink', async () => {
   };
 });
 
-vi.mock('@openrnd/core', async () => {
-  const actual = await vi.importActual('@openrnd/core');
+vi.mock('@openwork/core', async () => {
+  const actual = await vi.importActual('@openwork/core');
   return {
     ...actual,
     supportsTrueColor: vi.fn(() => true),

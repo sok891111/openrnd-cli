@@ -101,16 +101,16 @@ describe('retryWithBackoff', () => {
     expect(mockFn).toHaveBeenCalledTimes(3);
   });
 
-  describe('RPM rate-limit mode (OPENRND_RATE_LIMIT_RETRY_SECONDS)', () => {
+  describe('RPM rate-limit mode (OPENWORK_RATE_LIMIT_RETRY_SECONDS)', () => {
     afterEach(() => {
-      delete process.env['OPENRND_RATE_LIMIT_RETRY_SECONDS'];
+      delete process.env['OPENWORK_RATE_LIMIT_RETRY_SECONDS'];
     });
 
     const rateLimited = () =>
       new ApiError({ message: 'Too Many Requests', status: 429 });
 
     it('waits the fixed RPM window and retries on 429 when enabled', async () => {
-      process.env['OPENRND_RATE_LIMIT_RETRY_SECONDS'] = '60';
+      process.env['OPENWORK_RATE_LIMIT_RETRY_SECONDS'] = '60';
       const mockFn = vi
         .fn()
         .mockRejectedValueOnce(rateLimited())
@@ -151,7 +151,7 @@ describe('retryWithBackoff', () => {
     });
 
     it('disables the fixed window (falls back to backoff) when set to 0', async () => {
-      process.env['OPENRND_RATE_LIMIT_RETRY_SECONDS'] = '0';
+      process.env['OPENWORK_RATE_LIMIT_RETRY_SECONDS'] = '0';
       const mockFn = vi
         .fn()
         .mockRejectedValueOnce(rateLimited())

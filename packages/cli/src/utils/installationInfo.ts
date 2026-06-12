@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { debugLogger, isGitRepository } from '@openrnd/core';
+import { debugLogger, isGitRepository } from '@openwork/core';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as childProcess from 'node:child_process';
@@ -119,7 +119,7 @@ export function getInstallationInfo(
 
     // Check for Volta
     if (realPath.includes('/.volta/') || realPath.includes('/Volta/')) {
-      const updateCommand = 'volta install @openrnd/cli@latest';
+      const updateCommand = 'volta install @openwork/cli@latest';
       return {
         packageManager: PackageManager.VOLTA,
         isGlobal: true,
@@ -137,7 +137,7 @@ export function getInstallationInfo(
       realPath.includes('/Library/pnpm/global/') ||
       realPath.includes('/AppData/Local/pnpm/global/')
     ) {
-      const updateCommand = 'pnpm add -g @openrnd/cli@latest';
+      const updateCommand = 'pnpm add -g @openwork/cli@latest';
       return {
         packageManager: PackageManager.PNPM,
         isGlobal: true,
@@ -150,7 +150,7 @@ export function getInstallationInfo(
 
     // Check for yarn
     if (realPath.includes('/.yarn/global')) {
-      const updateCommand = 'yarn global add @openrnd/cli@latest';
+      const updateCommand = 'yarn global add @openwork/cli@latest';
       return {
         packageManager: PackageManager.YARN,
         isGlobal: true,
@@ -170,7 +170,7 @@ export function getInstallationInfo(
       };
     }
     if (realPath.includes('/.bun/install/global')) {
-      const updateCommand = 'bun add -g @openrnd/cli@latest';
+      const updateCommand = 'bun add -g @openwork/cli@latest';
       return {
         packageManager: PackageManager.BUN,
         isGlobal: true,
@@ -203,7 +203,7 @@ export function getInstallationInfo(
     }
 
     // Assume global npm
-    const updateCommand = 'npm install -g @openrnd/cli@latest';
+    const updateCommand = 'npm install -g @openwork/cli@latest';
     return {
       packageManager: PackageManager.NPM,
       isGlobal: true,

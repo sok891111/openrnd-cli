@@ -5,7 +5,7 @@
  */
 
 import * as path from 'node:path';
-import { homedir } from '@openrnd/core';
+import { homedir } from '@openwork/core';
 
 export function resolvePath(p: string): string {
   if (!p) {

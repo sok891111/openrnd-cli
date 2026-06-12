@@ -10,7 +10,7 @@ import {
   writeToStderr,
   writeToStdout,
   type Config,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   formatRelativeTime,
   SessionSelector,

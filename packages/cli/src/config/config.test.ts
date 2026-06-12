@@ -20,14 +20,14 @@ import {
   type MCPServerConfig,
   type GeminiCLIExtension,
   Storage,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { loadCliConfig, parseArguments, type CliArgs } from './config.js';
 import {
   type Settings,
   type MergedSettings,
   createTestMergedSettings,
 } from './settings.js';
-import * as ServerConfig from '@openrnd/core';
+import * as ServerConfig from '@openwork/core';
 
 import { isWorkspaceTrusted } from './trustedFolders.js';
 import { ExtensionManager } from './extension-manager.js';
@@ -97,9 +97,9 @@ vi.mock('read-package-up', () => ({
   ),
 }));
 
-vi.mock('@openrnd/core', async () => {
+vi.mock('@openwork/core', async () => {
   const actualServer =
-    await vi.importActual<typeof ServerConfig>('@openrnd/core');
+    await vi.importActual<typeof ServerConfig>('@openwork/core');
   return {
     ...actualServer,
     IdeClient: {

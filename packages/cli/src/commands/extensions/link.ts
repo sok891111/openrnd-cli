@@ -10,7 +10,7 @@ import {
   debugLogger,
   getErrorMessage,
   type ExtensionInstallMetadata,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 import {
   INSTALL_WARNING_MESSAGE,

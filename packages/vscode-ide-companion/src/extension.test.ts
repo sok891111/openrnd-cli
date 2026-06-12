@@ -10,10 +10,10 @@ import { activate } from './extension.js';
 import {
   IDE_DEFINITIONS,
   detectIdeFromEnv,
-} from '@openrnd/core/src/ide/detect-ide.js';
+} from '@openwork/core/src/ide/detect-ide.js';
 
-vi.mock('@openrnd/core/src/ide/detect-ide.js', async () => {
-  const actual = await vi.importActual('@openrnd/core/src/ide/detect-ide.js');
+vi.mock('@openwork/core/src/ide/detect-ide.js', async () => {
+  const actual = await vi.importActual('@openwork/core/src/ide/detect-ide.js');
   return {
     ...actual,
     detectIdeFromEnv: vi.fn(() => IDE_DEFINITIONS.vscode),

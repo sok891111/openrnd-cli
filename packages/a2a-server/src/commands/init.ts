@@ -7,7 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CoderAgentEvent, type AgentSettings } from '../types.js';
-import { performInit } from '@openrnd/core';
+import { performInit } from '@openwork/core';
 import type {
   Command,
   CommandContext,

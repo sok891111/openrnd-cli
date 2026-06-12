@@ -12,7 +12,7 @@ import {
   ApprovalMode,
   makeFakeConfig,
   type SerializableConfirmationDetails,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { type UIState } from './contexts/UIStateContext.js';
 import { act } from 'react';
 import { StreamingState } from './types.js';

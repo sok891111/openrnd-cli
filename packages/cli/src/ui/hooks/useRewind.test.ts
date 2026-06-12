@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act } from 'react';
 import { renderHook } from '../../test-utils/render.js';
 import { useRewind } from './useRewind.js';
-import type { ConversationRecord, MessageRecord } from '@openrnd/core';
+import type { ConversationRecord, MessageRecord } from '@openwork/core';
 import type { FileChangeStats } from '../utils/rewindFileOps.js';
 import * as rewindFileOps from '../utils/rewindFileOps.js';
 

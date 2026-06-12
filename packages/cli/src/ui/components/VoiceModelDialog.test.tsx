@@ -12,8 +12,8 @@ import { act } from 'react';
 import { waitFor } from '../../test-utils/async.js';
 import { SettingScope } from '../../config/settings.js';
 
-vi.mock('@openrnd/core', async () => {
-  const actual = await vi.importActual('@openrnd/core');
+vi.mock('@openwork/core', async () => {
+  const actual = await vi.importActual('@openwork/core');
   return {
     ...actual,
     isBinaryAvailable: vi.fn().mockReturnValue(true),

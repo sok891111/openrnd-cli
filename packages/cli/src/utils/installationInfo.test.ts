@@ -9,10 +9,10 @@ import { getInstallationInfo, PackageManager } from './installationInfo.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as childProcess from 'node:child_process';
-import { isGitRepository, debugLogger } from '@openrnd/core';
+import { isGitRepository, debugLogger } from '@openwork/core';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     isGitRepository: vi.fn(),
@@ -214,7 +214,7 @@ describe('getInstallationInfo', () => {
     const info = getInstallationInfo(projectRoot, true);
     expect(info.packageManager).toBe(PackageManager.PNPM);
     expect(info.isGlobal).toBe(true);
-    expect(info.updateCommand).toBe('pnpm add -g @openrnd/cli@latest');
+    expect(info.updateCommand).toBe('pnpm add -g @openwork/cli@latest');
     expect(info.updateMessage).toContain('Attempting to automatically update');
 
     // isAutoUpdateEnabled = false -> "Please run..."
@@ -234,7 +234,7 @@ describe('getInstallationInfo', () => {
     const info = getInstallationInfo(projectRoot, true);
     expect(info.packageManager).toBe(PackageManager.YARN);
     expect(info.isGlobal).toBe(true);
-    expect(info.updateCommand).toBe('yarn global add @openrnd/cli@latest');
+    expect(info.updateCommand).toBe('yarn global add @openwork/cli@latest');
     expect(info.updateMessage).toContain('Attempting to automatically update');
 
     // isAutoUpdateEnabled = false -> "Please run..."
@@ -254,7 +254,7 @@ describe('getInstallationInfo', () => {
     const info = getInstallationInfo(projectRoot, true);
     expect(info.packageManager).toBe(PackageManager.BUN);
     expect(info.isGlobal).toBe(true);
-    expect(info.updateCommand).toBe('bun add -g @openrnd/cli@latest');
+    expect(info.updateCommand).toBe('bun add -g @openwork/cli@latest');
     expect(info.updateMessage).toContain('Attempting to automatically update');
 
     // isAutoUpdateEnabled = false -> "Please run..."
@@ -341,7 +341,7 @@ describe('getInstallationInfo', () => {
     const info = getInstallationInfo(projectRoot, true);
     expect(info.packageManager).toBe(PackageManager.NPM);
     expect(info.isGlobal).toBe(true);
-    expect(info.updateCommand).toBe('npm install -g @openrnd/cli@latest');
+    expect(info.updateCommand).toBe('npm install -g @openwork/cli@latest');
     expect(info.updateMessage).toContain('Attempting to automatically update');
 
     // isAutoUpdateEnabled = false -> "Please run..."
@@ -358,7 +358,7 @@ describe('getInstallationInfo', () => {
     const info = getInstallationInfo(projectRoot, true);
 
     expect(info.packageManager).toBe(PackageManager.VOLTA);
-    expect(info.updateCommand).toBe('volta install @openrnd/cli@latest');
+    expect(info.updateCommand).toBe('volta install @openwork/cli@latest');
   });
 
   it('should detect Volta installation (Windows-style)', () => {
@@ -370,7 +370,7 @@ describe('getInstallationInfo', () => {
     const info = getInstallationInfo(projectRoot, true);
 
     expect(info.packageManager).toBe(PackageManager.VOLTA);
-    expect(info.updateCommand).toBe('volta install @openrnd/cli@latest');
+    expect(info.updateCommand).toBe('volta install @openwork/cli@latest');
   });
 
   it('should NOT detect Homebrew if gemini-cli is installed in brew but running from npm location', () => {

@@ -9,7 +9,7 @@ import { readStdin } from './readStdin.js';
 import { EventEmitter } from 'node:events';
 
 // Mock debugLogger to avoid clutter
-vi.mock('@openrnd/core', () => ({
+vi.mock('@openwork/core', () => ({
   debugLogger: {
     warn: vi.fn(),
   },

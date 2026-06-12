@@ -23,7 +23,7 @@ import {
   type CustomTheme,
   type SandboxConfig,
   type VertexAiRoutingConfig,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type { SessionRetentionSettings } from './settings.js';
 import { DEFAULT_MIN_RETENTION } from '../utils/sessionCleanup.js';
 
@@ -260,9 +260,9 @@ const SETTINGS_SCHEMA = {
         requiresRestart: true,
         default: false,
         description: oneLine`
-          Write verbose LLM/provider debug logs to ~/.openrnd/debug.log.
-          Overridden by the OPENRND_DEBUG environment variable when set
-          (OPENRND_DEBUG=true/false).
+          Write verbose LLM/provider debug logs to ~/.openwork/debug.log.
+          Overridden by the OPENWORK_DEBUG environment variable when set
+          (OPENWORK_DEBUG=true/false).
         `,
         showInDialog: true,
       },
@@ -294,7 +294,7 @@ const SETTINGS_SCHEMA = {
           Custom npm registry URL used only for auto-update version checks and
           installs (e.g. a local registry at http://192.168.0.10:4873/).
           Leave empty to use the default npm registry. Overridden by the
-          OPENRND_UPDATE_REGISTRY environment variable when set.
+          OPENWORK_UPDATE_REGISTRY environment variable when set.
         `,
         showInDialog: false,
       },
@@ -1412,7 +1412,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: true,
             description:
-              'Skip the one-time browser privacy consent dialog and proceed without prompting. Enabled by default; set to false to restore the consent prompt. The OPENRND_SKIP_BROWSER_CONSENT=true environment variable also forces this behavior.',
+              'Skip the one-time browser privacy consent dialog and proceed without prompting. Enabled by default; set to false to restore the consent prompt. The OPENWORK_SKIP_BROWSER_CONSENT=true environment variable also forces this behavior.',
             showInDialog: true,
           },
         },
@@ -3068,7 +3068,7 @@ const SETTINGS_SCHEMA = {
     category: 'LLM',
     requiresRestart: true,
     default: {},
-    description: 'OpenAI-compatible LLM connection settings for openrnd.',
+    description: 'OpenAI-compatible LLM connection settings for openwork.',
     showInDialog: false,
     properties: {
       baseUrl: {

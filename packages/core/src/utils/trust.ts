@@ -45,7 +45,7 @@ export function isTrustLevel(value: unknown): value is TrustLevel {
  */
 export function checkPathTrust(options: TrustOptions): TrustResult {
   if (
-    process.env['OPENRND_TRUST_WORKSPACE'] === 'true' ||
+    process.env['OPENWORK_TRUST_WORKSPACE'] === 'true' ||
     process.env['GEMINI_CLI_TRUST_WORKSPACE'] === 'true'
   ) {
     return { isTrusted: true, source: 'env' };

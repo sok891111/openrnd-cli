@@ -9,12 +9,12 @@ import { act } from 'react';
 import { waitFor } from '../../test-utils/async.js';
 import { renderWithProviders } from '../../test-utils/render.js';
 import { UsageDisplay } from './UsageDisplay.js';
-import { usageStatsStore, type PersistedModelUsage } from '@openrnd/core';
+import { usageStatsStore, type PersistedModelUsage } from '@openwork/core';
 import stripAnsi from 'strip-ansi';
 import stringWidth from 'string-width';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     usageStatsStore: {

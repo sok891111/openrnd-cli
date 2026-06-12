@@ -18,7 +18,7 @@ import {
   type PolicyUpdateConfirmationRequest,
   writeToStderr,
   debugLogger,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { type Settings } from './settings.js';
 
 /**

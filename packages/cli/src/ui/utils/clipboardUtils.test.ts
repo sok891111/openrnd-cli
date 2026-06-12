@@ -41,8 +41,8 @@ vi.mock('node:child_process', async (importOriginal) => {
     execSync: vi.fn(),
   };
 });
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     spawnAsync: vi.fn(),
@@ -57,7 +57,7 @@ vi.mock('@openrnd/core', async (importOriginal) => {
   };
 });
 
-import { spawnAsync } from '@openrnd/core';
+import { spawnAsync } from '@openwork/core';
 // Keep static imports for stateless functions
 import {
   cleanupOldClipboardImages,

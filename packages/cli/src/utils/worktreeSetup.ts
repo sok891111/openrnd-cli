@@ -9,7 +9,7 @@ import {
   createWorktreeService,
   writeToStderr,
   type WorktreeInfo,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 /**
  * Sets up a git worktree for parallel sessions.

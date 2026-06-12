@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
-import { Storage } from '@openrnd/core';
+import { Storage } from '@openwork/core';
 import {
   Command,
   commandCategories,

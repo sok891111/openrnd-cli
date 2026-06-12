@@ -13,7 +13,7 @@ import {
   type LoadableSettingScope,
   type LoadedSettings,
 } from '../../config/settings.js';
-import type { AgentDefinition, AgentOverride } from '@openrnd/core';
+import type { AgentDefinition, AgentOverride } from '@openwork/core';
 import { getCachedStringWidth } from '../utils/textUtils.js';
 import {
   BaseSettingsDialog,

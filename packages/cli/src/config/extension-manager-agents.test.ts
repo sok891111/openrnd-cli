@@ -9,7 +9,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { ExtensionManager } from './extension-manager.js';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import { createTestMergedSettings } from './settings.js';
 import { createExtension } from '../test-utils/createExtension.js';
 import { EXTENSIONS_DIRECTORY_NAME } from './extensions/variables.js';
@@ -24,9 +24,9 @@ vi.mock('node:os', async (importOriginal) => {
   };
 });
 
-// Mock @openrnd/core
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const core = await importOriginal<typeof import('@openrnd/core')>();
+// Mock @openwork/core
+vi.mock('@openwork/core', async (importOriginal) => {
+  const core = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...core,
     homedir: mockHomedir,

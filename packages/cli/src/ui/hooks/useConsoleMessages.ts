@@ -6,7 +6,7 @@
 
 import { useCallback, useSyncExternalStore } from 'react';
 import type { ConsoleMessageItem } from '../types.js';
-import { coreEvents, CoreEvent, type ConsoleLogPayload } from '@openrnd/core';
+import { coreEvents, CoreEvent, type ConsoleLogPayload } from '@openwork/core';
 
 export interface UseErrorCountReturn {
   errorCount: number;

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Config as CoreConfig } from '@openrnd/core';
+import type { Config as CoreConfig } from '@openwork/core';
 import type { AgentFilesystem } from './types.js';
 import fs from 'node:fs/promises';
 

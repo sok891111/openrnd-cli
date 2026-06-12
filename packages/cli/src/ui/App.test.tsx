@@ -12,7 +12,7 @@ import { Text, useIsScreenReaderEnabled, type DOMElement } from 'ink';
 import { App } from './App.js';
 import { type UIState } from './contexts/UIStateContext.js';
 import { StreamingState } from './types.js';
-import { makeFakeConfig, CoreToolCallStatus } from '@openrnd/core';
+import { makeFakeConfig, CoreToolCallStatus } from '@openwork/core';
 
 vi.mock('ink', async (importOriginal) => {
   const original = await importOriginal<typeof import('ink')>();

@@ -14,8 +14,8 @@ import { ExtensionManager } from '../../config/extension-manager.js';
 
 const mockGetErrorMessage = vi.hoisted(() => vi.fn());
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     getErrorMessage: mockGetErrorMessage,

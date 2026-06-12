@@ -56,7 +56,7 @@ import {
   coreEvents,
   debugLogger,
   type Config,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { useVoiceMode } from '../hooks/useVoiceMode.js';
 import {
   parseInputForHighlighting,

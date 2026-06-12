@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { listExtensions } from '@openrnd/core';
+import { listExtensions } from '@openwork/core';
 import type {
   Command,
   CommandContext,

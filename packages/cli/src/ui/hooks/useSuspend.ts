@@ -13,7 +13,7 @@ import {
   exitAlternateScreen,
   enableLineWrapping,
   disableLineWrapping,
-} from '@openrnd/core';
+} from '@openwork/core';
 import process from 'node:process';
 import {
   cleanupTerminalOnExit,

@@ -22,7 +22,7 @@ export const MANAGE_MCP_TOOL_NAME = 'manage_mcp';
 export const MANAGE_MCP_DISPLAY_NAME = 'Manage MCP';
 
 const MANAGE_MCP_DESCRIPTION = `Manage MCP (Model Context Protocol) servers — add, remove, or list configured servers.
-The configuration is written to the user-level settings file (~/.openrnd/settings.json).
+The configuration is written to the user-level settings file (~/.openwork/settings.json).
 
 Use this tool when the user says things like:
 - "MCP 서버 추가해줘"
@@ -31,7 +31,7 @@ Use this tool when the user says things like:
 - "MCP 목록 보여줘"
 - "xxx MCP 서버 삭제해줘"
 
-After adding or removing a server, tell the user to restart openrnd (or type /mcp refresh in interactive mode) to apply the change.
+After adding or removing a server, tell the user to restart openwork (or type /mcp refresh in interactive mode) to apply the change.
 
 Transport types:
 - "stdio": Runs a local command (e.g. npx, uvx, python). Requires "command" and optionally "args".
@@ -103,7 +103,7 @@ const MANAGE_MCP_SCHEMA = {
       type: 'string',
       enum: ['user', 'workspace'],
       description:
-        'Where to save the config. "user" = ~/.openrnd/settings.json (default), "workspace" = .openrnd/settings.json in current directory.',
+        'Where to save the config. "user" = ~/.openwork/settings.json (default), "workspace" = .openwork/settings.json in current directory.',
     },
   },
   required: ['action'],
@@ -115,7 +115,7 @@ const MANAGE_MCP_SCHEMA = {
 
 function getSettingsPath(scope: 'user' | 'workspace'): string {
   if (scope === 'workspace') {
-    return path.join(process.cwd(), '.openrnd', 'settings.json');
+    return path.join(process.cwd(), '.openwork', 'settings.json');
   }
   return Storage.getGlobalSettingsPath();
 }
@@ -239,8 +239,8 @@ class ManageMcpInvocation extends BaseToolInvocation<
         writeSettingsJson(settingsPath, settings);
 
         const msg = isUpdate
-          ? `✅ MCP server **${name}** updated in ${scope} settings (${settingsPath}).\n\nRestart openrnd to apply the change.`
-          : `✅ MCP server **${name}** added to ${scope} settings (${settingsPath}).\n\nRestart openrnd to apply the change.`;
+          ? `✅ MCP server **${name}** updated in ${scope} settings (${settingsPath}).\n\nRestart openwork to apply the change.`
+          : `✅ MCP server **${name}** added to ${scope} settings (${settingsPath}).\n\nRestart openwork to apply the change.`;
         return { llmContent: msg, returnDisplay: msg };
       }
 
@@ -264,7 +264,7 @@ class ManageMcpInvocation extends BaseToolInvocation<
         delete servers[name];
         settings['mcpServers'] = servers;
         writeSettingsJson(settingsPath, settings);
-        const msg = `✅ MCP server **${name}** removed from ${scope} settings.\n\nRestart openrnd to apply the change.`;
+        const msg = `✅ MCP server **${name}** removed from ${scope} settings.\n\nRestart openwork to apply the change.`;
         return { llmContent: msg, returnDisplay: msg };
       }
       default: {

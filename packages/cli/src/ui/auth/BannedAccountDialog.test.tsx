@@ -10,13 +10,13 @@ import { waitFor } from '../../test-utils/async.js';
 import { BannedAccountDialog } from './BannedAccountDialog.js';
 import { RadioButtonSelect } from '../components/shared/RadioButtonSelect.js';
 import { useKeypress } from '../hooks/useKeypress.js';
-import { openBrowserSecurely, shouldLaunchBrowser } from '@openrnd/core';
+import { openBrowserSecurely, shouldLaunchBrowser } from '@openwork/core';
 import { Text } from 'ink';
 import { runExitCleanup } from '../../utils/cleanup.js';
 import type { AccountSuspensionInfo } from '../contexts/UIStateContext.js';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     openBrowserSecurely: vi.fn(),

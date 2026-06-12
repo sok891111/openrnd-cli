@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { spawnAsync, getAbsoluteGitDir } from '@openrnd/core';
+import { spawnAsync, getAbsoluteGitDir } from '@openwork/core';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 

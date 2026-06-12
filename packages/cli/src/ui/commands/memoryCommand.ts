@@ -10,7 +10,7 @@ import {
   listMemoryFiles,
   refreshMemory,
   showMemory,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { MessageType } from '../types.js';
 import {
   CommandKind,

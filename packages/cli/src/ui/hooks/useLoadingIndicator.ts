@@ -8,7 +8,7 @@ import { StreamingState } from '../types.js';
 import { useTimer } from './useTimer.js';
 import { usePhraseCycler } from './usePhraseCycler.js';
 import { useState, useEffect, useRef } from 'react';
-import { getDisplayString, type RetryAttemptPayload } from '@openrnd/core';
+import { getDisplayString, type RetryAttemptPayload } from '@openwork/core';
 
 const LOW_VERBOSITY_RETRY_HINT_ATTEMPT_THRESHOLD = 2;
 

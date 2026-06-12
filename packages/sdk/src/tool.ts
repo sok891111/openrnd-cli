@@ -14,7 +14,7 @@ import {
   type ExecuteOptions,
   Kind,
   type MessageBus,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type { SessionContext } from './types.js';
 
 export { z };
@@ -210,7 +210,7 @@ export class SdkTool<T extends z.ZodTypeAny> extends BaseDeclarativeTool<
  *
  * @example
  * ```typescript
- * import { z, tool } from '@openrnd/sdk';
+ * import { z, tool } from '@openwork/sdk';
  *
  * const myTool = tool(
  *   {

@@ -214,10 +214,10 @@ describe('CreatePptxTool (HTML → PPTX)', () => {
 
     const writes = vi.mocked(fsPromises.writeFile).mock.calls;
     const htmlWrite = writes.find((c) => String(c[0]).endsWith('.html'));
-    expect(String(htmlWrite?.[1])).toContain('openrnd-slide-viewer-style');
-    expect(String(htmlWrite?.[1])).toContain('openrnd-slide-controls');
-    expect(String(htmlWrite?.[1])).toContain('openrnd-slide-stage');
-    expect(String(htmlWrite?.[1])).toContain('openrnd-slide-visible');
+    expect(String(htmlWrite?.[1])).toContain('openwork-slide-viewer-style');
+    expect(String(htmlWrite?.[1])).toContain('openwork-slide-controls');
+    expect(String(htmlWrite?.[1])).toContain('openwork-slide-stage');
+    expect(String(htmlWrite?.[1])).toContain('openwork-slide-visible');
     expect(String(htmlWrite?.[1])).not.toContain('scroll-snap-type');
   });
 
@@ -228,15 +228,15 @@ describe('CreatePptxTool (HTML → PPTX)', () => {
     });
     const writes = vi.mocked(fsPromises.writeFile).mock.calls;
     const htmlWrite = writes.find((c) => String(c[0]).endsWith('.html'));
-    expect(String(htmlWrite?.[1])).not.toContain('openrnd-slide-hint');
+    expect(String(htmlWrite?.[1])).not.toContain('openwork-slide-hint');
     expect(String(htmlWrite?.[1])).not.toContain('Arrow keys or buttons');
   });
 
   it('skips template analysis (no .pptx) when no vision model is configured', async () => {
-    const prevUrl = process.env['OPENRND_VISION_BASE_URL'];
-    const prevModel = process.env['OPENRND_VISION_MODEL'];
-    delete process.env['OPENRND_VISION_BASE_URL'];
-    delete process.env['OPENRND_VISION_MODEL'];
+    const prevUrl = process.env['OPENWORK_VISION_BASE_URL'];
+    const prevModel = process.env['OPENWORK_VISION_MODEL'];
+    delete process.env['OPENWORK_VISION_BASE_URL'];
+    delete process.env['OPENWORK_VISION_MODEL'];
     try {
       const result = await run({ template_path: 'sample.pptx' });
       // Gracefully degrades: no error, no deck rendered, no Chrome launched.
@@ -246,9 +246,9 @@ describe('CreatePptxTool (HTML → PPTX)', () => {
       expect(pptxState.slidesAdded).toBe(0);
     } finally {
       if (prevUrl !== undefined)
-        process.env['OPENRND_VISION_BASE_URL'] = prevUrl;
+        process.env['OPENWORK_VISION_BASE_URL'] = prevUrl;
       if (prevModel !== undefined)
-        process.env['OPENRND_VISION_MODEL'] = prevModel;
+        process.env['OPENWORK_VISION_MODEL'] = prevModel;
     }
   });
 
@@ -273,7 +273,7 @@ describe('CreatePptxTool (HTML → PPTX)', () => {
   it('injects capture CSS that forces each slide to the viewport', async () => {
     await run({ html: '<section class="slide">A</section>' });
     const arg = pageMock.addStyleTag.mock.calls[0][0] as { content: string };
-    expect(arg.content).toContain('openrnd-pptx-capture');
+    expect(arg.content).toContain('openwork-pptx-capture');
     expect(arg.content).toContain('width:1280px');
     expect(arg.content).toContain('height:720px');
   });

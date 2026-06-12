@@ -14,7 +14,7 @@ import {
   getTruncatedCheckpointNames,
   performRestore,
   type ToolCallData,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   type CommandContext,
   type SlashCommand,

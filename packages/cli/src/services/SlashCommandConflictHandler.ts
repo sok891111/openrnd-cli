@@ -9,7 +9,7 @@ import {
   CoreEvent,
   type SlashCommandConflictsPayload,
   type SlashCommandConflict,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { CommandKind } from '../ui/commands/types.js';
 
 /**

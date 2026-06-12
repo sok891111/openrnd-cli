@@ -10,7 +10,7 @@ import type {
   CommandContext,
 } from './types.js';
 import { CommandKind } from './types.js';
-import type { MessageActionReturn } from '@openrnd/core';
+import type { MessageActionReturn } from '@openwork/core';
 import {
   DiscoveredMCPTool,
   getMCPDiscoveryState,
@@ -22,7 +22,7 @@ import {
   mcpServerRequiresOAuth,
   CoreEvent,
   coreEvents,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 import { MessageType, type HistoryItemMcpStatus } from '../types.js';
 import {
@@ -113,7 +113,7 @@ const authCommand: SlashCommand = {
       });
 
       // Import dynamically to avoid circular dependencies
-      const { MCPOAuthProvider } = await import('@openrnd/core');
+      const { MCPOAuthProvider } = await import('@openwork/core');
 
       let oauthConfig = server.oauth;
       if (!oauthConfig) {

@@ -15,7 +15,7 @@ import {
 } from './usePhraseCycler.js';
 import { WITTY_LOADING_PHRASES } from '../constants/wittyPhrases.js';
 import { INFORMATIVE_TIPS } from '../constants/tips.js';
-import type { RetryAttemptPayload } from '@openrnd/core';
+import type { RetryAttemptPayload } from '@openwork/core';
 
 describe('useLoadingIndicator', () => {
   beforeEach(() => {

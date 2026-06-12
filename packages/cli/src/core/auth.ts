@@ -11,7 +11,7 @@ import {
   ValidationRequiredError,
   isAccountSuspendedError,
   ProjectIdRequiredError,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 import type { AccountSuspensionInfo } from '../ui/contexts/UIStateContext.js';
 

@@ -32,8 +32,8 @@ import {
   CoreToolCallStatus,
   type Config,
   type DiscoveredMCPResource,
-} from '@openrnd/core';
-import * as core from '@openrnd/core';
+} from '@openwork/core';
+import * as core from '@openwork/core';
 import * as os from 'node:os';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 import * as fs from 'node:fs';

@@ -7,7 +7,7 @@
 import { render } from '../../test-utils/render.js';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PrivacyNotice } from './PrivacyNotice.js';
-import type { AuthType, Config, ContentGeneratorConfig } from '@openrnd/core';
+import type { AuthType, Config, ContentGeneratorConfig } from '@openwork/core';
 
 // Mock child components
 vi.mock('./GeminiPrivacyNotice.js', async () => {

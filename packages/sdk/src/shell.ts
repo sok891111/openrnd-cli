@@ -9,7 +9,7 @@ import {
   ShellExecutionService,
   ShellTool,
   type Config as CoreConfig,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type {
   AgentShell,
   AgentShellResult,

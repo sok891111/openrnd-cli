@@ -10,7 +10,7 @@ import { EventEmitter } from 'node:events';
 import {
   enableKittyKeyboardProtocol,
   enableModifyOtherKeys,
-} from '@openrnd/core';
+} from '@openwork/core';
 import * as fs from 'node:fs';
 
 // Mock fs
@@ -19,7 +19,7 @@ vi.mock('node:fs', () => ({
 }));
 
 // Mock core
-vi.mock('@openrnd/core', () => ({
+vi.mock('@openwork/core', () => ({
   debugLogger: {
     log: vi.fn(),
     warn: vi.fn(),

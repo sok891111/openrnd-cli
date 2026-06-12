@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleAtCommand } from './atCommandProcessor.js';
-import type { Config, AgentDefinition, MessageBus } from '@openrnd/core';
+import type { Config, AgentDefinition, MessageBus } from '@openwork/core';
 import {
   FileDiscoveryService,
   GlobTool,
@@ -15,7 +15,7 @@ import {
   ToolRegistry,
   COMMON_IGNORE_PATTERNS,
   ApprovalMode,
-} from '@openrnd/core';
+} from '@openwork/core';
 import * as os from 'node:os';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 import * as fsPromises from 'node:fs/promises';

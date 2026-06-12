@@ -12,13 +12,13 @@ import {
   getCodeAssistServer,
   type Config,
   type CodeAssistServer,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { usePrivacySettings } from './usePrivacySettings.js';
 import { waitFor } from '../../test-utils/async.js';
 
 // Mock the dependencies
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     getCodeAssistServer: vi.fn(),

@@ -12,11 +12,11 @@ import {
   AuthType,
   UserAccountManager,
   type ContentGeneratorConfig,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 // Mock UserAccountManager to control cached account
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...original,
     UserAccountManager: vi.fn().mockImplementation(() => ({

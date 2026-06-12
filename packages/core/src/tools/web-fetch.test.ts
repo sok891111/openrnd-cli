@@ -334,16 +334,16 @@ describe('WebFetchTool', () => {
     // Disable the browser-fallback feature by default so these tests exercise
     // the legacy primary/fallback paths unchanged. The browser behavior is
     // covered by its own dedicated test(s) which re-enable it explicitly.
-    process.env['OPENRND_WEBFETCH_BROWSER_FALLBACK'] = '0';
-    process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'] = '0';
+    process.env['OPENWORK_WEBFETCH_BROWSER_FALLBACK'] = '0';
+    process.env['OPENWORK_WEBFETCH_MIN_CONTENT_LENGTH'] = '0';
     // No artificial post-navigation wait during tests.
-    process.env['OPENRND_WEBFETCH_BROWSER_WAIT_MS'] = '0';
+    process.env['OPENWORK_WEBFETCH_BROWSER_WAIT_MS'] = '0';
   });
 
   afterEach(() => {
-    delete process.env['OPENRND_WEBFETCH_BROWSER_FALLBACK'];
-    delete process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'];
-    delete process.env['OPENRND_WEBFETCH_BROWSER_WAIT_MS'];
+    delete process.env['OPENWORK_WEBFETCH_BROWSER_FALLBACK'];
+    delete process.env['OPENWORK_WEBFETCH_MIN_CONTENT_LENGTH'];
+    delete process.env['OPENWORK_WEBFETCH_BROWSER_WAIT_MS'];
   });
 
   describe('validateToolParamValues', () => {
@@ -736,8 +736,8 @@ describe('WebFetchTool', () => {
 
     it('routes a small HTTP 200 HTML response (SSO stub) to the browser session', async () => {
       // Enable the browser fallback + heuristic (the suite disables them).
-      process.env['OPENRND_WEBFETCH_BROWSER_FALLBACK'] = '1';
-      process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'] = '1500';
+      process.env['OPENWORK_WEBFETCH_BROWSER_FALLBACK'] = '1';
+      process.env['OPENWORK_WEBFETCH_MIN_CONTENT_LENGTH'] = '1500';
 
       // The primary grounded model is bypassed when the feature is on, so clear
       // any queued generateContent responses; the only LLM call is the summary.
@@ -811,8 +811,8 @@ describe('WebFetchTool', () => {
   describe('SSO fallback browser path', () => {
     beforeEach(() => {
       vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
-      process.env['OPENRND_WEBFETCH_BROWSER_FALLBACK'] = '1';
-      process.env['OPENRND_WEBFETCH_MIN_CONTENT_LENGTH'] = '1500';
+      process.env['OPENWORK_WEBFETCH_BROWSER_FALLBACK'] = '1';
+      process.env['OPENWORK_WEBFETCH_MIN_CONTENT_LENGTH'] = '1500';
       mockGenerateContent.mockReset();
       // market.naver.com is claimed by the bundled sample corporate handler, so
       // it is an "API-requiring" URL. The handler itself returns no body, so we

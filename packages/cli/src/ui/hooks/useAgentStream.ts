@@ -21,7 +21,7 @@ import {
   type AgentProtocol,
   type Logger,
   type Part,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type {
   HistoryItemWithoutId,
   LoopDetectionConfirmationRequest,

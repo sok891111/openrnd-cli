@@ -20,7 +20,7 @@ import {
   EDIT_DISPLAY_NAME,
   READ_FILE_DISPLAY_NAME,
   GLOB_DISPLAY_NAME,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type {
   HistoryItem,
   HistoryItemWithoutId,

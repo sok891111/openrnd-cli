@@ -8,7 +8,7 @@ import type React from 'react';
 import { StatsDisplay } from './StatsDisplay.js';
 import { useSessionStats } from '../contexts/SessionContext.js';
 import { useConfig } from '../contexts/ConfigContext.js';
-import { escapeShellArg, isWindows, type ShellType } from '@openrnd/core';
+import { escapeShellArg, isWindows, type ShellType } from '@openwork/core';
 
 interface SessionSummaryDisplayProps {
   duration: string;
@@ -30,11 +30,11 @@ export const SessionSummaryDisplay: React.FC<SessionSummaryDisplayProps> = ({
     !escapedSessionId.startsWith("'")
       ? `"${escapedSessionId}"`
       : escapedSessionId;
-  let footer = `To resume this session: openrnd --resume ${footerSessionId}`;
+  let footer = `To resume this session: openwork --resume ${footerSessionId}`;
 
   if (worktreeSettings) {
     footer =
-      `To resume work in this worktree: cd ${escapeShellArg(worktreeSettings.path, shell)} && openrnd --resume ${footerSessionId}\n` +
+      `To resume work in this worktree: cd ${escapeShellArg(worktreeSettings.path, shell)} && openwork --resume ${footerSessionId}\n` +
       `To remove manually: git worktree remove ${escapeShellArg(worktreeSettings.path, shell)}`;
   }
 

@@ -17,10 +17,10 @@ import {
   showMemory,
   listMemoryFiles,
   flattenMemory,
-} from '@openrnd/core';
+} from '@openwork/core';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...original,
     getErrorMessage: vi.fn((error: unknown) => {

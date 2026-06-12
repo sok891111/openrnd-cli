@@ -32,7 +32,7 @@ import {
   GitService,
   checkPathTrust,
   isHeadlessMode,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type { Command, CommandArgument } from '../commands/types.js';
 
 type CommandResponse = {

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { listMemoryFiles, refreshMemory, showMemory } from '@openrnd/core';
+import { listMemoryFiles, refreshMemory, showMemory } from '@openwork/core';
 import type {
   Command,
   CommandContext,

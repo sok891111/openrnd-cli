@@ -12,7 +12,7 @@ import {
   FatalConfigError,
   ideContextStore,
   normalizePath,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   loadTrustedFolders,
   TrustLevel,
@@ -25,8 +25,8 @@ import { createMockSettings } from '../test-utils/settings.js';
 // We explicitly do NOT mock 'fs' or 'proper-lockfile' here to ensure
 // we are testing the actual behavior on the real file system.
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     homedir: () => '/mock/home/user',
@@ -423,7 +423,7 @@ describe('Trusted Folders', () => {
     };
 
     it('should NOT return true when isHeadlessMode is true, ignoring config', async () => {
-      const geminiCore = await import('@openrnd/core');
+      const geminiCore = await import('@openwork/core');
       vi.spyOn(geminiCore, 'isHeadlessMode').mockReturnValue(true);
 
       expect(isWorkspaceTrusted(mockSettings)).toEqual({
@@ -445,7 +445,7 @@ describe('Trusted Folders', () => {
     });
 
     it('should fall back to config when isHeadlessMode is false', async () => {
-      const geminiCore = await import('@openrnd/core');
+      const geminiCore = await import('@openwork/core');
       vi.spyOn(geminiCore, 'isHeadlessMode').mockReturnValue(false);
 
       const config = { '/projectA': TrustLevel.DO_NOT_TRUST };
@@ -457,7 +457,7 @@ describe('Trusted Folders', () => {
     });
 
     it('should return undefined for isPathTrusted when isHeadlessMode is true', async () => {
-      const geminiCore = await import('@openrnd/core');
+      const geminiCore = await import('@openwork/core');
       vi.spyOn(geminiCore, 'isHeadlessMode').mockReturnValue(true);
 
       const folders = loadTrustedFolders();

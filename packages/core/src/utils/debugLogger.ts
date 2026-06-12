@@ -16,7 +16,7 @@ import { isDebugLoggingEnabled } from './debugLogging.js';
  *
  * Precedence:
  *   1. GEMINI_DEBUG_LOG_FILE env var (explicit override, any path).
- *   2. settings.general.debugLogging / OPENRND_DEBUG -> ~/.openrnd/debug.log.
+ *   2. settings.general.debugLogging / OPENWORK_DEBUG -> ~/.openwork/debug.log.
  */
 function resolveDebugLogFile(): string | undefined {
   const explicit = process.env['GEMINI_DEBUG_LOG_FILE'];
@@ -58,7 +58,7 @@ class DebugLogger {
     const logFile = resolveDebugLogFile();
     if (logFile) {
       try {
-        // The target directory (e.g. ~/.openrnd) may not exist yet on a fresh
+        // The target directory (e.g. ~/.openwork) may not exist yet on a fresh
         // install; createWriteStream won't create it for us.
         fs.mkdirSync(path.dirname(logFile), { recursive: true });
         this.logStream = fs.createWriteStream(logFile, { flags: 'a' });

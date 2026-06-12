@@ -1,7 +1,7 @@
 {
-  "name": "@openrnd/core",
+  "name": "@openwork/core",
   "version": "0.1.0",
-  "description": "openrnd CLI Core",
+  "description": "openwork CLI Core",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -107,7 +107,7 @@
     "oracledb": "^6.10.0"
   },
   "devDependencies": {
-    "@openrnd/test-utils": "file:../test-utils",
+    "@openwork/test-utils": "file:../test-utils",
     "@types/fast-levenshtein": "^0.0.4",
     "@types/js-yaml": "^4.0.9",
     "@types/json-stable-stringify": "^1.1.0",

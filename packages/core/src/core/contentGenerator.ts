@@ -78,8 +78,8 @@ export enum AuthType {
  * 3. GEMINI_API_KEY -> USE_GEMINI
  */
 export function getAuthTypeFromEnv(): AuthType | undefined {
-  // openrnd local LLM takes priority
-  if (process.env['OPENRND_BASE_URL'] || process.env['OPENRND_MODEL']) {
+  // openwork local LLM takes priority
+  if (process.env['OPENWORK_BASE_URL'] || process.env['OPENWORK_MODEL']) {
     return AuthType.USE_LOCAL_LLM;
   }
   if (process.env['GOOGLE_GENAI_USE_GCA'] === 'true') {

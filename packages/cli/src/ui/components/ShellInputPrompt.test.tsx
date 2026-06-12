@@ -8,7 +8,7 @@ import { render } from '../../test-utils/render.js';
 import { ShellInputPrompt } from './ShellInputPrompt.js';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act } from 'react';
-import { ShellExecutionService } from '@openrnd/core';
+import { ShellExecutionService } from '@openwork/core';
 import { useUIActions, type UIActions } from '../contexts/UIActionsContext.js';
 
 // Mock useUIActions
@@ -24,8 +24,8 @@ vi.mock('../hooks/useKeypress.js', () => ({
 }));
 
 // Mock ShellExecutionService
-vi.mock('@openrnd/core', async () => {
-  const actual = await vi.importActual('@openrnd/core');
+vi.mock('@openwork/core', async () => {
+  const actual = await vi.importActual('@openwork/core');
   return {
     ...actual,
     ShellExecutionService: {

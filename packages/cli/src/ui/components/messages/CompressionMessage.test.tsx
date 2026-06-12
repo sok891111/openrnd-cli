@@ -9,7 +9,7 @@ import {
   CompressionMessage,
   type CompressionDisplayProps,
 } from './CompressionMessage.js';
-import { CompressionStatus } from '@openrnd/core';
+import { CompressionStatus } from '@openwork/core';
 import { type CompressionProps } from '../../types.js';
 import { describe, it, expect } from 'vitest';
 

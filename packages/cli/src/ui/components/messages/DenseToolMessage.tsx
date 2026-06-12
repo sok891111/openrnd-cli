@@ -17,7 +17,7 @@ import {
   isGrepResult,
   isListResult,
   isReadManyFilesResult,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   type IndividualToolCallDisplay,
   type ToolResultDisplay,

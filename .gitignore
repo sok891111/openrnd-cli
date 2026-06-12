@@ -2,11 +2,11 @@
 .env
 .env~
 
-# openrnd user settings — contains API keys, never commit
-# ~/.openrnd/settings.json is the user-level config (outside the repo)
-# .openrnd/settings.json inside a project is workspace config — safe to commit
+# openwork user settings — contains API keys, never commit
+# ~/.openwork/settings.json is the user-level config (outside the repo)
+# .openwork/settings.json inside a project is workspace config — safe to commit
 # if it contains no credentials. Add it here if you put secrets in it.
-# .openrnd/settings.json
+# .openwork/settings.json
 
 # Legacy gemini-cli settings (kept for compatibility)
 **/.gemini/

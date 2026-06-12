@@ -10,7 +10,7 @@ import { Box, Text } from 'ink';
 import { theme } from '../semantic-colors.js';
 import { useKeypress } from '../hooks/useKeypress.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
-import { usageStatsStore, type PersistedModelUsage } from '@openrnd/core';
+import { usageStatsStore, type PersistedModelUsage } from '@openwork/core';
 
 interface UsageTab {
   label: string;

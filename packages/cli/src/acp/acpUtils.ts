@@ -23,7 +23,7 @@ import {
   AuthType,
   ToolConfirmationOutcome,
   getAutoModelDescription,
-} from '@openrnd/core';
+} from '@openwork/core';
 import type * as acp from '@agentclientprotocol/sdk';
 import { z } from 'zod';
 import type { LoadedSettings } from '../config/settings.js';

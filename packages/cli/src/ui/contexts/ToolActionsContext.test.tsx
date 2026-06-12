@@ -15,12 +15,12 @@ import {
   IdeClient,
   CoreToolCallStatus,
   type SerializableConfirmationDetails,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { type IndividualToolCallDisplay } from '../types.js';
 
 // Mock IdeClient
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     IdeClient: {

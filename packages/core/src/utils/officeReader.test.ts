@@ -24,7 +24,7 @@ vi.mock('node:fs/promises', () => ({
   default: {
     writeFile: vi.fn().mockResolvedValue(undefined),
     rm: vi.fn().mockResolvedValue(undefined),
-    mkdtemp: vi.fn().mockResolvedValue('/tmp/openrnd_office_img_test'),
+    mkdtemp: vi.fn().mockResolvedValue('/tmp/openwork_office_img_test'),
     readFile: vi.fn().mockRejectedValue(new Error('image file missing')),
   },
 }));
@@ -152,8 +152,8 @@ describe('readOfficeFile', () => {
 
   it('does not emit user-facing errors when PPT image description fails', async () => {
     setPlatform('win32');
-    vi.stubEnv('OPENRND_VISION_BASE_URL', 'http://vision/v1');
-    vi.stubEnv('OPENRND_VISION_MODEL', 'llava');
+    vi.stubEnv('OPENWORK_VISION_BASE_URL', 'http://vision/v1');
+    vi.stubEnv('OPENWORK_VISION_MODEL', 'llava');
     mockSuccessfulSpawn('# Slide 1\nTitle\n[[OFFICE_IMAGE:img_1_1.png]]');
     const feedbackSpy = vi.spyOn(coreEvents, 'emitFeedback');
 
@@ -169,8 +169,8 @@ describe('readOfficeFile', () => {
 
   it('auto-skips vision when a deck has more images than the cap', async () => {
     setPlatform('win32');
-    vi.stubEnv('OPENRND_VISION_BASE_URL', 'http://vision/v1');
-    vi.stubEnv('OPENRND_VISION_MODEL', 'llava');
+    vi.stubEnv('OPENWORK_VISION_BASE_URL', 'http://vision/v1');
+    vi.stubEnv('OPENWORK_VISION_MODEL', 'llava');
     // 16 distinct images exceed the default cap of 15.
     const markers = Array.from(
       { length: 16 },
@@ -196,11 +196,11 @@ describe('readOfficeFile', () => {
     }
   });
 
-  it('honors OPENRND_OFFICE_VISION_MAX_IMAGES=0 to disable the cap', async () => {
+  it('honors OPENWORK_OFFICE_VISION_MAX_IMAGES=0 to disable the cap', async () => {
     setPlatform('win32');
-    vi.stubEnv('OPENRND_VISION_BASE_URL', 'http://vision/v1');
-    vi.stubEnv('OPENRND_VISION_MODEL', 'llava');
-    vi.stubEnv('OPENRND_OFFICE_VISION_MAX_IMAGES', '0');
+    vi.stubEnv('OPENWORK_VISION_BASE_URL', 'http://vision/v1');
+    vi.stubEnv('OPENWORK_VISION_MODEL', 'llava');
+    vi.stubEnv('OPENWORK_OFFICE_VISION_MAX_IMAGES', '0');
     const markers = Array.from(
       { length: 20 },
       (_, i) => `[[OFFICE_IMAGE:img_${i + 1}.png]]`,
@@ -215,8 +215,8 @@ describe('readOfficeFile', () => {
 
   it('does not export PPT images when vision is disabled', async () => {
     setPlatform('win32');
-    vi.stubEnv('OPENRND_VISION_BASE_URL', 'http://vision/v1');
-    vi.stubEnv('OPENRND_VISION_MODEL', 'llava');
+    vi.stubEnv('OPENWORK_VISION_BASE_URL', 'http://vision/v1');
+    vi.stubEnv('OPENWORK_VISION_MODEL', 'llava');
     mockSuccessfulSpawn('# Slide 1\nTitle\n[[OFFICE_IMAGE:img_1_1.png]]');
     vi.mocked(fsPromises.mkdtemp).mockClear();
 
@@ -227,6 +227,6 @@ describe('readOfficeFile', () => {
     expect(result.text).toBe('# Slide 1\nTitle\n[[OFFICE_IMAGE:img_1_1.png]]');
     expect(fsPromises.mkdtemp).not.toHaveBeenCalled();
     const [, , options] = spawnMock.mock.calls[0];
-    expect(options.env.OPENRND_OFFICE_IMAGE_DIR).toBeUndefined();
+    expect(options.env.OPENWORK_OFFICE_IMAGE_DIR).toBeUndefined();
   });
 });

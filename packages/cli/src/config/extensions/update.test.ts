@@ -23,7 +23,7 @@ import {
   type GeminiCLIExtension,
   type ExtensionInstallMetadata,
   IntegrityDataStatus,
-} from '@openrnd/core';
+} from '@openwork/core';
 
 vi.mock('./storage.js', () => ({
   ExtensionStorage: {

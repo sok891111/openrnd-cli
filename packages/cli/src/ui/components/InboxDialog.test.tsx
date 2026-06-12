@@ -11,7 +11,7 @@ import type {
   InboxSkill,
   InboxPatch,
   InboxMemoryPatch,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   dismissInboxSkill,
   dismissInboxMemoryPatch,
@@ -23,7 +23,7 @@ import {
   dismissInboxPatch,
   applyInboxMemoryPatch,
   isProjectSkillPatchTarget,
-} from '@openrnd/core';
+} from '@openwork/core';
 import { waitFor } from '../../test-utils/async.js';
 import { renderWithProviders } from '../../test-utils/render.js';
 import { createMockSettings } from '../../test-utils/settings.js';
@@ -33,8 +33,8 @@ const altBufferSettings = createMockSettings({
   ui: { useAlternateBuffer: true },
 });
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@openwork/core')>();
 
   return {
     ...original,

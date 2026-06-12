@@ -131,7 +131,7 @@ function runPythonDispatcher(
 
   return new Promise<string>((resolve, reject) => {
     const child = spawn(python, [dispatcher], {
-      // 등록된 사내 API 키를 OPENRND_CRED_<ID> 환경변수로 주입.
+      // 등록된 사내 API 키를 OPENWORK_CRED_<ID> 환경변수로 주입.
       // PYTHONUTF8/PYTHONIOENCODING: Windows 레거시 코드페이지(CP949) 대신
       // UTF-8 로 stdout·파일 입출력을 통일해 한글 본문이 깨지거나
       // UnicodeEncodeError 가 나지 않도록 한다. shell 은 쓰지 않는다 — cmd.exe
@@ -257,7 +257,7 @@ export interface CorporateSystemInfo {
   description?: string;
   /** 핸들러 모듈 파일명. */
   module: string;
-  /** 이 핸들러가 읽는 환경변수명 (예: "OPENRND_CRED_JIRA"). */
+  /** 이 핸들러가 읽는 환경변수명 (예: "OPENWORK_CRED_JIRA"). */
   env: string;
 }
 

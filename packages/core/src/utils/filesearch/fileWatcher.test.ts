@@ -7,7 +7,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanupTmpDir, createTmpDir } from '@openrnd/test-utils';
+import { cleanupTmpDir, createTmpDir } from '@openwork/test-utils';
 import { FileWatcher, type FileWatcherEvent } from './fileWatcher.js';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

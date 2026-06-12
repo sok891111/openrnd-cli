@@ -17,8 +17,8 @@ import {
 import { ConfigContext } from '../contexts/ConfigContext.js';
 import { SettingsContext } from '../contexts/SettingsContext.js';
 import { createMockSettings } from '../../test-utils/settings.js';
-import { ApprovalMode, tokenLimit, CoreToolCallStatus } from '@openrnd/core';
-import type { Config } from '@openrnd/core';
+import { ApprovalMode, tokenLimit, CoreToolCallStatus } from '@openwork/core';
+import type { Config } from '@openwork/core';
 import { StreamingState } from '../types.js';
 import { TransientMessageType } from '../../utils/events.js';
 import type { LoadedSettings } from '../../config/settings.js';

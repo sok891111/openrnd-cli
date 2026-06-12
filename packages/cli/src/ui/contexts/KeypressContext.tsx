@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { debugLogger, type Config } from '@openrnd/core';
+import { debugLogger, type Config } from '@openwork/core';
 import { useStdin } from 'ink';
 import { MultiMap } from 'mnemonist';
 import type React from 'react';

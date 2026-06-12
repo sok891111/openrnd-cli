@@ -7,7 +7,7 @@
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 import {
   type CommandContext,
   type SlashCommand,

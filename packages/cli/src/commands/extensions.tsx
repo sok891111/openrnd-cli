@@ -21,7 +21,7 @@ import { defer } from '../deferred.js';
 export const extensionsCommand: CommandModule = {
   command: 'extensions <command>',
   aliases: ['extension'],
-  describe: 'Manage openrnd extensions.',
+  describe: 'Manage openwork extensions.',
   builder: (yargs) =>
     yargs
       .middleware((argv) => {

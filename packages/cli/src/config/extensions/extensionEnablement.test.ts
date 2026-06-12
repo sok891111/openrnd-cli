@@ -14,7 +14,11 @@ import { ExtensionStorage } from './storage.js';
 
 vi.mock('./storage.js');
 
-import { coreEvents, GEMINI_DIR, type GeminiCLIExtension } from '@openrnd/core';
+import {
+  coreEvents,
+  GEMINI_DIR,
+  type GeminiCLIExtension,
+} from '@openwork/core';
 
 vi.mock('node:os', () => ({
   homedir: vi.fn().mockReturnValue('/virtual-home'),

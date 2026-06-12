@@ -128,7 +128,7 @@ type FileProcessingResult =
  * TODO(adh): Consider making this configurable or extendable through a command line argument.
  */
 /**
- * Glob ignore patterns for the office extensions that openrnd can read through
+ * Glob ignore patterns for the office extensions that openwork can read through
  * win32com (one pattern per OFFICE_EXTENSIONS entry, e.g. the docx ignore
  * glob). These are removed from the default excludes so that explicitly
  * requested in-house DRM Office files reach processSingleFileContent (the

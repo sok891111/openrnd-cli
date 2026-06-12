@@ -47,7 +47,7 @@ import {
   type HookEventName,
   type OutputFormat,
   detectIdeFromEnv,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   type Settings,
   type MergedSettings,
@@ -69,7 +69,7 @@ import {
 } from './policy.js';
 import { ExtensionManager } from './extension-manager.js';
 import { McpServerEnablementManager } from './mcp/mcpServerEnablement.js';
-import type { ExtensionEvents } from '@openrnd/core/src/utils/extensionLoader.js';
+import type { ExtensionEvents } from '@openwork/core/src/utils/extensionLoader.js';
 import { requestConsentNonInteractive } from './extensions/consent.js';
 import { promptForSetting } from './extensions/extensionSettings.js';
 import type { EventEmitter } from 'node:stream';
@@ -165,9 +165,9 @@ export async function parseArguments(
   const startupMessages: string[] = [];
   const yargsInstance = yargs(rawArgv)
     .locale('en')
-    .scriptName('openrnd')
+    .scriptName('openwork')
     .usage(
-      'Usage: openrnd [options] [command]\n\nopenrnd - Business AI CLI. Defaults to interactive mode. Use -p/--prompt for non-interactive (headless) mode.',
+      'Usage: openwork [options] [command]\n\nopenwork - Business AI CLI. Defaults to interactive mode. Use -p/--prompt for non-interactive (headless) mode.',
     )
     .option('isCommand', {
       type: 'boolean',
@@ -283,7 +283,7 @@ export async function parseArguments(
   yargsInstance.command(visionCommand);
 
   yargsInstance
-    .command('$0 [query..]', 'Launch openrnd', (yargsInstance) =>
+    .command('$0 [query..]', 'Launch openwork', (yargsInstance) =>
       yargsInstance
         .positional('query', {
           description:
@@ -843,41 +843,41 @@ export async function loadCliConfig(
     interactive,
   );
 
-  // openrnd: LLM settings from settings.json take effect here.
+  // openwork: LLM settings from settings.json take effect here.
   // Env vars override settings.json; argv overrides both.
-  const llmBaseUrl = process.env['OPENRND_BASE_URL'] || settings.llm?.baseUrl;
-  const llmApiKey = process.env['OPENRND_API_KEY'] || settings.llm?.apiKey;
+  const llmBaseUrl = process.env['OPENWORK_BASE_URL'] || settings.llm?.baseUrl;
+  const llmApiKey = process.env['OPENWORK_API_KEY'] || settings.llm?.apiKey;
   const llmModelFromSettings =
-    process.env['OPENRND_MODEL'] || settings.llm?.model;
+    process.env['OPENWORK_MODEL'] || settings.llm?.model;
 
   if (llmBaseUrl) {
-    process.env['OPENRND_BASE_URL'] = llmBaseUrl;
+    process.env['OPENWORK_BASE_URL'] = llmBaseUrl;
   }
   if (llmApiKey) {
-    process.env['OPENRND_API_KEY'] = llmApiKey;
+    process.env['OPENWORK_API_KEY'] = llmApiKey;
   }
   if (llmModelFromSettings) {
-    process.env['OPENRND_MODEL'] = llmModelFromSettings;
+    process.env['OPENWORK_MODEL'] = llmModelFromSettings;
   }
 
-  // openrnd: Vision model settings. The primary text model may be unable to
+  // openwork: Vision model settings. The primary text model may be unable to
   // analyze images, so a separate vision model (configured here) is used to
   // describe images, and the description is forwarded to the primary model.
   // Env vars override settings.json, mirroring the primary LLM behavior above.
   const visionBaseUrl =
-    process.env['OPENRND_VISION_BASE_URL'] || settings.llm?.vision?.baseUrl;
+    process.env['OPENWORK_VISION_BASE_URL'] || settings.llm?.vision?.baseUrl;
   const visionModel =
-    process.env['OPENRND_VISION_MODEL'] || settings.llm?.vision?.model;
+    process.env['OPENWORK_VISION_MODEL'] || settings.llm?.vision?.model;
   const visionApiKey =
-    process.env['OPENRND_VISION_API_KEY'] || settings.llm?.vision?.apiKey;
+    process.env['OPENWORK_VISION_API_KEY'] || settings.llm?.vision?.apiKey;
   if (visionBaseUrl) {
-    process.env['OPENRND_VISION_BASE_URL'] = visionBaseUrl;
+    process.env['OPENWORK_VISION_BASE_URL'] = visionBaseUrl;
   }
   if (visionModel) {
-    process.env['OPENRND_VISION_MODEL'] = visionModel;
+    process.env['OPENWORK_VISION_MODEL'] = visionModel;
   }
   if (visionApiKey) {
-    process.env['OPENRND_VISION_API_KEY'] = visionApiKey;
+    process.env['OPENWORK_VISION_API_KEY'] = visionApiKey;
   }
 
   const defaultModel = llmModelFromSettings || GEMINI_MODEL_ALIAS_AUTO;

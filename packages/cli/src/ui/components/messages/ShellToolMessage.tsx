@@ -29,7 +29,7 @@ import {
   type Config,
   ShellExecutionService,
   CoreToolCallStatus,
-} from '@openrnd/core';
+} from '@openwork/core';
 import {
   calculateShellMaxLines,
   calculateToolContentMaxLines,

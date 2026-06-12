@@ -6,9 +6,9 @@
 
 import { vi, describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { readStdin } from './readStdin.js';
-import { debugLogger } from '@openrnd/core';
+import { debugLogger } from '@openwork/core';
 
-vi.mock('@openrnd/core', () => ({
+vi.mock('@openwork/core', () => ({
   debugLogger: {
     warn: vi.fn(),
   },

@@ -8,7 +8,7 @@ import type { CSSProperties } from 'react';
 
 import type { SemanticColors } from './semantic-tokens.js';
 
-import type { CustomTheme } from '@openrnd/core';
+import type { CustomTheme } from '@openwork/core';
 import {
   DEFAULT_INPUT_BACKGROUND_OPACITY,
   DEFAULT_SELECTION_OPACITY,

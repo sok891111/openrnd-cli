@@ -8,7 +8,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from '../../../test-utils/render.js';
 import { Text } from 'ink';
 import { McpProgressIndicator, ToolInfo } from './ToolShared.js';
-import { CoreToolCallStatus } from '@openrnd/core';
+import { CoreToolCallStatus } from '@openwork/core';
 
 vi.mock('../GeminiRespondingSpinner.js', () => ({
   GeminiRespondingSpinner: () => <Text>MockSpinner</Text>,

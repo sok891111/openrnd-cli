@@ -7,7 +7,7 @@
 import { renderHook } from '../../test-utils/render.js';
 import { useTerminalTheme } from './useTerminalTheme.js';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { makeFakeConfig, type Config } from '@openrnd/core';
+import { makeFakeConfig, type Config } from '@openwork/core';
 import os from 'node:os';
 import { themeManager } from '../themes/theme-manager.js';
 

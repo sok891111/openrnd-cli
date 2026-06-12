@@ -9,7 +9,7 @@ import path from 'node:path';
 import toml from '@iarna/toml';
 import { glob } from 'glob';
 import { z } from 'zod';
-import { Storage, coreEvents, type Config } from '@openrnd/core';
+import { Storage, coreEvents, type Config } from '@openwork/core';
 import type { ICommandLoader } from './types.js';
 import type {
   CommandContext,

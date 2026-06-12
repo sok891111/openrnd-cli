@@ -13,7 +13,7 @@ import {
   getExtensionManager,
 } from './utils.js';
 import { loadSettings } from '../../config/settings.js';
-import { coreEvents, debugLogger } from '@openrnd/core';
+import { coreEvents, debugLogger } from '@openwork/core';
 import { exitCli } from '../utils.js';
 
 interface ConfigureArgs {

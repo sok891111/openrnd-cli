@@ -7,7 +7,7 @@
 import { vi } from 'vitest';
 import type { CommandContext } from '../ui/commands/types.js';
 import { mergeSettings, type LoadedSettings } from '../config/settings.js';
-import type { GitService } from '@openrnd/core';
+import type { GitService } from '@openwork/core';
 import type { SessionStatsState } from '../ui/contexts/SessionContext.js';
 
 // A utility type to make all properties of an object, and its nested objects, partial.

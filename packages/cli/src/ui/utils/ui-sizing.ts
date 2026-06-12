@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Config } from '@openrnd/core';
+import type { Config } from '@openwork/core';
 import { isAlternateBufferEnabled } from '../hooks/useAlternateBuffer.js';
 
 export const calculateMainAreaWidth = (

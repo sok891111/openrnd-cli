@@ -56,8 +56,8 @@ describe('VisualizeAnalysisTool', () => {
     vi.mocked(fsPromises.mkdir).mockResolvedValue(undefined as never);
     vi.mocked(fsPromises.readFile).mockResolvedValue('');
     openMock.mockResolvedValue(undefined);
-    delete process.env['OPENRND_MERMAID_JS'];
-    delete process.env['OPENRND_MERMAID_URL'];
+    delete process.env['OPENWORK_MERMAID_JS'];
+    delete process.env['OPENWORK_MERMAID_URL'];
   });
 
   afterEach(() => {
@@ -77,13 +77,13 @@ describe('VisualizeAnalysisTool', () => {
     );
   });
 
-  it('renders markdown to HTML and writes an .html file under openrnd-analysis by default', async () => {
+  it('renders markdown to HTML and writes an .html file under openwork-analysis by default', async () => {
     const { result, writtenPath, html } = await run({
       title: '주문 처리 로직',
       content: '# 개요\n\n주문 흐름을 설명합니다.\n',
     });
 
-    expect(writtenPath).toMatch(/openrnd-analysis[/\\].*\.html$/);
+    expect(writtenPath).toMatch(/openwork-analysis[/\\].*\.html$/);
     expect(html).toContain('<!DOCTYPE html>');
     expect(html).toContain('주문 처리 로직'); // title in header
     expect(html).toContain('<h1>개요</h1>'); // markdown heading rendered
@@ -106,8 +106,8 @@ describe('VisualizeAnalysisTool', () => {
     expect(html).toContain('cdn.jsdelivr.net/npm/mermaid');
   });
 
-  it('inlines a local mermaid build when OPENRND_MERMAID_JS is set (offline)', async () => {
-    process.env['OPENRND_MERMAID_JS'] = '/opt/mermaid.min.js';
+  it('inlines a local mermaid build when OPENWORK_MERMAID_JS is set (offline)', async () => {
+    process.env['OPENWORK_MERMAID_JS'] = '/opt/mermaid.min.js';
     vi.mocked(fsPromises.readFile).mockResolvedValue(
       '/*LOCAL_MERMAID_BUNDLE*/' as never,
     );

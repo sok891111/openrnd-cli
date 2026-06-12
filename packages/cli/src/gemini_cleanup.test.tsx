@@ -11,10 +11,10 @@ import {
   SessionEndReason,
   type Config,
   type HookSystem,
-} from '@openrnd/core';
+} from '@openwork/core';
 
-vi.mock('@openrnd/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@openrnd/core')>();
+vi.mock('@openwork/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openwork/core')>();
   return {
     ...actual,
     writeToStdout: vi.fn(),

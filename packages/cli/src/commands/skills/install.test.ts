@@ -26,7 +26,7 @@ const { debugLogger, emitConsoleLog } = await vi.hoisted(async () => {
   return createMockDebugLogger({ stripAnsi: true });
 });
 
-vi.mock('@openrnd/core', () => ({
+vi.mock('@openwork/core', () => ({
   debugLogger,
   getErrorMessage: vi.fn((e: unknown) =>
     e instanceof Error ? e.message : String(e),

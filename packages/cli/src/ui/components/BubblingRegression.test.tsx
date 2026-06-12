@@ -9,7 +9,7 @@ import { act } from 'react';
 import { renderWithProviders } from '../../test-utils/render.js';
 import { waitFor } from '../../test-utils/async.js';
 import { AskUserDialog } from './AskUserDialog.js';
-import { QuestionType, type Question } from '@openrnd/core';
+import { QuestionType, type Question } from '@openwork/core';
 
 describe('Key Bubbling Regression', () => {
   afterEach(() => {

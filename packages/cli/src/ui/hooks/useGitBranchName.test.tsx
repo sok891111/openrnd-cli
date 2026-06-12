@@ -15,12 +15,12 @@ import path from 'node:path'; // For mocking fs
 import {
   spawnAsync as mockSpawnAsync,
   getAbsoluteGitDir as mockGetAbsoluteGitDir,
-} from '@openrnd/core';
+} from '@openwork/core';
 
-// Mock @openrnd/core
-vi.mock('@openrnd/core', async () => {
+// Mock @openwork/core
+vi.mock('@openwork/core', async () => {
   const original =
-    await vi.importActual<typeof import('@openrnd/core')>('@openrnd/core');
+    await vi.importActual<typeof import('@openwork/core')>('@openwork/core');
   return {
     ...original,
     spawnAsync: vi.fn(),

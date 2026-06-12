@@ -15,7 +15,7 @@ import {
   type CommandContext,
 } from './types.js';
 import { MessageType, type HistoryItem } from '../types.js';
-import { type Config } from '@openrnd/core';
+import { type Config } from '@openwork/core';
 import {
   expandHomeDir,
   getDirectorySuggestions,

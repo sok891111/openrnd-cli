@@ -18,8 +18,8 @@ import type {
   ModelMetrics,
   RoleMetrics,
   ToolCallStats,
-} from '@openrnd/core';
-import { uiTelemetryService } from '@openrnd/core';
+} from '@openwork/core';
+import { uiTelemetryService } from '@openwork/core';
 
 export enum ToolCallDecision {
   ACCEPT = 'accept',
