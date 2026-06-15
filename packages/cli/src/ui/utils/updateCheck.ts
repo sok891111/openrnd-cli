@@ -100,7 +100,7 @@ export async function checkForUpdates(
       const bestUpdate = getBestAvailableUpdate(nightlyUpdate, latestUpdate);
 
       if (bestUpdate && semver.gt(bestUpdate, currentVersion)) {
-        const message = `A new version of Gemini CLI is available! ${currentVersion} → ${bestUpdate}`;
+        const message = `A new version of OpenWork is available! ${currentVersion} → ${bestUpdate}`;
         const type = semver.diff(bestUpdate, currentVersion) || undefined;
         return {
           message,
@@ -129,7 +129,7 @@ export async function checkForUpdates(
       }
 
       if (semver.gt(latestUpdate, currentVersion)) {
-        const message = `Gemini CLI update available! ${currentVersion} → ${latestUpdate}`;
+        const message = `OpenWork update available! ${currentVersion} → ${latestUpdate}`;
         const type = semver.diff(latestUpdate, currentVersion) || undefined;
         return {
           message,
