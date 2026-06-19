@@ -3044,7 +3044,10 @@ export class Config implements McpContext, AgentLoopContext {
   }
 
   getUsageStatisticsEnabled(): boolean {
-    return this.usageStatisticsEnabled;
+    // Hard block: usage statistics / telemetry are force-disabled at the source
+    // so no data is ever sent externally (e.g. Clearcut at play.googleapis.com),
+    // regardless of settings.json or environment. Do not re-enable.
+    return false;
   }
 
   getAcpMode(): boolean {
